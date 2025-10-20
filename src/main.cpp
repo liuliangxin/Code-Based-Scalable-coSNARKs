@@ -675,8 +675,13 @@ int main(int argc, char *argv[]){
     secret_share_vector(RA_share,_k,k,N);
     */
     
+    F num = F(0);
+    for(int i = 0; i < 10; i++){
+        num += (rank+1)*(i+1);
+    }
+    vector<u64> buff = {num.real,num.img};
+    MPI_Bcast(buff.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
 
-    
 
     //beta.resize(2*RA.size(),F(0));
     //compute_secret_shares(beta,_beta_shares,N,k,_k,false);
@@ -689,12 +694,8 @@ int main(int argc, char *argv[]){
     }
     */
     
-    coPIOP_prove(M, N, _k, k);
-    //test_sparse_eval(N, M);
-    //test_product(N, M, K);
-    //test_cubic_sumheck(N, M);
-    //test_batch_check(M, N, k, _k, 500);
-    //test_zero_check(M,N, k, _k, 500);
+    //coPIOP_prove(M, N, _k, k);
+    
     // ==================================================== //
     /*
     dummy_setup(R_shares, mask_shares, N, M, k, _k, 500);
@@ -704,7 +705,8 @@ int main(int argc, char *argv[]){
     */
     
     
-    if (rank == 0) printf("MPI World size = %d processes\n", size);
+    if (rank == 0) printf("MPI World size = %d,%d,%d processes\n", size,num.real,num.img);
+    else printf("Worker Finalizing ... \n");
     MPI_Finalize();
     
     /*
