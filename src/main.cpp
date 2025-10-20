@@ -699,6 +699,7 @@ int main(int argc, char *argv[]){
     // ==================================================== //
     /*
     dummy_setup(R_shares, mask_shares, N, M, k, _k, 500);
+    
     prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, 500);
     commit(codeword,row_data,R_shares,Com,500,k,_k,M,N);
     open_zk(codeword, C_mask, row_data, mask_data, Com, Com_mask, r, y, 500, k, _k, M, N,ps,vt);
