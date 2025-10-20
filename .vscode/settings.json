@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "cmath": "cpp",
+        "span": "cpp",
+        "chrono": "cpp",
+        "memory": "cpp",
+        "utility": "cpp"
+    }
+}

@@ -1,0 +1,603 @@
+#include "coPIOP.h"
+#include "coSumcheck.h"
+#include "sparse_eval.hpp"
+#include "coPCS_utils.h"
+#include "MPI_utils.hpp"
+#include "Fiat_Shamir.h"
+#include "coSumcheck_MPI.h"
+#include "coPCS.h"
+#include "Distributed_Sumcheck.h"
+// R1CS matrixes
+vector<vector<pair<int, int>>> A,B,C;
+// Transposed R1CS matrixes
+vector<vector<pair<int,int>>> tA,tB,tC;
+int logm,logn;
+bool bit_method = false;
+
+
+
+void transpose_R1CS_matrixes(){
+    tA.resize(1<<logn);tB.resize(1<<logn);tC.resize(1<<logn);
+
+
+    for(int i = 0; i < A.size(); i++){
+        for(int j = 0; j < A[i].size(); j++) tA[A[i][j].first].push_back(make_pair(A[i][j].first,A[i][j].second));
+    }
+    for(int i = 0; i < B.size(); i++){
+        for(int j = 0; j < B[i].size(); j++) tB[B[i][j].first].push_back(make_pair(B[i][j].first,B[i][j].second));
+    }
+
+    for(int i = 0; i < C.size(); i++){
+        for(int j = 0; j < C[i].size(); j++) tC[C[i][j].first].push_back(make_pair(C[i][j].first,C[i][j].second));
+    }
+
+    for(int i = 0; i < tA.size(); i++){
+        if(tA[i].size() > 1 || tB[i].size() > 1 || tC[i].size() > 1){
+            printf("> Error\n");
+            exit(-1);
+        }
+    }
+}
+
+
+// Dummy computation represeting multiplication tree
+void generate_R1CS_matrixes(size_t size){
+    int n = size;
+    int m = 0;
+    int counter = 0;
+    A.resize(size); B.resize(size); C.resize(size);
+    for(int j = 0; j < (int)log2(size); j++){
+        for(int i = 0; i < size/(1<<(j+1)); i++){
+            A[counter].resize(1);B[counter].resize(1);C[counter].resize(1);
+            A[counter][0] = {2*i + m,i+m/2};
+            B[counter][0] = {2*i+1+m,i+m/2};
+            C[counter][0] = {n+i,i+m/2};
+            counter++;
+        }
+        m+=size/(1<<(j));
+        n+=size/(1<<(j+1));
+    }
+    logm = (int)log2(size);
+    logn = (int)log2(size)+1;
+    transpose_R1CS_matrixes();
+    
+}
+
+
+
+
+void reduce_R1CS_matrixes(size_t size, vector<F> r, vector<F> &RA, vector<F> &RB, vector<F> &RC){
+    vector<F> beta;
+    precompute_beta(r,beta);
+    RA.resize(size*2,F(0));RB.resize(size*2,F(0));RC.resize(size*2,F(0));
+    printf(">OK %d,%d\n",A.size(),beta.size());
+    for(int i = 0; i < A.size()-1; i++){
+        RA[A[i][0].first] += beta[i];
+        RB[B[i][0].first] += beta[i];
+        RC[C[i][0].first] += beta[i];
+    }
+}
+
+void secret_share_proving_data(vector<F> &witness, 
+                               vector<vector<F>> &tr, 
+                               vector<vector<F>> &W, 
+                               vector<vector<vector<F>>> &Tr, int k, int _k, int N){
+    W.resize(witness.size()/k);
+    Tr.resize(3);
+    int ctr = 0;
+    for(int i = 0; i < W.size(); i++){
+        W[i].resize(_k);
+        for(int j = 0; j < k; j++){
+            W[i][j] = witness[ctr++];
+        }
+        for(int j = k; j < _k; j++){
+            W[i][j] = random();
+        }
+        fft(W[i],(int)log2(_k),true);
+        W[i].resize(N,0);
+        fft(W[i],(int)log2(N),false);
+    } 
+    for(int i = 0; i < Tr.size(); i++){
+        Tr[i].resize(tr[i].size()/k);
+        ctr = 0;
+        for(int j = 0; j < Tr[i].size(); j++){
+            Tr[i][j].resize(_k);
+            for(int l = 0; l < k; l++){
+                Tr[i][j][l] = tr[i][ctr++];
+            }
+            for(int l = 0; l < _k; l++){
+                Tr[i][j][l] = random();
+            }
+            fft(Tr[i][j],(int)log2(_k),true);
+            Tr[i][j].resize(N,0);
+            fft(Tr[i][j],(int)log2(N),false);
+        }
+    }
+}
+
+
+
+vector<pair<F,vector<F>>> prove_phase1( vector<F> vL, 
+                                        vector<F> vR, 
+                                        vector<F> vO, 
+                                        vector<F> rL,
+                                        vector<F> rR,
+                                        vector<F> rO,
+                                        vector<F> R1,
+                                        vector<F> R2, 
+                                        int N, int _k, int k, 
+                                        double &pt, double &vt, double &ps,double &cm){
+
+    
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
+    vector<F> _r1,_r2;
+    
+    for(int i = 0; i < (int)log2(vL.size()); i++)_r1.push_back(hash_to_field({0}));
+    for(int i = 0; i < (int)log2(k); i++)_r2.push_back(hash_to_field({0}));
+    
+    
+    vector<F> beta1,beta2;
+    //precompute_beta(_r1,beta1);
+    precompute_beta(_r2,beta2);
+    
+    F y = 0;
+    for(int i = 0; i < rL.size(); i++){
+        y += _beta(i,_r1)*(rL[i]*rR[i] - rO[i]);
+    }
+    vector<u64> buff_u64(2);
+    if(rank == 0){
+        vector<F> Y(N);
+        Y[0] = y;
+        for(int i = 1; i < N; i++){
+            MPI_Recv(buff_u64.data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            Y[i].real = buff_u64[0];
+            Y[i].img = buff_u64[1];
+        }
+        fft(Y,(int)log2(N),true);
+        F mul = F(1);
+        F omega = getRootOfUnity(1+(int)log2(N)).inv();
+        for(int i = 0; i < Y.size(); i++){
+            Y[i] = mul*Y[i];
+            mul = omega*mul;
+        }
+        fft(Y,(int)log2(N),false);
+        y = 0;
+        for(int i = 0; i < k; i++){
+            y += beta2[i]*Y[i*N/_k];
+        }
+        buff_u64 = {y.real,y.img};
+        
+    }else{
+        buff_u64 = {y.real,y.img};
+        MPI_Send(buff_u64.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+    }
+    MPI_Bcast(buff_u64.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
+    
+    y.real = buff_u64[0];y.img = buff_u64[1];
+    vector<F> r1 = _r1,r2 = _r2;
+    r1.push_back(hash_to_field({0}));
+    vL.resize(2*vL.size(),F(0));
+    vR.resize(2*vL.size(),F(0));
+    vO.resize(2*vL.size(),F(0));
+    for(int i = vL.size()/2; i < vL.size()/2+rL.size(); i++){
+        vL[i] = rL[i-vL.size()/2];
+        vR[i] = rR[i-vL.size()/2];
+        vO[i] = rO[i-vL.size()/2];
+    }
+    
+    y = r1[r1.size()-1]*y;
+    
+    vector<F> r = r1;r.insert(r.begin(),r2.begin(),r2.end());
+    return _zero_check_sumcheck(y,vL,vR,vO,R1,R2,r,N,_k,k,pt,vt,ps,cm);    
+}
+
+void compute_beta_shares(vector<F> &shares, vector<F> r, int k, int N, int _k){
+    shares.clear();
+    vector<F> r1,r2,b1;
+    for(int i = 0; i < (int)log2(k); i++) r1.push_back(r[i]);
+    for(int i = (int)log2(k); i < r.size(); i++) r2.push_back(r[i]);
+    
+    precompute_beta(r1,b1);precompute_beta(r2,shares);
+    vector<F> buff(_k,0);
+    
+    for(int i = 0; i < k; i++) buff[i] = b1[i];
+    fft(buff,(int)log2(buff.size()),true);
+    buff.resize(2*N,F(0));
+    fft(buff,(int)log2(buff.size()),false);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    for(int i = 0; i < shares.size(); i++){
+        shares[i] = buff[2*rank+1]*shares[i];
+    }
+
+}
+
+vector<pair<F,vector<F>>> prove_phase2(
+                  vector<F> &w, 
+                  vector<F> &r_w, 
+                  vector<F> rL,
+                  vector<F> rR,
+                  vector<F> rO,
+                  vector<F> &RA, 
+                  vector<F> &RB, 
+                  vector<F> &RC,
+                  vector<F> &R1,
+                  vector<F> &R2, 
+                  vector<F> r,
+                  F yL,F yR, F yO,
+                  int N, int size,
+                  int _k, int k, F &a, F &b, F &c,
+                  double &pt, double &vt, double &ps, double &cm){
+
+    
+    RA.clear();RB.clear();RC.clear();
+    
+    vector<F> _r = r;_r.pop_back();
+
+    _reduce_R1CS_matrixes(size, _r, RA, RB, RC, N);
+    
+    
+    a = hash_to_field({0});
+    b = hash_to_field({0}); c = hash_to_field({0});  
+    
+    // Initialize main inputs
+    w.insert(w.end(),r_w.begin(),r_w.end());
+    w.resize(next_pow2(w.size()),F(0));
+    rL.resize(w.size(),F(0));
+    for(int i = 0; i < rR.size(); i++) rL[i] = a*rL[i] + b*rR[i] + c*rO[i];    
+    
+    // Initialize secondary inputs
+    vector<F> R_aggr(RA.size(),F(0));
+    
+    for(int i = 0; i < RA.size(); i++){
+        R_aggr[i] = (F(1)- r[r.size()-1])*(a*RA[i] + b*RB[i] + c*RC[i]);
+    }
+   
+   
+    F i = (F(1)- r[r.size()-1]).inv();
+    
+    secret_share_vector(R_aggr, _k, k, N);
+    R_aggr.resize(2*R_aggr.size(),F(0));
+
+    vector<F> beta_shares;
+    
+    compute_beta_shares(beta_shares, _r, k, N, _k);
+    for(int i = 0; i < beta_shares.size(); i++){
+        beta_shares[i] = r[r.size()-1]*beta_shares[i];
+    }
+    beta_shares.resize(4*beta_shares.size(),F(0));
+
+    vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k, pt, vt, ps,cm);
+    
+    claim[1].first = (F(1)-claim[1].second[claim[1].second.size()-1]).inv()*i*claim[1].first;
+    return claim;
+}
+
+
+void get_bits(vector<short> &buff, int idx1, int idx2){
+    for(int i = 0; i < logm; i++){
+        buff[i] = 0;
+        if(idx1&1){
+            buff[i] = 1;
+        }
+        idx1 = idx1>>1;
+    }
+    for(int i = logm; i < logm+logn; i++){
+        buff[i] = 0;
+        if(idx2&1){
+            buff[i] = 1;
+        }
+        idx2 = idx2>>1;
+    }
+
+}
+
+void prepare_matrix_data(vector<vector<pair<int, int>>> &M, vector<vector<int>> &idx, vector<vector<short>> &bits){
+    int mask1 = 0;
+    int mask2 = 0;
+    for(int i = 0; i < logm/2; i++){
+        mask1 = mask1<<1;
+        mask1 += 1;
+    }
+    for(int i = 0; i < logn/2; i++){
+        mask2 = mask2<<1;
+        mask2 += 1;
+    }
+    int idx_size = 0;
+    for(int i = 0; i < M.size(); i++){
+        idx_size+= M[i].size();
+    }
+    
+    idx.resize(idx_size);
+    bits.resize(idx_size);
+    int ctr = 0;
+    vector<short> buff(logm+logn,0);
+    for(int i = 0; i < M.size(); i++){
+        for(int j = 0; j < M[i].size(); j++){
+            idx[ctr].resize(4);
+            idx[ctr][0] = i&mask1;
+            idx[ctr][1] = i>>(logm/2);
+            if(idx[ctr][0] + (idx[ctr][1]<<(logm/2)) != i){
+                printf("Error in matrix preperation 1,%d,%d,%d\n",i,mask1,idx[ctr][1]);
+                exit(-1);
+            }
+            idx[ctr][2] = M[i][j].first&mask2; 
+            idx[ctr][3] = M[i][j].first>>(logn/2); 
+            if(idx[ctr][2] + (idx[ctr][3]<<(logn/2)) != M[i][j].first){
+                printf("Error in matrix preperation 2,%d\n",M[i][j].first);
+                exit(-1);
+            }
+            get_bits(buff,i,M[i][j].first);
+            bits[ctr] = buff;
+            ctr++;
+
+        }
+    }
+}
+
+
+void compute_witness_vector(vector<F> r1, vector<F> r2, vector<sparse_eval_data> &data, vector<F> &witness, int N, double &pt){
+    vector<F> r11,r12,r21,r22;
+    for(int i = 0 ; i < r1.size()/2; i++){
+        r11.push_back(r1[i]);
+    }
+    for(int i = r1.size()/2; i < r1.size(); i++){
+        r12.push_back(r1[i]);
+    }
+    for(int i = 0; i < r2.size()/2; i++){
+        r21.push_back(r2[i]);
+    }
+    for(int i = r2.size()/2; i < r2.size(); i++){
+        r22.push_back(r2[i]);
+    }
+    int mask1 = 0;
+    int mask2 = 0;
+    for(int i = 0; i < logm/2; i++){
+        mask1 = mask1<<1;
+        mask1 += 1;
+    }
+    for(int i = 0; i < logn/2; i++){
+        mask2 = mask2<<1;
+        mask2 += 1;
+    }
+
+    vector<F> beta11,beta12,beta21,beta22;
+    
+    clock_t t1 = clock();
+    precompute_beta(r11,beta11);
+    precompute_beta(r12,beta12);
+    precompute_beta(r21,beta21);
+    precompute_beta(r22,beta22);
+    clock_t t2 = clock();
+    pt += (double)(t2-t1)*N/(double)CLOCKS_PER_SEC;
+    witness.resize(8*next_pow2(data[0].IDX1.size()),F(0));
+    int ctr = 0;
+    t1 = clock();
+    for(int i = 0; i < data.size(); i++){
+        for(int j = 0; j < data[i].IDX1.size(); j++){
+            int idx1 = data[i].IDX1[j];
+            int idx11 = idx1&mask1;
+            int idx12 = idx1>>(logm/2);
+            witness[ctr] = beta11[idx11]*beta12[idx12];
+            ctr++;
+        }
+        ctr+= next_pow2(data[i].IDX1.size())-data[i].IDX1.size();
+        for(int j = 0; j < data[i].IDX2.size(); j++){
+            int idx2 = data[i].IDX2[j];
+            int idx21 = idx2&mask2;
+            int idx22 = idx2>>(logn/2);
+            witness[ctr] = beta21[idx21]*beta22[idx22];
+            ctr++;
+
+        }
+        ctr+= next_pow2(data[i].IDX1.size())-data[i].IDX1.size();
+
+    }
+    t2 = clock();
+    pt += (double)(t2-t1)/(double)CLOCKS_PER_SEC;
+
+}
+
+void evaluate_sparse_matrix(size_t size, int N, vector<F> r1, vector<F> r2, F y, F a, F b, F c, double &pt, double &ps, double &vt, double &cm){
+    vector<F> witness;
+    vector<vector<F>> R;
+    vector<vector<F>> Code;
+    vector<vector<vector<_hash>>> MT;     
+    vector<sparse_eval_data> data;
+    
+    prepare_R1CS_data(A, B, C, logm, logn, data);
+    vector<F> beta1,beta2;precompute_beta(r1,beta1);precompute_beta(r2,beta2);
+    
+    compute_witness_vector(r1,r2,data,witness,N,pt);
+    
+    //COMMIT
+    //plain_commit(witness,N/2,N,N,R,Code,MT,pt,vt,ps,cm);
+    prove_sparse_eval(y,a,b,c, beta1, beta2, data,pt, ps, vt);
+    
+    vector<F> r,_r1,_r2;
+    for(int i = 0; i < (int)log2(witness.size()); i++){
+        r.push_back(F::_random());
+        if(i < (int)log2(N/2)){
+            _r1.push_back(r[i]);
+        }else{
+            _r2.push_back(r[i]);
+        }
+    }
+    clock_t t1 = clock();
+    precompute_beta(_r1,beta1);
+    precompute_beta(_r2,beta2);
+    clock_t t2 = clock();
+    pt += N*(double)(t2-t1)/(double)CLOCKS_PER_SEC;
+    y = evaluate_vector(witness,r);
+    // OPEN
+    //plain_open(y,Code,R,MT,beta1,beta2,N/2,pt,vt,ps,500,false);
+
+    
+    //r1.insert(r1.end(),r2.begin(),r2.end());
+    //prepare_matrix_data(A,idx,bits);
+    //prove_sparse_eval_bit(r1, evaluate_vector(RA,r2), bits, idx, logm, logn, N, pt, vt, ps);
+    //printf("%lf\n",pt/N);
+    
+}
+
+void commit_sparse_eval_witness(vector<vector<F>> &beta1, vector<vector<F>> &beta2,vector<F> &codeword ,vector<F> &row_data, MT &Com, int k, int N){
+    vector<F> data;
+    for(int i = 0; i < beta1.size(); i++) data.insert(data.end(),beta1[i].begin(),beta1[i].end());
+    for(int i = 0; i < beta2.size(); i++) data.insert(data.end(),beta2[i].begin(),beta2[i].end());
+    data.resize(next_pow2(data.size()),F(0));
+    plaintext_commit(data, codeword,row_data,Com,k,N);
+}
+
+void open_sparse_eval(vector<F> &codeword, vector<F> &row_data, vector<F> r, MT &Com, F y,int l, int k, int N, double &ps, double &vt){
+    vector<F> r1,r2,v1,v2;
+
+    for(int i = 0; i < (int)log2(k); i++) r2.push_back(r[i]);
+    for(int i = r2.size(); i < r.size() ; i++) r1.push_back(r[i]);
+    
+    precompute_beta(r1,v1);precompute_beta(r2,v2);
+    open_plaintext(codeword, row_data, v1, v2, Com, y, l, k, N, ps, vt);
+}
+
+void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &pt,double &ps,double &vt){
+
+    vector<vector<F>> beta1(3),beta2(3);
+    r1.pop_back();r2.pop_back();
+    if(r1.size() != logm){
+        printf("Wrong dimensions 1\n");
+        exit(-1);
+    }
+    if(r2.size() != logn){
+        printf("Wrong dimensions 2\n");
+        exit(-1);
+    }
+
+    compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N, pt);
+    vector<F> codeword,row_data;
+    MT Com;
+
+    commit_sparse_eval_witness(beta1, beta2, codeword , row_data, Com, N/2,  N);
+    pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N, pt, pt, pt);
+    open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps,vt);
+}
+
+    
+
+
+void coPIOP_prove(size_t size, int N, int _k, int k){
+    double pt = 0.0,vt = 0.0,ps = 0.0;
+    double cm = 0.0;
+
+    vector<F> witness,vL,vO,vR,R;
+    vector<F> r_witness(1);
+    vector<F> RA,RB,RC;
+    vector<sparse_eval_data> index;
+    
+    distribute_index(N, size, index);
+    distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
+    setup_randomness(R, N, _k, k);
+    vector<F> rL(4),rR(4),rO(4),R1(logn+2),R2(logn+2),R3(logm+2),R4(logm+2);
+    for(int i = 0; i < 4; i++){
+        rL[i] = R[i];
+        rR[i] = R[i+4];
+        rO[i] = R[i+8];
+    }
+    for(int i = 0; i < logn+2; i++){
+        R1[i] = R[i+12];
+        R2[i] = R[i+12 + logn+2];
+    }
+    for(int i = 0; i < logm+2; i++){
+        R3[i] = R[i+12+2*(logn + 2)];
+        R4[i] = R[i+12+2*(logn + 2)+logm+2];
+    }
+    r_witness[0] = R[12+2*(logn + 2)+2*(logm+2)];
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+
+    vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, pt, vt, ps,cm);
+    
+    F a,b,c;
+    vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,pt,vt, ps,cm);
+    
+
+    sparse_matrix_evaluation(claims2[1].first,a,b,c,
+                             claims1[0].second,claims2[0].second,index,N,pt,ps,vt);
+    
+
+}
+
+
+
+void prove_R1CS_standard(size_t size){
+    double pt = 0.0,vt = 0.0,ps = 0.0;
+    double cm = 0.0;
+
+    vector<F> witness,vL,vO,vR;
+    vector<F> RA,RB,RC;
+    
+    generate_R1CS_matrixes(size);
+    
+    vector<vector<int>> idx;
+    vector<vector<short>> bits;
+    logm = (int)log2(size);
+    logn = (int)log2(size)+1;
+
+    
+    prepare_witness_data(size, witness, vL, vR, vO);
+    vector<F> rand_vL = vL,rand_vR = vR,rand_vO = vO;
+
+
+    vector<F> r1;
+    for(int i = 0; i < (int)log2(vL.size()); i++)r1.push_back(F::_random());
+    
+    
+    //_r1 = generate_randomness((int)log2(vL[0].size()));
+    //_r2 = generate_randomness((int)log2(k));
+    vector<F> beta1,beta2;
+    clock_t t1 = clock();
+    precompute_beta(r1,beta1);
+    
+    vector<pair<F,vector<F>>> claims = zerocheck_sumcheck(F(0), beta1, vL, vR,vO,F(0), vt, ps);
+    r1 = claims[0].second;
+    //vector<F> buff = vL; buff.insert(buff.end(),rL.begin(),rL.end());buff.resize(next_pow2(buff.size()),F(0));
+    F a = F::_random(),b= F::_random(),c= F::_random();
+    
+    
+    RA.clear();RB.clear();RC.clear();
+    
+    reduce_R1CS_matrixes(size,claims[0].second,RA,RB,RC);
+
+    vector<F> R_aggr(RA.size(),F(0));
+    
+    for(int i = 0; i < RA.size(); i++){
+        R_aggr[i] = (a*RA[i] + b*RB[i] + c*RC[i]);
+    }
+    claims = quadratic_sumcheck(a*claims[1].first+b*claims[2].first+c*claims[3].first, witness, R_aggr,F(0), vt, ps);
+    vector<F> r2 = claims[0].second;
+    clock_t t2 = clock();
+    pt += (double)((t2-t1))/(double)CLOCKS_PER_SEC;
+    
+    
+    printf("Pt: %lf, Vt: %lf, Ps: %lf\n",pt,vt,ps);
+    vector<sparse_eval_data> data;
+    prepare_R1CS_data(A, B, C, logm, logn, data);
+    beta1.clear();beta2.clear();precompute_beta(r1,beta1);precompute_beta(r2,beta2);
+    
+    witness.clear();
+    compute_witness_vector(r1,r2,data,witness,1,pt);
+    
+    
+    prove_sparse_eval(claims[1].first,a,b,c, beta1, beta2, data,pt, ps, vt);
+    
+    //evaluate_sparse_matrix(size, N, r1, r2, claims[1].first, a, b, c, pt, ps, vt,cm);
+    printf("PIOP Perf---- Pt : %lf, Vt: %lf, Ps: %lf KB, Data to commit: (Online): %d, (Offline): %d\n",pt, vt,ps,witness.size(),next_pow2(12*next_pow2(data[0].IDX1.size())));
+}
+
+
+
+
+
+
+
