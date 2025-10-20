@@ -674,7 +674,7 @@ int main(int argc, char *argv[]){
     vector<F> RA_share = RA;
     secret_share_vector(RA_share,_k,k,N);
     */
-    
+    printf("%d\n",rank);
     F num = F(0);
     for(int i = 0; i < 10; i++){
         num += (rank+1)*(i+1);
@@ -699,7 +699,7 @@ int main(int argc, char *argv[]){
     // ==================================================== //
     /*
     dummy_setup(R_shares, mask_shares, N, M, k, _k, 500);
-    
+
     prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, 500);
     commit(codeword,row_data,R_shares,Com,500,k,_k,M,N);
     open_zk(codeword, C_mask, row_data, mask_data, Com, Com_mask, r, y, 500, k, _k, M, N,ps,vt);
