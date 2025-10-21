@@ -97,6 +97,16 @@ void dummy_setup(vector<F> &R_shares, vector<vector<F>> &mask_shares, int N, int
 }
 
 
+void commit_randomness(vector<F> R, vector<F> _R, vector<F> &codeword, vector<F> &_codeword, MT &CR, MT &_CR, int N){
+    codeword = R;codeword.resize(2*next_pow2(R.size()),F(0));
+    _codeword = _R;_codeword.resize(2*next_pow2(_R.size()),F(0));
+    fft(codeword,(int)log2(codeword.size()),false);
+    fft(_codeword,(int)log2(_codeword.size()),false);
+    distributed_MT(codeword,CR,N);
+    distributed_MT(_codeword,_CR,N);
+}
+
+
 void prepare_mask_shares(vector<vector<F>> &mask_shares, vector<vector<F>> &mask_data, vector<vector<F>> &C_mask, vector<MT> &Com_mask, int N, int M, int k, int _k, int l){
     C_mask.resize(mask_shares.size());
     Com_mask.resize(mask_shares.size());
@@ -520,7 +530,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 
 
 }
-
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
                     vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt){

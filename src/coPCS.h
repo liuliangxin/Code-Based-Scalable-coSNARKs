@@ -27,3 +27,5 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
                     vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt);
+
+void commit_randomness(vector<F> R, vector<F> _R, vector<F> &codeword, vector<F> &_codeword, MT &CR, MT &_CR, int N);

@@ -638,8 +638,8 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     for(int i = 0; i < logk; i++) r2.push_back(claims[0].second[i]);
     for(int i = logk; i < claims[0].second.size(); i++) r1.push_back(claims[0].second[i]);
     v1.clear();v2.clear();precompute_beta(r1,v1);precompute_beta(r2,v2);
-    
-
+    R.resize(next_pow2(R.size()),0);
+    //open_plaintext(codeword,R,v1,v2,C_rand,claims[0].first,500,k,N,ps,vt);
 }
 
 
@@ -655,6 +655,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
     setup_randomness(R, N, _k, k);
     setup_randomness(_R, N, _k, k);
+    
 
     int logk = (int)log2(k);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
