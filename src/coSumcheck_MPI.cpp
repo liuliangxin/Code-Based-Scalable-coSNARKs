@@ -5,6 +5,8 @@ extern int queries;
 
 
 
+
+
 cubic_poly _zero_check_sumcheck_phase1(int iter, F b,vector<F> &v1,vector<F> &v2, vector<F> &v3, vector<F> &beta1, vector<F> &r1, vector<F> &r2){
     quadratic_poly p = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
     quadratic_poly p_r = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
@@ -147,6 +149,32 @@ void _quadratic_batch_sumcheck_phase2(int iter, F r,vector<F> &v1,vector<F> &v2,
         r2[i] = r2[2*i] + r*(r2[2*i+1]-r2[2*i]);
     }
 }
+
+vector<std::pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2, int N, int _k, int k, double &pt, double &vt, double &ps, double &cm){
+    int M = v1.size();
+    int rounds = (int)log2(M);
+    vector<F> challenges(rounds);
+    for(int i = 0; i < rounds; i++){
+        quadratic_poly H = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
+        for(int j = 0; j < 1<<(i+1); j++) H = H + linear_poly(v1[2*j+1]-v1[2*j],v1[2*j])*linear_poly(v2[2*j+1]-v2[2*j],v2[2*j]);
+        
+        H = aggregate_quadratic_poly(H,k,_k,N);
+        
+        if(H.eval(0) + H.eval(1) != y){
+            printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
+            //exit(-1);
+        }
+        challenges[i] = hash_to_field({H.a,H.b,H.c}); 
+        
+        y = H.eval(challenges[i]);
+        for(int j = 0; j < 1<<(i+1); j++){
+            v1[j] = challenges[i]*(v1[2*j+1]-v1[2*j]) + v1[2*j];
+            v2[j] = challenges[i]*(v2[2*j+1]-v2[2*j]) + v2[2*j];
+        } 
+    }
+           
+}
+
 
 vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1, 
                                 vector<F> &v2, vector<F> &v3, vector<F> &v4, vector<F> &R1, vector<F> &R2, 

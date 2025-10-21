@@ -485,6 +485,9 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
                                  vector<F> R, vector<F> _R, int N, int k){
     
+    
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     // Evaluate claims of _R, then apply the sumcheck to aggregate partial claims into one
     vector<vector<F>> vectors(7);
     vectors[0].resize(4);vectors[1].resize(4);vectors[2].resize(4);
@@ -508,10 +511,8 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     vector<F> r1,r2;
     for(int i = 0; i < claims1[0].second.size()-(int)log2(k); i++) r1.push_back(claims1[0].second[i]);
     for(int i = r1.size(); i < claims1[0].second.size(); i++) r2.push_back(claims1[0].second[i]);
+    for(int i = 0; i < logn; i++) betas[5][0].push_back(_beta(1<<i,r1));
     
-    for(int i = 0; i < logn; i++){
-        betas[5][0].push_back(_beta(1<<i,r1));
-    }
     betas[5][0].push_back(_beta((1<<logn)-2,r1));
     betas[5][0].push_back(_beta((1<<logn)-1,r1));
     precompute_beta(r2,betas[5][1]);
@@ -520,9 +521,8 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     r1.clear();r2.clear();
     for(int i = 0; i < claims2[0].second.size()-(int)log2(k); i++) r1.push_back(claims2[0].second[i]);
     for(int i = r1.size(); i < claims2[0].second.size(); i++) r2.push_back(claims2[0].second[i]);
-    for(int i = 0; i < logm; i++){
-        betas[3][0].push_back(_beta(1<<i,r1));
-    }
+    for(int i = 0; i < logm; i++) betas[3][0].push_back(_beta(1<<i,r1));
+    
     betas[3][0].push_back(_beta((1<<logm)-2,r1));
     betas[3][0].push_back(_beta((1<<logm)-1,r1));
     precompute_beta(r2,betas[3][1]);
@@ -533,7 +533,21 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     betas[0][1] = betas[3][1];
     betas[1] = betas[0];betas[2] = betas[0];
     vector<F> evals = batch_ip(vectors, betas, N, k);    
-
+    vector<F> c(7);
+    for(int i = 0; i < 7; i++) c[i] = hash_to_field({});
+    vector<F> v1,v2;
+    for(int i = 0; i  < vectors.size(); i++){
+        v1.insert(v1.end(),vectors[i].begin(),vectors[i].end());
+        vector<F> buff = betas[i][1];
+        fft(buff,(int)log2(buff.size()),true);
+        buff.resize(2*N,0);
+        fft(buff,(int)log2(buff.size()),false);
+        for(int j = 0; j < betas[i][0].size(); j++){
+            betas[i][0][j] = buff[rank*2+1]*betas[i][0][j];
+        }
+        v2.insert(v2.end(),betas[i][0].begin(),betas[i][0].end());
+    }
+       
 }
 
 
