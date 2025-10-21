@@ -268,7 +268,6 @@ vector<pair<F,vector<F>>> prove_phase2(
         beta_shares[i] = r[r.size()-1]*beta_shares[i];
     }
     beta_shares.resize(4*beta_shares.size(),F(0));
-
     vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k, pt, vt, ps,cm);
     
     claim[1].first = (F(1)-claim[1].second[claim[1].second.size()-1]).inv()*i*claim[1].first;
@@ -483,7 +482,7 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
-                                 vector<F> R, vector<F> _R, int N, int k){
+                                 vector<F> R, vector<F> _R, int N, int k, int _k){
     
     
     int rank;
@@ -532,7 +531,7 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     }
     betas[0][1] = betas[3][1];
     betas[1] = betas[0];betas[2] = betas[0];
-    vector<F> evals = batch_ip(vectors, betas, N, k);    
+    vector<F> evals = batch_ip(vectors, betas, N, k,_k);    
     vector<F> c(7);
     for(int i = 0; i < 7; i++) c[i] = hash_to_field({});
     vector<F> v1,v2;
@@ -547,7 +546,8 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
         }
         v2.insert(v2.end(),betas[i][0].begin(),betas[i][0].end());
     }
-       
+
+
 }
 
 
@@ -559,33 +559,33 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     vector<F> r_witness(1);
     vector<F> RA,RB,RC;
     vector<sparse_eval_data> index;
-    
     distribute_index(N, size, index);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
     setup_randomness(R,_R, N, _k, k);
-    vector<F> rL(4),rR(4),rO(4),R1(logn+2),R2(logn+2),R3(logm+2),R4(logm+2);
+    printf(">> %d,%d\n",logm,logn);
+    int logk = (int)log2(k);
+    vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
     for(int i = 0; i < 4; i++){
         rL[i] = R[i];
         rR[i] = R[i+4];
         rO[i] = R[i+8];
     }
-    for(int i = 0; i < logn+2; i++){
+    for(int i = 0; i < logn -logk +2; i++){
         R1[i] = R[i+12];
-        R2[i] = R[i+12 + logn+2];
+        R2[i] = R[i+12 + logn-logk +2];
     }
-    for(int i = 0; i < logm+2; i++){
-        R3[i] = R[i+12+2*(logn + 2)];
-        R4[i] = R[i+12+2*(logn + 2)+logm+2];
+    for(int i = 0; i < logm-logk+2; i++){
+        R3[i] = R[i+12+2*(logn -logk + 2)];
+        R4[i] = R[i+12+2*(logn -logk + 2)+logm-logk+2];
     }
-    r_witness[0] = R[12+2*(logn + 2)+2*(logm+2)];
-
+    r_witness[0] = R[12+2*(logn -logk + 2)+2*(logm-logk+2)];
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
 
     vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, pt, vt, ps,cm);
-    
     F a,b,c;
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,pt,vt, ps,cm);
+    return;
     
 
 

@@ -581,13 +581,26 @@ void test_sparse_eval(int N, int M){
     
 
     vector<F> Y = batch_distributed_eval(polys,b1,b2,N);
-    if(rank == 1){
-        vector<F> _RA,_RB,_RC;
+    vector<F> _RA,_RB,_RC;
+    if(rank!= 0){
         generate_R1CS_matrixes(M);
-        reduce_R1CS_matrixes(M,r1,_RA,_RB,_RC);
+    }
+    
+    reduce_R1CS_matrixes(M,r1,_RA,_RB,_RC);
       
+        for(int i = 0; i < RA.size(); i++){
+            if(RA[i] != _RA[i + rank*pA.size()]){
+               printf("Error %d,%d, (%lld,%lld),(%lld,%lld)\n",i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
+            }
+        }
         for(int i = 0; i < RB.size(); i++){
-            if(RA[i] != _RA[i + rank*pB.size()]){
+            if(RB[i] != _RB[i + rank*pB.size()]){
+               printf("Error %d,%d, (%lld,%lld),(%lld,%lld)\n",i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
+            }
+        }
+
+        for(int i = 0; i < RC.size(); i++){
+            if(RC[i] != _RC[i + rank*pC.size()]){
                printf("Error %d,%d, (%lld,%lld),(%lld,%lld)\n",i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
             }
         }
@@ -600,9 +613,9 @@ void test_sparse_eval(int N, int M){
         if(evaluate_vector(_RC,r2) != Y[2]){
             printf("Error 3\n");
         }
-    }
+    
 
-    _prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N, pt, pt, pt);
+    //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N, pt, pt, pt);
 }
 
 
@@ -662,20 +675,8 @@ int main(int argc, char *argv[]){
     vector<MT> Com_mask;
     
     
-
-    /*
-    vector<F> r;
-    for(int i = 0; i < (int)log2(M); i++)r.push_back(hash_to_field({0}));
+    //test_sparse_eval(N, M);
     
-    vector<sparse_eval_data> index(3);
-    distribute_index(N, M, index);
-    vector<F> RA,RB,RC;
-    _reduce_R1CS_matrixes(M,r,RA,RB,RC,N);
-    vector<F> RA_share = RA;
-    secret_share_vector(RA_share,_k,k,N);
-    */
-    
-
     //beta.resize(2*RA.size(),F(0));
     //compute_secret_shares(beta,_beta_shares,N,k,_k,false);
     /*

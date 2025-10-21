@@ -637,7 +637,7 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     return y;
 }
 
-vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k){
+vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k, int _k){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<F> Y(arr.size(),F(0));
@@ -670,7 +670,7 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
             }
             fft(partial_Y[i],(int)log2(partial_Y[i].size()),false);
             for(int j = 0; j < k; j++){
-                Y[i] += v[i][1][j]*partial_Y[i][N*j/k];
+                Y[i] += v[i][1][j]*partial_Y[i][N*j/_k];
             }
         }
         field_vector_serialize(Y,Y_int);
@@ -996,15 +996,15 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
 } 
 
 
-void _setup_randomness(vector<F> &R, vector<F> &_R, int N, int _k, int k){
+void setup_randomness(vector<F> &R, vector<F> &_R, int N, int _k, int k){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64;
-    
+    int logk = (int)log2(k);
     if(rank == 0){
-        vector<F> random_values(k*(500 + 2*(logm + logn + 4) + 12+1));
+        vector<F> random_values(k*(500 + 2*(logm + logn - 2*logk + 4) + 12+1));
         vector<vector<F>> R_shares;
-        for(int i = 0; i < random_values.size(); i++) random_values[i] = random();
+        for(int i = 0; i < random_values.size(); i++) random_values[i] = 0;
         compute_secret_shares(random_values,R_shares,N,k,_k,true);
         R = R_shares[0];
         for(int i = 1; i < N; i++){
@@ -1012,7 +1012,7 @@ void _setup_randomness(vector<F> &R, vector<F> &_R, int N, int _k, int k){
             MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }
     }else{
-        buff_u64.resize(2*(500 + 2*(logm + logn + 4) + 12+1));
+        buff_u64.resize(2*(500 + 2*(logm + logn- 2*logk + 4) + 12+1));
         MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         field_vector_deserialize(buff_u64,R);           
     }

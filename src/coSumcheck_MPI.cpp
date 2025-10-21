@@ -205,7 +205,6 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
     vector<F> _r1,_r2,ones1(M,F(1)),ones2(k,F(1));
 
     F y_r = F_ip_prod(h1,h2,ones1,ones2,k,_k,N);
-    
     F b = hash_to_field({y_r});
     
     y += b*y_r;
