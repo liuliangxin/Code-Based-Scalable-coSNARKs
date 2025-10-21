@@ -482,7 +482,57 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
     open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps,vt);
 }
 
-void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2){
+void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
+                                 vector<F> R, vector<F> _R, int N, int k){
+    
+    // Evaluate claims of _R, then apply the sumcheck to aggregate partial claims into one
+    vector<vector<F>> vectors(7);
+    vectors[0].resize(4);vectors[1].resize(4);vectors[2].resize(4);
+    vectors[3].resize(logn+2);vectors[4].resize(logn+2);
+    vectors[5].resize(logm+2);vectors[6].resize(logm+2);
+    for(int i = 0; i < 4; i++){
+        vectors[0][i] = _R[i];
+        vectors[1][i] = _R[i+4];
+        vectors[2][i] = _R[i+8];
+    }
+    for(int i = 0; i < logn+2; i++){
+        vectors[3][i] = _R[i+12];
+        vectors[4][i] = _R[i+12+logn+2];
+    }
+    for(int i = 0; i < logn+2; i++){
+        vectors[5][i] = _R[i+12];
+        vectors[6][i] = _R[i+12+logn+2];
+    }
+    vector<vector<vector<F>>> betas(7);
+    for(int i = 0; i < 7; i++)betas[i].resize(2);
+    vector<F> r1,r2;
+    for(int i = 0; i < claims1[0].second.size()-(int)log2(k); i++) r1.push_back(claims1[0].second[i]);
+    for(int i = r1.size(); i < claims1[0].second.size(); i++) r2.push_back(claims1[0].second[i]);
+    
+    for(int i = 0; i < logn; i++){
+        betas[5][0].push_back(_beta(1<<i,r1));
+    }
+    betas[5][0].push_back(_beta((1<<logn)-2,r1));
+    betas[5][0].push_back(_beta((1<<logn)-1,r1));
+    precompute_beta(r2,betas[5][1]);
+    betas[6] = betas[5];
+
+    r1.clear();r2.clear();
+    for(int i = 0; i < claims2[0].second.size()-(int)log2(k); i++) r1.push_back(claims2[0].second[i]);
+    for(int i = r1.size(); i < claims2[0].second.size(); i++) r2.push_back(claims2[0].second[i]);
+    for(int i = 0; i < logm; i++){
+        betas[3][0].push_back(_beta(1<<i,r1));
+    }
+    betas[3][0].push_back(_beta((1<<logm)-2,r1));
+    betas[3][0].push_back(_beta((1<<logm)-1,r1));
+    precompute_beta(r2,betas[3][1]);
+    betas[4] = betas[3];
+    for(int i = 0; i < 4; i++){
+        betas[0][0].push_back(_beta(i,r1));
+    }
+    betas[0][1] = betas[3][1];
+    betas[1] = betas[0];betas[2] = betas[0];
+    
 
 }
 
