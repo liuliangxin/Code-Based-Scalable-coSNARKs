@@ -83,14 +83,7 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     
-    F sum = F(0);
-    for(int i = 0; i < v1.size(); i++){
-        sum += v1[i]*v2[i]-v3[i];
-    }
-    if(sum == F(0)){
-        printf(">>OK %d\n",rank);
-    }
-
+    
     for(int i = 0; i < rounds; i++){
         cubic_poly H;
         H = _zero_check_sumcheck_phase1(i, b,v1,v2, v3, beta1, h1, h2);
@@ -226,7 +219,6 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
         _quadratic_batch_sumcheck_phase2(i, challenges[i],v1,v2, v3, v4, h1, h2);
         
     }
-    
     
     vector<pair<F,vector<F>>> reply = F_batch_sumcheck_rest(v1[0], v2[0], v3[0], v4[0], h1[0], h2[0], b, y, k, _k, N);
     for(int i = 0; i < 4; i++){

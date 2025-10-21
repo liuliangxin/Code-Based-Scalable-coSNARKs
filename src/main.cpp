@@ -89,8 +89,8 @@ void test_batch_check(int M,int N, int k, int _k, int l){
         int idx = 0;
         for(int i = 0; i < N; i++){
             V1[i].resize(M/k);V2[i].resize(M/k);V3[i].resize(M/k);V4[i].resize(M/k);
-            R1[i].resize((int)log2(M/k) + 2 + l);
-            R2[i].resize((int)log2(M/k) + 2 + l);
+            R1[i].resize((int)log2(M/k) + 2 );
+            R2[i].resize((int)log2(M/k) + 2 );
         }
         int ctr = 0;
         
@@ -163,11 +163,11 @@ void test_batch_check(int M,int N, int k, int _k, int l){
             MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }
     }else{
-        buff_u64.resize(2+2*(4*M/k + 2*(log2(M/k) + 2+l)));
+        buff_u64.resize(2+2*(4*M/k + 2*(log2(M/k) + 2)));
         MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         field_vector_deserialize(buff_u64,buff);
         v1.resize(M/k);v2.resize(M/k);v3.resize(M/k);v4.resize(M/k);
-        h1.resize(log2(M/k) + 2+l);h2.resize(log2(M/k) + 2+l);
+        h1.resize(log2(M/k) + 2);h2.resize(log2(M/k) + 2);
         int ctr = 0;
         for(int i = 0; i < M/k; i++){
             v1[i] = buff[ctr++];
@@ -687,7 +687,7 @@ int main(int argc, char *argv[]){
         }
     }
     */
-    
+    //test_batch_check(M,N, k,  _k, 500);
     coPIOP_prove(M, N, _k, k);
     
     // ==================================================== //

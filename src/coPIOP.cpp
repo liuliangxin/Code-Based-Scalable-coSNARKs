@@ -482,48 +482,55 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
-                                 vector<F> R, vector<F> _R, int N, int k, int _k){
+                                 vector<F> R, vector<F> _R, F a, F b, F c, int N, int k, int _k){
     
     
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     // Evaluate claims of _R, then apply the sumcheck to aggregate partial claims into one
-    vector<vector<F>> vectors(7);
+    int logk = (int)log2(k);
+    vector<vector<F>> vectors(10);
     vectors[0].resize(4);vectors[1].resize(4);vectors[2].resize(4);
-    vectors[3].resize(logn+2);vectors[4].resize(logn+2);
-    vectors[5].resize(logm+2);vectors[6].resize(logm+2);
+    vectors[3].resize(logn-logk+2);vectors[4].resize(logn-logk+2);
+    vectors[5].resize(logm-logk+2);vectors[6].resize(logm-logk+2);
+    vectors[7].resize(4);vectors[8].resize(4);vectors[9].resize(4);
     for(int i = 0; i < 4; i++){
         vectors[0][i] = _R[i];
         vectors[1][i] = _R[i+4];
         vectors[2][i] = _R[i+8];
+        vectors[7][i] = R[i];
+        vectors[8][i] = R[i+4];
+        vectors[9][i] = R[i+8];
     }
-    for(int i = 0; i < logn+2; i++){
+    for(int i = 0; i < logn+2-logk; i++){
         vectors[3][i] = _R[i+12];
-        vectors[4][i] = _R[i+12+logn+2];
+        vectors[4][i] = _R[i+12+logn-logk+2];
     }
-    for(int i = 0; i < logn+2; i++){
-        vectors[5][i] = _R[i+12];
-        vectors[6][i] = _R[i+12+logn+2];
+    for(int i = 0; i < logm+2-logk; i++){
+        vectors[5][i] = _R[i+12+2*(logn -logk + 2)];
+        vectors[6][i] = _R[i+12+2*(logn -logk + 2) + logm-logk+2];
     }
-    vector<vector<vector<F>>> betas(7);
+    vector<vector<vector<F>>> betas(10);
     for(int i = 0; i < 7; i++)betas[i].resize(2);
     vector<F> r1,r2;
-    for(int i = 0; i < claims1[0].second.size()-(int)log2(k); i++) r1.push_back(claims1[0].second[i]);
-    for(int i = r1.size(); i < claims1[0].second.size(); i++) r2.push_back(claims1[0].second[i]);
-    for(int i = 0; i < logn; i++) betas[5][0].push_back(_beta(1<<i,r1));
     
-    betas[5][0].push_back(_beta((1<<logn)-2,r1));
-    betas[5][0].push_back(_beta((1<<logn)-1,r1));
+    for(int i = 0; i < (int)log2(k); i++) r2.push_back(claims1[0].second[i]);
+    for(int i = (int)log2(k); i < claims1[0].second.size(); i++) r1.push_back(claims1[0].second[i]);
+    
+    for(int i = 0; i < logm-logk; i++) betas[5][0].push_back(_beta(1<<i,r1));
+    
+    betas[5][0].push_back(_beta((1<<(logm-logk))-2,r1));
+    betas[5][0].push_back(_beta((1<<(logm-logk))-1,r1));
     precompute_beta(r2,betas[5][1]);
     betas[6] = betas[5];
 
     r1.clear();r2.clear();
     for(int i = 0; i < claims2[0].second.size()-(int)log2(k); i++) r1.push_back(claims2[0].second[i]);
     for(int i = r1.size(); i < claims2[0].second.size(); i++) r2.push_back(claims2[0].second[i]);
-    for(int i = 0; i < logm; i++) betas[3][0].push_back(_beta(1<<i,r1));
+    for(int i = 0; i < (logn-logk); i++) betas[3][0].push_back(_beta(1<<i,r1));
     
-    betas[3][0].push_back(_beta((1<<logm)-2,r1));
-    betas[3][0].push_back(_beta((1<<logm)-1,r1));
+    betas[3][0].push_back(_beta((1<<(logn-logk))-2,r1));
+    betas[3][0].push_back(_beta((1<<(logn-logk))-1,r1));
     precompute_beta(r2,betas[3][1]);
     betas[4] = betas[3];
     for(int i = 0; i < 4; i++){
@@ -531,13 +538,61 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     }
     betas[0][1] = betas[3][1];
     betas[1] = betas[0];betas[2] = betas[0];
+    betas[7] = betas[0];betas[8] = betas[0];
+    betas[9] = betas[0];
+    
     vector<F> evals = batch_ip(vectors, betas, N, k,_k);    
-    vector<F> c(7);
-    for(int i = 0; i < 7; i++) c[i] = hash_to_field({});
+    vector<F> _c(7);
+    for(int i = 0; i < 7; i++) _c[i] = hash_to_field({});
+    F _b = hash_to_field({});
+    for(int i = 0; i < R.size(); i++){
+        R[i] += _b*_R[i];
+    }
+    vector<u64> R_int(2*R.size());
+    if(rank == 0){
+        vector<vector<F>> Masked_R_shares(R.size()),Masked_R(R.size());
+        for(int i = 0; i < Masked_R_shares.size(); i++){
+            Masked_R_shares[i].resize(N);
+            Masked_R[i].resize(k);
+            Masked_R_shares[i][0] = R[i];
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Recv(R_int.data(),R_int.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            field_vector_deserialize(R_int,R);
+            for(int j = 0; j < R.size(); j++) Masked_R_shares[j][i] = R[j];
+        }
+        for(int i = 0; i < Masked_R_shares.size(); i++){
+            fft(Masked_R_shares[i],(int)log2( Masked_R_shares[i].size()),true);
+            F omega = getRootOfUnity(1+(int)log2(N));
+            omega = omega.inv();
+            F mul = F(1);
+            for(int j = 0; j < Masked_R_shares[i].size(); j++){
+                Masked_R_shares[i][j] = mul*Masked_R_shares[i][j];
+                mul = omega*mul;
+            }
+            fft(Masked_R_shares[i],(int)log2(Masked_R_shares[i].size()),false);
+            for(int j = 0; j < k; j++) Masked_R[i][j] = Masked_R_shares[i][N*j/_k];
+        }
+
+    }else{
+        field_vector_serialize(R,R_int);
+        MPI_Send(R_int.data(), R_int.size(), MPI_UINT64_T, 0,0, MPI_COMM_WORLD);
+    }
+    if(rank == 0){
+        if(claims2[2].first != a*evals[7]+b*evals[8] + c*evals[9]){
+            printf("ERROR\n");
+        }
+        F sum = _c[0]*evals[7]+_c[1]*evals[8]+_c[2]*evals[9] + _c[3]*claims2[4].first +_c[4]*claims2[5].first  + _c[5]*claims1[4].first + _c[6]*claims1[5].first;
+    
+    }
+    
+
+    /*
     vector<F> v1,v2;
     for(int i = 0; i  < vectors.size(); i++){
         v1.insert(v1.end(),vectors[i].begin(),vectors[i].end());
         vector<F> buff = betas[i][1];
+        buff.resize(_k,F(0));
         fft(buff,(int)log2(buff.size()),true);
         buff.resize(2*N,0);
         fft(buff,(int)log2(buff.size()),false);
@@ -546,6 +601,8 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
         }
         v2.insert(v2.end(),betas[i][0].begin(),betas[i][0].end());
     }
+    */
+    
 
 
 }
@@ -561,8 +618,9 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     vector<sparse_eval_data> index;
     distribute_index(N, size, index);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
-    setup_randomness(R,_R, N, _k, k);
-    printf(">> %d,%d\n",logm,logn);
+    setup_randomness(R, N, _k, k);
+    setup_randomness(_R, N, _k, k);
+
     int logk = (int)log2(k);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
     for(int i = 0; i < 4; i++){
@@ -585,10 +643,12 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, pt, vt, ps,cm);
     F a,b,c;
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,pt,vt, ps,cm);
+    
+    
+    aggregate_random_evaluations(claims1,  claims2, R,  _R,a,b,c, N, k,  _k);
+
     return;
     
-
-
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,pt,ps,vt);
     

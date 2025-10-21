@@ -311,8 +311,8 @@ vector<F> quadratic_sumcheck_local(vector<F> final_v1, vector<F> final_v2, F y, 
         quadratic_poly p = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
         linear_poly l1,l2;
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
-            l1 = linear_poly(v1[2*i+1]-v1[2*i],v1[2*i]);
-            l2 = linear_poly(v2[2*i+1]-v2[2*i],v2[2*i]);
+            l1 = linear_poly(v1[2*j+1]-v1[2*j],v1[2*j]);
+            l2 = linear_poly(v2[2*j+1]-v2[2*j],v2[2*j]);
             p = p + l1*l2;
         }
         
@@ -348,6 +348,8 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
     fft(h1,(int)log2(h1.size()),true);
     fft(h2,(int)log2(h2.size()),true);
     
+
+
     F omega = getRootOfUnity(1+(int)log2(N));
     omega = omega.inv();
     F mul = F(1);
@@ -367,8 +369,38 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
     fft(final_v4,(int)log2(final_v4.size()),false);
     fft(h1,(int)log2(h1.size()),false);
     fft(h2,(int)log2(h2.size()),false);
+    /*
+    for(int i = 0; i < N; i++){
+        printf("(%lld,%lld)\n",final_v1[i].real,final_v1[i].img);    
+    }
+    printf("=======\n");
     
+    for(int i = 0; i < N; i++){
+        printf("(%lld,%lld)\n",final_v2[i].real,final_v2[i].img);    
+    }
+    printf("=======\n");
 
+    for(int i = 0; i < N; i++){
+        printf("(%lld,%lld)\n",final_v3[i].real,final_v3[i].img);    
+    }
+    printf("=======\n");
+    for(int i = 0; i < N; i++){
+        printf("(%lld,%lld)\n",final_v4[i].real,final_v4[i].img);    
+    }
+    printf("=======\n");
+    for(int i = 0; i < N; i++){
+        printf("(%lld,%lld)\n",h1[i].real,h1[i].img);    
+    }
+    printf("=======\n");
+
+    for(int i = 0; i < N; i++){
+        printf("(%lld,%lld)\n",h2[i].real,h2[i].img);    
+    }
+    printf("=======\n");
+
+    printf(">> %d,%d\n",k,_k);
+    */
+    
     vector<F> v1(k),v2(k),v3(k),v4(k);
     vector<F> r1(k),r2(k);
     
@@ -386,18 +418,19 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
     for(int i = 0; i < rounds; i++){
         quadratic_poly p = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
         quadratic_poly p_r = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
-        linear_poly _p = linear_poly(F_ZERO,F_ZERO);
         linear_poly l1,l2;
+    
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
-            l1 = linear_poly(v1[2*i+1]-v1[2*i],v1[2*i]);
-            l2 = linear_poly(v2[2*i+1]-v2[2*i],v2[2*i]);
+
+            l1 = linear_poly(v1[2*j+1]-v1[2*j],v1[2*j]);
+            l2 = linear_poly(v2[2*j+1]-v2[2*j],v2[2*j]);
             p = p + l1*l2;
-            l1 = linear_poly(v3[2*i+1]-v3[2*i],v3[2*i]);
-            l2 = linear_poly(v4[2*i+1]-v4[2*i],v4[2*i]);
+            l1 = linear_poly(v3[2*j+1]-v3[2*j],v3[2*j]);
+            l2 = linear_poly(v4[2*j+1]-v4[2*j],v4[2*j]);
             p = p + l1*l2;
             
-            l1 = linear_poly(r1[2*i+1]-r1[2*i],r1[2*i]);
-            l2 = linear_poly(r2[2*i+1]-r2[2*i],r2[2*i]);
+            l1 = linear_poly(r1[2*j+1]-r1[2*j],r1[2*j]);
+            l2 = linear_poly(r2[2*j+1]-r2[2*j],r2[2*j]);
             p_r = p_r + l1*l2;
         }
         p.a = p.a + b*p_r.a;
@@ -996,7 +1029,7 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
 } 
 
 
-void setup_randomness(vector<F> &R, vector<F> &_R, int N, int _k, int k){
+void setup_randomness(vector<F> &R, int N, int _k, int k){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64;
@@ -1004,7 +1037,7 @@ void setup_randomness(vector<F> &R, vector<F> &_R, int N, int _k, int k){
     if(rank == 0){
         vector<F> random_values(k*(500 + 2*(logm + logn - 2*logk + 4) + 12+1));
         vector<vector<F>> R_shares;
-        for(int i = 0; i < random_values.size(); i++) random_values[i] = 0;
+        for(int i = 0; i < random_values.size(); i++) random_values[i] = random();
         compute_secret_shares(random_values,R_shares,N,k,_k,true);
         R = R_shares[0];
         for(int i = 1; i < N; i++){
