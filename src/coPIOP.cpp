@@ -532,7 +532,7 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     }
     betas[0][1] = betas[3][1];
     betas[1] = betas[0];betas[2] = betas[0];
-    
+    vector<F> evals = batch_ip(vectors, betas, N, k);    
 
 }
 

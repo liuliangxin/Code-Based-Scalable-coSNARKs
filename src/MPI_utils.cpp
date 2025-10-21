@@ -551,6 +551,54 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     return y;
 }
 
+vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    vector<F> Y(arr.size(),F(0));
+    for(int i = 0; i < Y.size(); i++){
+        for(int j = 0; j < arr[i].size(); j++){
+            Y[i] += arr[i][j]*v[i][0][j];
+        }
+    }
+    vector<u64> Y_int;
+    if(rank == 0){
+        vector<vector<F>> partial_Y(arr.size());
+        for(int i = 0; i < partial_Y.size(); i++){
+            partial_Y[i].resize(N);
+            partial_Y[i][0] = Y[i];
+        }
+        Y_int.resize(Y.size()*2);
+        for(int i = 1; i < N; i++){
+            MPI_Recv(Y_int.data(),Y_int.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            field_vector_deserialize(Y_int,Y);
+            for(int j = 0; j < Y.size(); j++) partial_Y[j][i] = Y[j];
+        }
+        Y.clear();Y.resize(arr.size(),F(0));
+        for(int i = 0; i < partial_Y.size(); i++){
+            fft(partial_Y[i],(int)log2(partial_Y[i].size()),true);
+            F omega = getRootOfUnity(1+(int)log2(N)).inv();
+            F mul = F(1);
+            for(int j = 0; j < partial_Y[i].size(); j++){
+                partial_Y[i][j] = mul*partial_Y[i][j];
+                mul = mul*omega;
+            }
+            fft(partial_Y[i],(int)log2(partial_Y[i].size()),false);
+            for(int j = 0; j < k; j++){
+                Y[i] += v[i][1][j]*partial_Y[i][N*j/k];
+            }
+        }
+        field_vector_serialize(Y,Y_int);
+        
+    }else{
+        field_vector_serialize(Y,Y_int);
+        MPI_Send(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+    }
+    MPI_Bcast(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    if(rank != 0){
+        field_vector_deserialize(Y_int,Y);
+    }
+    return Y;
+}
 
 vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     int rank;
