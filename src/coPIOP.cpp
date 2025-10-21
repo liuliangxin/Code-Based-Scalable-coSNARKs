@@ -482,21 +482,23 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
     open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps,vt);
 }
 
-    
+void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2){
+
+}
 
 
 void coPIOP_prove(size_t size, int N, int _k, int k){
     double pt = 0.0,vt = 0.0,ps = 0.0;
     double cm = 0.0;
 
-    vector<F> witness,vL,vO,vR,R;
+    vector<F> witness,vL,vO,vR,R,_R;
     vector<F> r_witness(1);
     vector<F> RA,RB,RC;
     vector<sparse_eval_data> index;
     
     distribute_index(N, size, index);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
-    setup_randomness(R, N, _k, k);
+    setup_randomness(R,_R, N, _k, k);
     vector<F> rL(4),rR(4),rO(4),R1(logn+2),R2(logn+2),R3(logm+2),R4(logm+2);
     for(int i = 0; i < 4; i++){
         rL[i] = R[i];
@@ -521,6 +523,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     F a,b,c;
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,pt,vt, ps,cm);
     
+
 
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,pt,ps,vt);
