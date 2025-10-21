@@ -172,7 +172,12 @@ vector<std::pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F>
             v2[j] = challenges[i]*(v2[2*j+1]-v2[2*j]) + v2[2*j];
         } 
     }
-           
+    vector<pair<F,vector<F>>> reply = F_quadratic_sumcheck_rest(v1[0], v2[0], y, k, _k, N);
+    
+    for(int i = 0; i < 2; i++){
+        reply[i].second.insert(reply[i].second.end(),challenges.begin(),challenges.end());
+    }
+    return reply; 
 }
 
 

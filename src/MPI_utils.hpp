@@ -27,3 +27,4 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
 void setup_randomness(vector<F> &R, vector<F> &_R, int N, int _k, int k);
 void compute_secret_shares(vector<F> &v, vector<vector<F>> &v_shares, int N, int k, int _k, bool privacy_preserving);
 vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k);
+vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int _k, int N);

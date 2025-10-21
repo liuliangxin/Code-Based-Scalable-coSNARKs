@@ -281,6 +281,59 @@ vector<F> zero_check_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
 
 }
 
+vector<F> quadratic_sumcheck_local(vector<F> final_v1, vector<F> final_v2, F y, int k, int _k, int N){
+    
+    
+    fft(final_v1,(int)log2(final_v1.size()),true);
+    fft(final_v2,(int)log2(final_v2.size()),true);
+    
+    F omega = getRootOfUnity(1+(int)log2(N));
+    omega = omega.inv();
+    F mul = F(1);
+    for(int i = 0; i < final_v1.size(); i++){
+        final_v1[i] = mul*final_v1[i];
+        final_v2[i] = mul*final_v2[i];
+        mul = mul*omega;
+    }
+
+    fft(final_v1,(int)log2(final_v1.size()),false);
+    fft(final_v2,(int)log2(final_v2.size()),false);
+    
+    vector<F> v1(k),v2(k);    
+    for(int i = 0; i < k; i++){
+        v1[i] = final_v1[N*i/_k];
+        v2[i] = final_v2[N*i/_k];
+    }
+    
+    int rounds = (int)log2(k);
+    vector<F> challenges(rounds);
+    for(int i = 0; i < rounds; i++){
+        quadratic_poly p = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
+        linear_poly l1,l2;
+        for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
+            l1 = linear_poly(v1[2*i+1]-v1[2*i],v1[2*i]);
+            l2 = linear_poly(v2[2*i+1]-v2[2*i],v2[2*i]);
+            p = p + l1*l2;
+        }
+        
+        if(p.eval(0) + p.eval(1) != y){
+            printf("Error in sumcheck functionality %d\n",i);
+            exit(-1);
+        }
+        
+        challenges[i] = F::_random();
+        y = p.eval(challenges[i]);
+        for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
+            v1[j] = challenges[i]*(v1[2*j+1]-v1[2*j]) + v1[2*j];
+            v2[j] = challenges[i]*(v2[2*j+1]-v2[2*j]) + v2[2*j];
+        }        
+    }
+    vector<F> ret;
+    ret.push_back(v1[0]);ret.push_back(v2[0]);
+    ret.insert(ret.end(),challenges.begin(),challenges.end());
+    return ret;
+
+}
 
 vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2, 
                                     vector<F> final_v3, vector<F> final_v4, 
@@ -441,6 +494,39 @@ vector<pair<F,vector<F>>> F_batch_sumcheck_rest(F v1, F v2, F v3, F v4, F h1, F 
     vector<F> r;
     for(int i = 6; i < ret.size(); i++) r.push_back(ret[i]); 
     return {make_pair(ret[0],r),make_pair(ret[1],r),make_pair(ret[2],r),make_pair(ret[3],r),make_pair(ret[4],r),make_pair(ret[5],r)};
+}
+
+
+vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int _k, int N){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    vector<u64> buff_u64(4);
+    vector<F> buff,ret;
+
+    if(rank == 0){
+        vector<F> final_v1(N),final_v2(N);
+        final_v1[0] = v1;final_v2[0] = v2;
+        for(int i = 1; i < N; i++){
+            MPI_Recv(buff_u64.data(),4,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            field_vector_deserialize(buff_u64,buff);
+            final_v1[i] = buff[0];final_v2[i] = buff[1];
+        }
+        ret = quadratic_sumcheck_local(final_v1, final_v2, y, k, _k, N);
+        for(int i = 1; i < N; i++){
+            field_vector_serialize(ret,buff_u64);
+            MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        }
+    }else{
+        buff = {v1,v2};
+        field_vector_serialize(buff,buff_u64);
+        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        buff_u64.clear();buff_u64.resize(2*(2+(int)log2(k)));
+        MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        field_vector_deserialize(buff_u64,ret);        
+    }
+    vector<F> r;
+    for(int i = 2; i < ret.size(); i++) r.push_back(ret[i]); 
+    return {make_pair(ret[0],r),make_pair(ret[1],r)};
 }
 
 
