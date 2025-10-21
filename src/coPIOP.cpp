@@ -525,8 +525,8 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     betas[6] = betas[5];
 
     r1.clear();r2.clear();
-    for(int i = 0; i < claims2[0].second.size()-(int)log2(k); i++) r1.push_back(claims2[0].second[i]);
-    for(int i = r1.size(); i < claims2[0].second.size(); i++) r2.push_back(claims2[0].second[i]);
+    for(int i = 0; i <  (int)log2(k); i++) r2.push_back(claims2[0].second[i]);
+    for(int i = (int)log2(k); i < claims2[0].second.size(); i++) r1.push_back(claims2[0].second[i]);
     for(int i = 0; i < (logn-logk); i++) betas[3][0].push_back(_beta(1<<i,r1));
     
     betas[3][0].push_back(_beta((1<<(logn-logk))-2,r1));
@@ -544,13 +544,15 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     vector<F> evals = batch_ip(vectors, betas, N, k,_k);    
     vector<F> _c(7);
     for(int i = 0; i < 7; i++) _c[i] = hash_to_field({});
-    F _b = hash_to_field({});
+    for(int i = 3; i < 7; i++) _c[i] = 0;
+    F _b = 0;//hash_to_field({});
     for(int i = 0; i < R.size(); i++){
         R[i] += _b*_R[i];
     }
     vector<u64> R_int(2*R.size());
+    vector<vector<F>> Masked_R_shares,Masked_R;
     if(rank == 0){
-        vector<vector<F>> Masked_R_shares(R.size()),Masked_R(R.size());
+        Masked_R_shares.resize(R.size());Masked_R.resize(R.size());
         for(int i = 0; i < Masked_R_shares.size(); i++){
             Masked_R_shares[i].resize(N);
             Masked_R[i].resize(k);
@@ -583,7 +585,26 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
             printf("ERROR\n");
         }
         F sum = _c[0]*evals[7]+_c[1]*evals[8]+_c[2]*evals[9] + _c[3]*claims2[4].first +_c[4]*claims2[5].first  + _c[5]*claims1[4].first + _c[6]*claims1[5].first;
-    
+        for(int i = 0; i < 7; i++) sum += _b*_c[i]*evals[i];
+        vector<F> v1,v2;
+        v1 = convert2vector(transpose(Masked_R));
+        
+        
+        int ctr = 0;
+        v2.resize(v1.size(),F(0));        
+        for(int i = 0; i < betas.size()-3; i++){
+            for(int n = 0; n < betas[i][0].size(); n++){
+                for(int j = 0; j < betas[i][1].size(); j++){
+                    v2[ctr] = _c[i]*betas[i][0][n]*betas[i][1][j];
+                    ctr++;
+                }
+            }
+        }
+        for(int i = 0; i < v1.size(); i++) sum -= v1[i]*v2[i];
+        if(sum != 0){
+            printf("EERRROR\n");
+        }
+
     }
     
 
