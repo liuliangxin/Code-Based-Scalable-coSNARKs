@@ -482,7 +482,7 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
-                                 vector<F> R, vector<F> _R, F a, F b, F c, int N, int k, int _k){
+                                 vector<F> R, vector<F> _R, F a, F b, F c, int N, int k, int _k, double &pt, double &vt, double &ps, double &cm){
     
     
     int rank;
@@ -511,7 +511,7 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
         vectors[6][i] = _R[i+12+2*(logn -logk + 2) + logm-logk+2];
     }
     vector<vector<vector<F>>> betas(10);
-    for(int i = 0; i < 7; i++)betas[i].resize(2);
+    for(int i = 0; i < 7; i++) betas[i].resize(2);
     vector<F> r1,r2;
     
     for(int i = 0; i < (int)log2(k); i++) r2.push_back(claims1[0].second[i]);
@@ -544,11 +544,13 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     vector<F> evals = batch_ip(vectors, betas, N, k,_k);    
     vector<F> _c(7);
     for(int i = 0; i < 7; i++) _c[i] = hash_to_field({});
-    for(int i = 3; i < 7; i++) _c[i] = 0;
-    F _b = 0;//hash_to_field({});
+    F _b = hash_to_field({});
     for(int i = 0; i < R.size(); i++){
         R[i] += _b*_R[i];
     }
+    
+    
+    /*
     vector<u64> R_int(2*R.size());
     vector<vector<F>> Masked_R_shares,Masked_R;
     if(rank == 0){
@@ -586,8 +588,9 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
         }
         F sum = _c[0]*evals[7]+_c[1]*evals[8]+_c[2]*evals[9] + _c[3]*claims2[4].first +_c[4]*claims2[5].first  + _c[5]*claims1[4].first + _c[6]*claims1[5].first;
         for(int i = 0; i < 7; i++) sum += _b*_c[i]*evals[i];
+
         vector<F> v1,v2;
-        v1 = convert2vector(transpose(Masked_R));
+        v1 = convert2vector((Masked_R));
         
         
         int ctr = 0;
@@ -600,31 +603,42 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
                 }
             }
         }
-        for(int i = 0; i < v1.size(); i++) sum -= v1[i]*v2[i];
-        if(sum != 0){
-            printf("EERRROR\n");
-        }
+        
+        v1.resize(next_pow2(v1.size()),F(0));
+        v2.resize(next_pow2(v2.size()),F(0));
 
     }
+    */
+   if(rank == 0){
+        if(claims2[2].first != a*evals[7]+b*evals[8] + c*evals[9]){
+            printf("ERROR\n");
+        }
+   }
+   
     
+    F sum = _c[0]*evals[7]+_c[1]*evals[8]+_c[2]*evals[9] + _c[3]*claims2[4].first +_c[4]*claims2[5].first  + _c[5]*claims1[4].first + _c[6]*claims1[5].first;
+    for(int i = 0; i < 7; i++) sum += _b*_c[i]*evals[i];
 
-    /*
-    vector<F> v1,v2;
-    for(int i = 0; i  < vectors.size(); i++){
-        v1.insert(v1.end(),vectors[i].begin(),vectors[i].end());
+    vector<F> v1 = R,v2;
+    for(int i = 0; i < vectors.size()-3; i++){
         vector<F> buff = betas[i][1];
         buff.resize(_k,F(0));
         fft(buff,(int)log2(buff.size()),true);
         buff.resize(2*N,0);
         fft(buff,(int)log2(buff.size()),false);
         for(int j = 0; j < betas[i][0].size(); j++){
-            betas[i][0][j] = buff[rank*2+1]*betas[i][0][j];
+            betas[i][0][j] = _c[i]*buff[2*rank+1]*betas[i][0][j];
         }
         v2.insert(v2.end(),betas[i][0].begin(),betas[i][0].end());
     }
-    */
+    v1.resize(next_pow2(v1.size()),F(0));
+    v2.resize(next_pow2(v1.size()),F(0));
+    vector<pair<F,vector<F>>> claims = _quadratic_cosumcheck(sum,v1,v2,N,_k,k,pt,vt,ps,cm);
+    r1.clear();r2.clear();
+    for(int i = 0; i < logk; i++) r2.push_back(claims[0].second[i]);
+    for(int i = logk; i < claims[0].second.size(); i++) r1.push_back(claims[0].second[i]);
+    v1.clear();v2.clear();precompute_beta(r1,v1);precompute_beta(r2,v2);
     
-
 
 }
 
@@ -666,7 +680,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,pt,vt, ps,cm);
     
     
-    aggregate_random_evaluations(claims1,  claims2, R,  _R,a,b,c, N, k,  _k);
+    aggregate_random_evaluations(claims1,  claims2, R,  _R,a,b,c, N, k,  _k,pt,vt,ps,cm);
 
     return;
     
