@@ -248,6 +248,7 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     codeword = row_data;
     codeword.resize(codeword.size()*2,F(0));
     fft(codeword,(int)log2(codeword.size()),false);
+    distributed_MT(codeword,Com,N);
 }
 
 
@@ -299,7 +300,8 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
                                  vector<F> b,
                                  MT &Initial_tree,
                                  vector<MT> &Middle_trees,
-                                 double &ps){
+                                 double &ps,
+                                 bool verify = true){
     
     int row_size = 4*M;
     double temp_ps = 0.0;
@@ -308,6 +310,7 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
         visited[i].resize(2*M,false);
     }
     vector<_hash> path;
+    
     for(int i = 0; i < query_indexes.size(); i++){
         path = merkle_tree::merkle_tree_prover::open_tree_blake(Initial_tree.Base_MT,query_indexes[i][1]/4);
         merkle_tree::merkle_tree_verifier::verify_claim_opt_blake(Initial_tree.Base_MT,path.data(),query_indexes[i][1]/4,M,visited[query_indexes[i][0]],temp_ps);
@@ -320,7 +323,6 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
     if(ps > 0){
         ps += 32.0*(int)log2(N)/1024.0;
     }
-    
     vector<vector<u32>> temp_queries = query_indexes;
     for(int i = 0; i < Middle_trees.size(); i++){
         for(int j = 0; j < temp_queries.size(); j++){
@@ -334,19 +336,26 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
         }
         for(int j = 0; j < temp_queries.size(); j++){
             path = merkle_tree::merkle_tree_prover::open_tree_blake(Middle_trees[i].Base_MT,temp_queries[j][1]/4);
-            merkle_tree::merkle_tree_verifier::verify_claim_opt_blake(Middle_trees[i].Base_MT,path.data(),temp_queries[j][1]/4,M,visited[temp_queries[j][0]],temp_ps);
-            if(replies_mask.size() > i){
+            if(path.size() != 0){
+                merkle_tree::merkle_tree_verifier::verify_claim_opt_blake(Middle_trees[i].Base_MT,path.data(),temp_queries[j][1]/4,M,visited[temp_queries[j][0]],temp_ps);
+                if(replies_mask.size() > i){
+                    ps += temp_ps;
+                }
                 ps += temp_ps;
+                temp_ps = 0.0;
+            }else{
+                if(replies_mask.size() > i){
+                    ps += 32.0/1024.0;
+                }
+                ps += 32.0/1024.0;
+                temp_ps = 0.0;
             }
-            ps += temp_ps;
-            temp_ps = 0.0;
         }
         if(ps > 0){
             ps += 32.0*(int)log2(N)/1024.0;
         }
-    
+        
     }
-
     F two_inv = F(2).inv();
     for(int i = 0; i < replies.size()-1; i++){
                 
@@ -370,20 +379,20 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
                 query_indexes[j][1] -= (row_size/(1<<(i+1)));
             }
             if(replies_mask.size() > i){
-                if(query_indexes[j][1] < (row_size/(1<<(i+2))) && (replies[i+1][j][0] != aggr1 + b[i]*aggr2)){
+                if(verify && (query_indexes[j][1] < (row_size/(1<<(i+2))) && (replies[i+1][j][0] != aggr1 + b[i]*aggr2))){
                     printf("# error %d\n",j);
                     //return;
                 }
-                if(query_indexes[j][1] > (row_size/(1<<(i+2))) && (replies[i+1][j][1] != aggr1 + b[i]*aggr2)){
+                if(verify && (query_indexes[j][1] > (row_size/(1<<(i+2))) && (replies[i+1][j][1] != aggr1 + b[i]*aggr2))){
                     printf("! error %d\n",j);
                     //return;
                 }
             }else{
-                if(query_indexes[j][1] < (row_size/(1<<(i+2))) && (replies[i+1][j][0] != aggr1 )){
+                if(verify && (query_indexes[j][1] < (row_size/(1<<(i+2))) && (replies[i+1][j][0] != aggr1 ))){
                     printf("@ error %d,%d\n",i,j);
                     //return;
                 }
-                if(query_indexes[j][1] > (row_size/(1<<(i+2))) && (replies[i+1][j][1] != aggr1 )){
+                if(verify && (query_indexes[j][1] > (row_size/(1<<(i+2))) && (replies[i+1][j][1] != aggr1 ))){
                     printf("> error %d,%d\n",i,j);
                     //return;
                 }
@@ -610,6 +619,30 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         y = H.eval(challenges[i]);
         step2(challenges[i], F(0), i, v1, row_data,codeword,dummy,eval_MT[i],N);
     }
+
+
+    vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*2*(1<<rounds),rank);
+    initial_index = query_index;
+    vector<vector<vector<F>>> replies(rounds); 
+    for(int i = 0; i < rounds; i++){
+        for(int j = 0; j < query_index.size(); j++){
+            if(query_index[j][1] < folded_codewords[i].size()/2){
+                replies[i].push_back({folded_codewords[i][query_index[j][1]],folded_codewords[i][query_index[j][1] + folded_codewords[i].size()/2]});
+            }else{
+                replies[i].push_back({folded_codewords[i][query_index[j][1]- folded_codewords[i].size()/2],folded_codewords[i][query_index[j][1]]});
+            }
+        }
+        for(int j = 0; j < query_index.size(); j++){
+            if(query_index[j][1] >= folded_codewords[i].size()/2){
+                query_index[j][1] -= folded_codewords[i].size()/2;
+            }
+        }
+    }
+    
+    verify_queries(N,folded_codewords[0].size()/4,  initial_index, replies, {},
+                                 challenges, {}, Com, eval_MT, ps,verify);
+
+
     // Send the final codeword to P0
     if(rank != 0){
         vector<u64> buff;

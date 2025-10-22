@@ -340,24 +340,33 @@ bool merkle_tree::merkle_tree_verifier::verify_claim_opt_blake(vector<vector<_ha
     _hash leaf_hash = path[0];
     _hash data[2];
     for(int i = 0; i < MT.size()-1; i++){
-        
+        if((pos_element^1) >= (2*N)){
+            printf("EERROR %d,%d,%d\n",2*N,pos_element,pos_element^1);
+            exit(-1);
+        }
         
         if(!visited[pos_element ^ 1]){
+            
             data[pos & 1] = leaf_hash;
+            if((pos^1) >= MT[i].size()){
+                printf("ERRoR in Verification %d,%d\n",pos^1,MT[i].size());
+                exit(-1);
+            }
             data[(pos & 1) ^ 1] = MT[i][pos ^ 1];
-            //printf("%d,%d\n",pos_element,pos_element ^ 1 );
-            //exit(-1);
+            
             my_hhash(data, &leaf_hash);
             visited[pos_element ^ 1] = true;
             pos_element /= 2;
             pos /= 2;
             visited[pos_element] = true;
             ps += 32.0/1024.0;
+            
         }else{
             return true;
         }
+    
     }
-
+    
     return true;
 }
 
