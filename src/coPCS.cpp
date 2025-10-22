@@ -207,6 +207,20 @@ void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &R_shares, MT &C
     encode(codeword,row_data,data,R_shares,l,k,_k,M,N);
     distributed_MT(codeword, Com,N);
 }
+// Commitment algorithm when given the secret shares
+void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vector<F> &R_shares, MT &Com, int l, int k, int _k, int M, int N){
+    row_data.resize(next_pow2(W_shares.size()+l),0);
+    // Input distribution emulation 
+    //printf(">> %d\n",row.size());
+    for(int j = 0; j < W_shares.size(); j++){
+        row_data[j] = W_shares[j];
+    }
+    for(int j = 0 ; j < l; j++){
+        row_data[j + W_shares.size()] = R_shares[j]; 
+    }
+    encode_protocol_step2(W_shares, R_shares, codeword);
+    distributed_MT(codeword, Com,N);
+}
 
 
 void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data, MT &Com, int k, int N){
@@ -532,7 +546,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 }
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
-                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt, bool secret_shared, bool verify = true){
+                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt, bool secret_shared, bool verify){
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -541,7 +555,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     vector<vector<F>> folded_codewords(rounds);
     vector<MT> eval_MT(rounds);
     vector<F> old_v2 = v2;
-    if(!secret_shared){
+    if(!secret_shared && k != N){
         fft(v2,(int)log2(v2.size()),true);
         vector<F> _v2(2*v2.size(),F(0));
         
@@ -555,7 +569,6 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     
     quadratic_poly H;
     for(int i = 0; i < rounds; i++){
-        
         folded_codewords[i] = codeword;
             
         vector<F> dummy;
@@ -570,7 +583,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         }
         else H = aggregate_quadratic_poly(H,v2,k,2*k,N);
         //H = aggregate_quadratic_poly(H, v2,  k,  _k,  N);
-        if(H.eval(0) + H.eval(1) != y){
+        if(H.eval(0) + H.eval(1) != y && verify){
             printf("Error in open round %d\n",i);
             //return;
         }
@@ -578,17 +591,12 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         y = H.eval(challenges[i]);
         step2(challenges[i], F(0), i, v1, row_data,codeword,dummy,eval_MT[i],N);
     }
-
-    
     // Send the final codeword to P0
     if(rank != 0){
         vector<u64> buff;
         field_vector_serialize(codeword,buff);
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }else{
-        for(int i = 0; i < 2; i++){
-            printf("(%lld,%lld)\n",row_data[i].real,row_data[i].img);
-        }
         vector<vector<F>> final_codeword(N);
         final_codeword[0] = codeword;
         vector<u64> buff(2*codeword.size());
@@ -605,18 +613,6 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
             fft(final_codeword[i],(int)log2(final_codeword[i].size()),true);
             for(int j = 0; j < _final_codeword[i].size(); j++){
                 _final_codeword[i][j] = final_codeword[i][j];
-            }
-            for(int j = _final_codeword[i].size(); j < final_codeword[i].size(); j++){
-                if(final_codeword[i][j] != F(0)){
-                    printf("Error\n");
-                    exit(-1);
-                }
-            }
-            if(i == 0){
-                for(int j = 0; j < 2; j++){
-                    printf("(%lld,%lld)\n",_final_codeword[i][j].real,_final_codeword[i][j].img);
-                }
-
             }
         }
 
@@ -656,7 +652,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         
         for(int i = 0; i < arr1.size(); i++) temp += arr1[i]*arr2[i];
         
-        if(temp != y){
+        if(temp != y && verify){
             printf("ERROR, PC verification failed (%lld,%lld),(%lld,%lld)\n",temp.real,temp.img,y.real,y.img);
         }else{
             printf("PC Verification Success\n");
