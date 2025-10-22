@@ -18,7 +18,7 @@
 #include "Fiat_Shamir.h"
 #include "Distributed_Sumcheck.h"
 #include "MPI_utils.hpp"
-
+#include "timer.hpp"
 int tensor_row_size;
 int mul_counter= 0;
 
@@ -652,6 +652,7 @@ int main(int argc, char *argv[]){
     //fft(p_evals,(int)log2())
     exit(-1);
     */
+
     
   
     

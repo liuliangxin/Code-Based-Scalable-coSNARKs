@@ -424,4 +424,5 @@ src/CMakeFiles/pigeon.dir/main.cpp.o: \
  /home/chris/coSNARK_MPI/src/MPI_utils.hpp \
  /home/chris/coSNARK_MPI/src/sparse_eval.hpp \
  /home/chris/coSNARK_MPI/src/Fiat_Shamir.h \
- /home/chris/coSNARK_MPI/src/Distributed_Sumcheck.h
+ /home/chris/coSNARK_MPI/src/Distributed_Sumcheck.h \
+ /home/chris/coSNARK_MPI/src/timer.hpp

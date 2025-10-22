@@ -1,5 +1,20 @@
 #include "config_pc.hpp"
 #include <chrono>
+
+class timer_cpu
+{
+private:
+    double time;
+    clock_t start_time;
+public:
+    timer_cpu();
+    ~timer_cpu();
+    void start();
+    void end();
+    double get_time();
+};
+
+
 class timer
 {
 private:
@@ -10,7 +25,26 @@ public:
     ~timer();
     void start();
     void end();
+    double get_time();
 };
+
+timer_cpu::timer_cpu(){
+    time = 0.0;
+}
+timer_cpu::~timer_cpu(){
+}
+
+void timer_cpu::start(){
+    start_time = clock();
+}
+void timer_cpu::end(){
+    time += (double)(clock() - start_time) / CLOCKS_PER_SEC;
+}
+double timer_cpu::get_time(){
+    return time;
+}
+
+
 
 timer::timer(/* args */)
 {
@@ -27,5 +61,9 @@ void timer::start(){
 void timer::end(){
     auto endTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = endTime - m_startTime;
-    time = duration.count()/1000.0;
+    time += duration.count()/1000.0;
+}
+
+double timer::get_time(){
+    return time;
 }
