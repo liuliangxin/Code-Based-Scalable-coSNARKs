@@ -621,36 +621,39 @@ void test_sparse_eval(int N, int M){
 
 
 int main(int argc, char *argv[]){
-    
     /*
-    vector<F> arr = generate_randomness(16);
+    vector<F> arr = generate_randomness(4);
     vector<F> poly = arr;
+    for(int i = 0; i < arr.size(); i++){
+        printf("%lld,%lld\n",arr[i].real,arr[i].img);
+    }
+    printf("==========\n");
+
     fft(poly,(int)log2(arr.size()),true);
-    vector<F> p_evals, evals = poly;
-    evals.resize(2*16,0);
-    fft(evals,(int)log2(evals.size()),false);
-    for(int i  =0 ; i < 16; i++){
-        p_evals.push_back(evals[2*i+1]);
-    }
-    
-    fft(p_evals,(int)log2(p_evals.size()),true);
-    F omega = getRootOfUnity(5);omega = omega.inv();
-    F one = F(1);
-    for(int i = 0; i < p_evals.size(); i++){
-        p_evals[i] = p_evals[i]*one;
-        one = omega*one;
-    }
-    printf("+========\n");
-    
+    F omega = getRootOfUnity(3+(int)log2(poly.size()));omega = omega.inv();
+    F mul = F(1);
     for(int i = 0; i < poly.size(); i++){
-        if(p_evals[i] != poly[i]){
-            printf("Error\n");
-        }
+        poly[i] = mul*poly[i];
+        mul = omega*mul;
     }
+    vector<F> arr2 = poly;arr2.resize(4*poly.size(),F(0));   
+    fft(arr2,(int)log2(arr2.size()),false);
+    
+    
+    fft(arr2,(int)log2(arr2.size()),true);
+    arr2.resize(2*arr2.size(),F(0));
+    fft(arr2,(int)log2(arr2.size()),false);
+    vector<F> poly2;
+    for(int i = 0; i < arr.size(); i++){
+        poly2.push_back(arr2[2*4*i + 1]);
+        printf("%lld,%lld\n",poly2[i].real,arr[i].real);
+    }
+    
     //fft(p_evals,(int)log2())
     exit(-1);
     */
     
+  
     
     int K = 1<<atoi(argv[1]);
     int N = atoi(argv[2]);
@@ -660,6 +663,8 @@ int main(int argc, char *argv[]){
     int size;
     int rank;
     
+
+
 
     //encode_locally(C,R_shares,500,N,M,k,_k);
     MPI_Init (&argc, &argv);

@@ -44,6 +44,13 @@ void encode_protocol_step2(vector<F> &row, vector<F> &rand, vector<F> &codeword)
         buff[i+row.size()] = rand[i];
     }
     fft(buff,(int)log2(buff.size()),true);
+    F omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(buff.size())).inv();
+    F mul = F(1);
+    for(int j = 0; j < buff.size(); j++){
+        buff[j] = mul*buff[j];
+        mul = mul*omega;
+    }        
+                
     codeword.resize(rate*buff.size(),0);
     for(int i = 0; i < buff.size(); i++){
         codeword[i] = buff[i];

@@ -420,8 +420,20 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     
     precompute_beta(r1,beta1);precompute_beta(r2,beta2);
     fft(row_data,(int)log2(row_data.size()),true);
-    fft(beta1,(int)log2(beta1.size()),false);
+    F omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(row_data.size())).inv();
+    F mul = F(1);
+    for(int j = 0; j < row_data.size(); j++){
+        row_data[j] = mul*row_data[j];
+        mul = mul*omega;
+    }
     
+    fft(beta1,(int)log2(beta1.size()),false);
+    omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(row_data.size()));
+    mul = F(1);
+    for(int j = 0; j < row_data.size(); j++){
+        beta1[j] = mul*beta1[j];
+        mul = mul*omega;
+    }
 
     vector<F> y_mask(rounds),aggr_challenges(rounds),challenges(rounds);
     
@@ -508,12 +520,13 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         vector<vector<F>> _final_codeword(N);
         for(int i = 0; i < N; i++){
             _final_codeword[i].resize(final_codeword[i].size()/rate,0);
-            fft(final_codeword[i],(int)log2(final_codeword[i].size()),true);
+            fft(final_codeword[i],(int)log2(final_codeword[i].size()),true);            
             for(int j = 0; j < _final_codeword[i].size(); j++){
-                _final_codeword[i][j] = final_codeword[i][j];
+                //printf("%d,%d\n",final_codeword[i].size(),2*rate*j );
+                _final_codeword[i][j] = final_codeword[i][j ];
             }
         }
-
+        
         F temp = 0;
         
         vector<vector<F>> message(_final_codeword[0].size());
