@@ -523,10 +523,19 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
                 message[i][j] = _final_codeword[j][i];
             }
             fft(message[i],(int)log2(N),true);
-            message[i].resize(_k);
-            fft(message[i],(int)log2(_k),false);
+            
+            F omega = getRootOfUnity(1+(int)log2(N)).inv();
+            F mul = F(1);
+            for(int j = 0; j < message[i].size(); j++){
+                message[i][j] = mul*message[i][j];
+                mul = mul*omega;
+            }
+            fft(message[i],(int)log2(N),false);
+            vector<F> buff = message[i];
+            message[i].resize(k);
+            for(int j = 0; j < k; j++) message[i][j] = buff[N*j/_k];
         }
-        for(int i = 0; i < _k; i++){
+        for(int i = 0; i < k; i++){
             for(int j = 0; j < message.size(); j++){
                 temp += beta2[i]*beta1[j]*message[j][i];
             }
