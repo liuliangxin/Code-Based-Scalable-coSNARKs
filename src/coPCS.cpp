@@ -532,7 +532,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 }
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
-                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt, bool secret_shared){
+                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt, bool secret_shared, bool verify = true){
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -663,5 +663,8 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         }
         
     }
-
 }
+
+//void open_index(vector<F> &row_data, vector<F> &codeword, MT &index_Com, int rate){
+//    int 
+//}

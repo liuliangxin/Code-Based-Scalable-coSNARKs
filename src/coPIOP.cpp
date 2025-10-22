@@ -13,6 +13,7 @@ vector<vector<pair<int, int>>> A,B,C;
 vector<vector<pair<int,int>>> tA,tB,tC;
 int logm,logn;
 bool bit_method = false;
+int index_rate = 4;
 
 
 
@@ -648,7 +649,20 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
 }
 
 
-void init_dummy_index_commitment(){
+void init_dummy_index_commitment(vector<sparse_eval_data> &data, vector<F> &row_data, vector<F> &codeword, MT &index_Com, int rate){
+    int size = 0;
+    for(int i = 0; i < data.size(); i++){
+        size += data[i].FINAL_FR1.size();
+        size += data[i].FINAL_FR2.size();
+        size += data[i].IDX1.size();
+        size += data[i].IDX2.size();
+        size += data[i].RD1.size();
+        size += data[i].RD2.size();
+    }
+    size = next_pow2(size);
+    row_data = generate_randomness(size);
+    codeword = generate_randomness(rate*size);
+    distributed_MT(codeword, index_Com, codeword.size());
     
 }
 
@@ -661,7 +675,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     vector<F> RA,RB,RC;
     vector<sparse_eval_data> index;
     MT CR,_CR,index_Com;
-    vector<F> codeword_R,_codeword_R,index_codeword;
+    vector<F> codeword_R,_codeword_R,index_codeword,index_data;
     distribute_index(N, size, index);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
     setup_randomness(R, N, _k, k);
@@ -669,7 +683,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     commit_randomness(R, _R, codeword_R, _codeword_R, CR, _CR, N);
     // To ease development, we initialize a dummy index commitment. In practice, we could let the indexer 
     // generate such a commitment in a preprocessing phase.
-    init_dummy_index_commitment();
+    init_dummy_index_commitment(index,index_data,index_codeword,index_Com,index_rate);
 
     int logk = (int)log2(k);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
@@ -702,7 +716,11 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,pt,ps,vt);
     
-    open_index();
+    vector<F> r1,r2,beta1,beta2;
+    for(int i = 0; i < (int)log2(index_data.size()); i++) r1.push_back(hash_to_field({}));
+    for(int i = 0; i < (int)log2(N); i++) r2.push_back(hash_to_field({}));
+    precompute_beta(r1,beta1);precompute_beta(r2,beta2);
+    open_plaintext(index_data,index_codeword,beta1,beta2,index_Com,F(0),100,N,N,ps,vt,false,false);
 }
 
 
