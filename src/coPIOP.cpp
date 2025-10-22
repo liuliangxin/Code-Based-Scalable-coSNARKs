@@ -679,23 +679,34 @@ void open_index(vector<F> &index_data,vector<F> &codeword, MT &index_Com, int N,
 void coPIOP_prove(size_t size, int N, int _k, int k){
     double pt = 0.0,vt = 0.0,ps = 0.0;
     double cm = 0.0;
-
+    int logk = (int)log2(k);
+    
     vector<F> witness,vL,vO,vR,R,_R;
-    vector<F> r_witness(1);
+    vector<F> r_witness;
+    vector<vector<F>> mask_shares,mask_data,C_mask;
     vector<F> RA,RB,RC;
     vector<sparse_eval_data> index;
-    MT CR,_CR,index_Com;
-    vector<F> codeword_R,_codeword_R,index_codeword,index_data;
+    MT CR,_CR,index_Com,Com;
+    vector<MT> Com_mask;
+    vector<F> codeword,row_data,codeword_R,_codeword_R,index_codeword,index_data;
     distribute_index(N, size, index);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
-    setup_randomness(R, N, _k, k);
-    setup_randomness(_R, N, _k, k);
+    setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
+    setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
+    dummy_setup(r_witness, mask_shares, N, 1<<logm, k, _k, 500);
+    prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, 1<<logm, k, _k, 500);
+    
+    //setup_randomness(r_witness, N, _k, k,500);
     commit_randomness(R, _R, codeword_R, _codeword_R, CR, _CR, N);
     // To ease development, we initialize a dummy index commitment. In practice, we could let the indexer 
     // generate such a commitment in a preprocessing phase.
+    if(witness.size() < r_witness.size()){
+        printf("Circuit too small. Select fewer parties\n");
+        return;
+    }
     init_dummy_index_commitment(index,index_data,index_codeword,index_Com,index_rate,N);
     
-    int logk = (int)log2(k);
+    commit(codeword, row_data, witness, r_witness, Com, 500, k, _k, N);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
     for(int i = 0; i < 4; i++){
         rL[i] = R[i];
@@ -710,7 +721,6 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
         R3[i] = R[i+12+2*(logn -logk + 2)];
         R4[i] = R[i+12+2*(logn -logk + 2)+logm-logk+2];
     }
-    r_witness[0] = R[12+2*(logn -logk + 2)+2*(logm-logk+2)];
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
 
@@ -726,6 +736,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,pt,ps,vt);
     open_index(index_data,index_codeword, index_Com, N,ps, vt);
+    open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps,vt);
 }
 
 

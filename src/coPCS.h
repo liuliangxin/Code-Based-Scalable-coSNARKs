@@ -30,4 +30,4 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
 
 void commit_randomness(vector<F> R, vector<F> _R, vector<F> &codeword, vector<F> &_codeword, MT &CR, MT &_CR, int N);
 void distributed_MT(vector<F> &data, MT &Com, int N);
-void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vector<F> &R_shares, MT &Com, int l, int k, int _k, int M, int N);
+void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vector<F> &R_shares, MT &Com, int l, int k, int _k, int N);

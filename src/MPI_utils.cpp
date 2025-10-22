@@ -1045,13 +1045,13 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
 } 
 
 
-void setup_randomness(vector<F> &R, int N, int _k, int k){
+void setup_randomness(vector<F> &R, int N, int _k, int k, int size){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64;
     int logk = (int)log2(k);
     if(rank == 0){
-        vector<F> random_values(k*(500 + 2*(logm + logn - 2*logk + 4) + 12+1));
+        vector<F> random_values(k*(size));
         vector<vector<F>> R_shares;
         for(int i = 0; i < random_values.size(); i++) random_values[i] = random();
         compute_secret_shares(random_values,R_shares,N,k,_k,true);
@@ -1061,7 +1061,7 @@ void setup_randomness(vector<F> &R, int N, int _k, int k){
             MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }
     }else{
-        buff_u64.resize(2*(500 + 2*(logm + logn- 2*logk + 4) + 12+1));
+        buff_u64.resize(2*(size));
         MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         field_vector_deserialize(buff_u64,R);           
     }

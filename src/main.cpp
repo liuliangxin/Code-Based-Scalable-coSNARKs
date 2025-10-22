@@ -701,7 +701,7 @@ int main(int argc, char *argv[]){
     
     
     if (rank == 0) printf("MPI World size = %d processes\n", size);
-    else printf("Worker Finalizing ... \n");
+    //else printf("Worker Finalizing ... \n");
     MPI_Finalize();
     
     /*

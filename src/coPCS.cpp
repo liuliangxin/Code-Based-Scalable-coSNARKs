@@ -208,7 +208,7 @@ void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &R_shares, MT &C
     distributed_MT(codeword, Com,N);
 }
 // Commitment algorithm when given the secret shares
-void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vector<F> &R_shares, MT &Com, int l, int k, int _k, int M, int N){
+void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vector<F> &R_shares, MT &Com, int l, int k, int _k, int N){
     row_data.resize(next_pow2(W_shares.size()+l),0);
     // Input distribution emulation 
     //printf(">> %d\n",row.size());
@@ -417,9 +417,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     
     for(int i = (int)log2(k); i < r.size(); i++) r1.push_back(r[i]);
     
-    r1.push_back(F(0));
-    r2.push_back(F(0));
-
+    
     precompute_beta(r1,beta1);precompute_beta(r2,beta2);
     fft(row_data,(int)log2(row_data.size()),true);
     fft(beta1,(int)log2(beta1.size()),false);
@@ -461,7 +459,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,dummy,eval_MT[i],N);
         }
     }
-
     // Generate opening proofs 
     
     vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
@@ -489,7 +486,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             }
         }
     }
-
+    
     verify_queries(N,folded_codewords[0].size()/4,  initial_index, replies, replies_mask,
                                  challenges, aggr_challenges, Com, eval_MT, ps);
 

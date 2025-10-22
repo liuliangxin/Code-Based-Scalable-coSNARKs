@@ -25,10 +25,11 @@ void setup(vector<vector<F>> &R_shares, int N, int M, int l, int k, int _k){
     
     for(int i = 0; i < l; i++){
         fft(R[i],(int)log2(_k),true);
-        for(int j = 0; j < _k; j++){
-            R_shares[i][j] = R[i][j];
+        R[i].resize(2*N);
+        fft(R[i],(int)log2(2*N),false);
+        for(int j = 0; j < N; j++){
+            R_shares[i][j] = R[i][2*j+1];
         }
-        fft(R_shares[i],(int)log2(N),false);
     }
     
 }
