@@ -26,11 +26,18 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
             Y[i].img = f_element[1];
         }
         fft(Y,(int)log2(Y.size()),true);
-        Y.resize(_k);
+        
+        F omega = getRootOfUnity(1+(int)log2(N)).inv();
+        F mul = F(1);
+        for(int i = 0; i < Y.size(); i++){
+            Y[i] = mul*Y[i];
+            mul = mul*omega;
+        }
+        
         fft(Y,(int)log2(Y.size()),false);
         
         for(int i = 0; i < v2.size(); i++){
-            sum += v2[i]*Y[i];
+            sum += v2[i]*Y[N*i/_k];
         }
         f_element[0] = sum.real;
         f_element[1] = sum.img;
@@ -168,14 +175,23 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
         fft(_a,(int)log2(_a.size()),true);
         fft(_b,(int)log2(_a.size()),true);
         fft(_c,(int)log2(_a.size()),true);
-        _a.resize(_k);fft(_a,(int)log2(_a.size()),false);
-        _b.resize(_k);fft(_b,(int)log2(_a.size()),false);
-        _c.resize(_k);fft(_c,(int)log2(_a.size()),false);
+        F omega = getRootOfUnity(1+(int)log2(N)).inv();
+        F mul = F(1);
+        for(int i = 0; i < _a.size(); i++){
+            _a[i] = mul*_a[i];
+            _b[i] = mul*_b[i];
+            _c[i] = mul*_c[i];
+            mul = mul*omega;
+        }
         
-        for(int j = 0; j < _k; j++){
-            a += v[j]*_a[j];
-            b += v[j]*_b[j];
-            c += v[j]*_c[j];
+        fft(_a,(int)log2(_a.size()),false);
+        fft(_b,(int)log2(_a.size()),false);
+        fft(_c,(int)log2(_a.size()),false);
+        
+        for(int j = 0; j < v.size(); j++){
+            a += v[j]*_a[N*j/_k];
+            b += v[j]*_b[N*j/_k];
+            c += v[j]*_c[N*j/_k];
         }
         coef[0] = a;coef[1] = b;coef[2] = c;
         field_vector_serialize(coef,coef_u);

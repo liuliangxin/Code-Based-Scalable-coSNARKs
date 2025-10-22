@@ -456,7 +456,7 @@ void open_sparse_eval(vector<F> &codeword, vector<F> &row_data, vector<F> r, MT 
     for(int i = r2.size(); i < r.size() ; i++) r1.push_back(r[i]);
     
     precompute_beta(r1,v1);precompute_beta(r2,v2);
-    open_plaintext(codeword, row_data, v1, v2, Com, y, l, k, N, ps, vt);
+    open_plaintext(codeword, row_data, v1, v2, Com, y, l, k, N, ps, vt,false);
 }
 
 void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &pt,double &ps,double &vt){
@@ -482,7 +482,7 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
-                                 vector<F> R, vector<F> _R, F a, F b, F c, int N, int k, int _k, double &pt, double &vt, double &ps, double &cm){
+                                 vector<F> R, vector<F> _R,vector<F> codeword, vector<F> _codeword, MT &CR, F a, F b, F c, int N, int k, int _k, double &pt, double &vt, double &ps, double &cm){
     
     
     int rank;
@@ -638,10 +638,19 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     for(int i = 0; i < logk; i++) r2.push_back(claims[0].second[i]);
     for(int i = logk; i < claims[0].second.size(); i++) r1.push_back(claims[0].second[i]);
     v1.clear();v2.clear();precompute_beta(r1,v1);precompute_beta(r2,v2);
+    
     R.resize(next_pow2(R.size()),0);
-    //open_plaintext(codeword,R,v1,v2,C_rand,claims[0].first,500,k,N,ps,vt);
+    for(int i = 0; i < codeword.size(); i++){
+        codeword[i] += _b*_codeword[i];
+    }
+    
+    open_plaintext(codeword,R,v1,v2,CR,claims[0].first,500,k,N,ps,vt,true);
 }
 
+
+void init_dummy_index_commitment(){
+    
+}
 
 void coPIOP_prove(size_t size, int N, int _k, int k){
     double pt = 0.0,vt = 0.0,ps = 0.0;
@@ -651,11 +660,16 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     vector<F> r_witness(1);
     vector<F> RA,RB,RC;
     vector<sparse_eval_data> index;
+    MT CR,_CR,index_Com;
+    vector<F> codeword_R,_codeword_R,index_codeword;
     distribute_index(N, size, index);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
     setup_randomness(R, N, _k, k);
     setup_randomness(_R, N, _k, k);
-    
+    commit_randomness(R, _R, codeword_R, _codeword_R, CR, _CR, N);
+    // To ease development, we initialize a dummy index commitment. In practice, we could let the indexer 
+    // generate such a commitment in a preprocessing phase.
+    init_dummy_index_commitment();
 
     int logk = (int)log2(k);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
@@ -681,14 +695,14 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,pt,vt, ps,cm);
     
     
-    aggregate_random_evaluations(claims1,  claims2, R,  _R,a,b,c, N, k,  _k,pt,vt,ps,cm);
+    aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,pt,vt,ps,cm);
 
-    return;
+    //return;
     
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,pt,ps,vt);
     
-
+    open_index();
 }
 
 

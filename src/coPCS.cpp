@@ -532,7 +532,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 }
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
-                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt){
+                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt, bool secret_shared){
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -540,19 +540,20 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     
     vector<vector<F>> folded_codewords(rounds);
     vector<MT> eval_MT(rounds);
-
     vector<F> old_v2 = v2;
-    fft(v2,(int)log2(v2.size()),true);
-    vector<F> _v2(2*v2.size(),F(0));
-    for(int i = 0; i < k; i++){
-        _v2[i*N/k] = v2[i];
+    if(!secret_shared){
+        fft(v2,(int)log2(v2.size()),true);
+        vector<F> _v2(2*v2.size(),F(0));
+        
+        for(int i = 0; i < k; i++){
+            _v2[i*N/k] = v2[i];
+        }
+        v2 = _v2;
     }
-    v2 = _v2;
     
     vector<F> challenges(rounds);
     
     quadratic_poly H;
-   
     for(int i = 0; i < rounds; i++){
         
         folded_codewords[i] = codeword;
@@ -560,12 +561,14 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         vector<F> dummy;
         H = step1(i,F(0),v1,row_data,dummy);
         
-        H.a = v2[rank]*H.a;
-        H.b = v2[rank]*H.b;
-        H.c = v2[rank]*H.c;
         //printf("(%lld,%lld),(%lld,%lld),(%lld,%lld)\n",H.a.real,H.a.img,H.b.real,H.b.img,H.c.real,H.c.img);
-        
-        H = aggregate_poly(H, N);
+        if(!secret_shared){
+            H.a = v2[rank]*H.a;
+            H.b = v2[rank]*H.b;
+            H.c = v2[rank]*H.c;
+            H = aggregate_poly(H, N);
+        }
+        else H = aggregate_quadratic_poly(H,v2,k,2*k,N);
         //H = aggregate_quadratic_poly(H, v2,  k,  _k,  N);
         if(H.eval(0) + H.eval(1) != y){
             printf("Error in open round %d\n",i);
@@ -576,13 +579,16 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         step2(challenges[i], F(0), i, v1, row_data,codeword,dummy,eval_MT[i],N);
     }
 
+    
     // Send the final codeword to P0
     if(rank != 0){
         vector<u64> buff;
         field_vector_serialize(codeword,buff);
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }else{
-        
+        for(int i = 0; i < 2; i++){
+            printf("(%lld,%lld)\n",row_data[i].real,row_data[i].img);
+        }
         vector<vector<F>> final_codeword(N);
         final_codeword[0] = codeword;
         vector<u64> buff(2*codeword.size());
@@ -594,10 +600,23 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         ps += final_codeword.size()*final_codeword[0].size()*16/1024.0;
         vector<vector<F>> _final_codeword(N);
         for(int i = 0; i < N; i++){
+            
             _final_codeword[i].resize(final_codeword[i].size()/2,0);
             fft(final_codeword[i],(int)log2(final_codeword[i].size()),true);
             for(int j = 0; j < _final_codeword[i].size(); j++){
                 _final_codeword[i][j] = final_codeword[i][j];
+            }
+            for(int j = _final_codeword[i].size(); j < final_codeword[i].size(); j++){
+                if(final_codeword[i][j] != F(0)){
+                    printf("Error\n");
+                    exit(-1);
+                }
+            }
+            if(i == 0){
+                for(int j = 0; j < 2; j++){
+                    printf("(%lld,%lld)\n",_final_codeword[i][j].real,_final_codeword[i][j].img);
+                }
+
             }
         }
 
@@ -610,7 +629,22 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
                 message[i][j] = _final_codeword[j][i];
             }
             fft(message[i],(int)log2(N),true);
-            message[i].resize(k);
+            if(!secret_shared){
+                message[i].resize(k);
+            }else{
+                F omega = getRootOfUnity(1+(int)log2(N)).inv();
+                F mul = F(1);
+                for(int j = 0; j < message[i].size(); j++){
+                    message[i][j] = mul*message[i][j];
+                    mul = mul*omega;
+                }        
+                fft(message[i],(int)log2(N),false);
+                vector<F> buff = message[i];
+                message[i].clear();
+                for(int j = 0; j < k; j++){
+                    message[i].push_back(buff[N*j/(2*k)]);
+                }                
+            }
         }
 
         vector<F> arr1 = convert2vector((message)),arr2;
@@ -619,10 +653,11 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
                 arr2.push_back(old_v2[j]*v1[i]);
             }
         } 
+        
         for(int i = 0; i < arr1.size(); i++) temp += arr1[i]*arr2[i];
         
         if(temp != y){
-            printf("ERROR\n");
+            printf("ERROR, PC verification failed (%lld,%lld),(%lld,%lld)\n",temp.real,temp.img,y.real,y.img);
         }else{
             printf("PC Verification Success\n");
         }
