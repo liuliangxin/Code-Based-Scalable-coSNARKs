@@ -934,3 +934,102 @@ events:
         
       exitCode: 0
 ...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1278 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1322 (_MPI_try_staged_settings)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1645 (_MPI_check_lang_works)"
+      - "CMakeLists.txt:4 (find_package)"
+    description: "The MPI test test_mpi for C in mode normal"
+    directories:
+      source: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-K71h6y"
+      binary: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-K71h6y"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "MPI_RESULT_C_test_mpi_normal"
+      cached: true
+      stdout: |
+        Change Dir: '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-K71h6y'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_0223f/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_0223f.dir/build.make CMakeFiles/cmTC_0223f.dir/build
+        gmake[1]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-K71h6y'
+        Building C object CMakeFiles/cmTC_0223f.dir/test_mpi.c.o
+        /usr/bin/cc  -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi  -o CMakeFiles/cmTC_0223f.dir/test_mpi.c.o -c /home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-K71h6y/test_mpi.c
+        Linking C executable cmTC_0223f
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0223f.dir/link.txt --verbose=1
+        /usr/bin/cc CMakeFiles/cmTC_0223f.dir/test_mpi.c.o -o cmTC_0223f  -Wl,-rpath,/usr/lib/x86_64-linux-gnu/openmpi/lib /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so 
+        gmake[1]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-K71h6y'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1278 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1322 (_MPI_try_staged_settings)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1645 (_MPI_check_lang_works)"
+      - "CMakeLists.txt:4 (find_package)"
+    description: "The MPI test test_mpi for CXX in mode normal"
+    directories:
+      source: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-qIDpZG"
+      binary: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-qIDpZG"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "MPI_RESULT_CXX_test_mpi_normal"
+      cached: true
+      stdout: |
+        Change Dir: '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-qIDpZG'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_18478/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_18478.dir/build.make CMakeFiles/cmTC_18478.dir/build
+        gmake[1]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-qIDpZG'
+        Building CXX object CMakeFiles/cmTC_18478.dir/test_mpi.cpp.o
+        /usr/bin/c++  -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi  -o CMakeFiles/cmTC_18478.dir/test_mpi.cpp.o -c /home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-qIDpZG/test_mpi.cpp
+        Linking CXX executable cmTC_18478
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_18478.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_18478.dir/test_mpi.cpp.o -o cmTC_18478  -Wl,-rpath,/usr/lib/x86_64-linux-gnu/openmpi/lib /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_cxx.so /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so 
+        gmake[1]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-qIDpZG'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1278 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1672 (_MPI_try_staged_settings)"
+      - "CMakeLists.txt:4 (find_package)"
+    description: "The MPI test test_mpi for CXX in mode MPICXX"
+    directories:
+      source: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-ur7nqU"
+      binary: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-ur7nqU"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "MPI_RESULT_CXX_test_mpi_MPICXX"
+      cached: true
+      stdout: |
+        Change Dir: '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-ur7nqU'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_2c05e/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_2c05e.dir/build.make CMakeFiles/cmTC_2c05e.dir/build
+        gmake[1]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-ur7nqU'
+        Building CXX object CMakeFiles/cmTC_2c05e.dir/test_mpi.cpp.o
+        /usr/bin/c++  -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi  -o CMakeFiles/cmTC_2c05e.dir/test_mpi.cpp.o -c /home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-ur7nqU/test_mpi.cpp
+        Linking CXX executable cmTC_2c05e
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2c05e.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_2c05e.dir/test_mpi.cpp.o -o cmTC_2c05e  -Wl,-rpath,/usr/lib/x86_64-linux-gnu/openmpi/lib /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_cxx.so /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so 
+        gmake[1]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-ur7nqU'
+        
+      exitCode: 0
+...

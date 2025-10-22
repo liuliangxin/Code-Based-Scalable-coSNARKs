@@ -1,3 +1,4 @@
+#pragma once
 #include "coPIOP.h"
 #include "coSumcheck.h"
 #include "sparse_eval.hpp"
@@ -7,6 +8,7 @@
 #include "coSumcheck_MPI.h"
 #include "coPCS.h"
 #include "Distributed_Sumcheck.h"
+#include "timer.hpp"
 // R1CS matrixes
 vector<vector<pair<int, int>>> A,B,C;
 // Transposed R1CS matrixes
@@ -14,7 +16,8 @@ vector<vector<pair<int,int>>> tA,tB,tC;
 int logm,logn;
 bool bit_method = false;
 int index_rate = 4;
-
+timer pt,pt_cp;
+timer_cpu pt_cpu;
 
 
 void transpose_R1CS_matrixes(){
@@ -127,12 +130,14 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
                                         vector<F> R1,
                                         vector<F> R2, 
                                         int N, int _k, int k, 
-                                        double &pt, double &vt, double &ps,double &cm){
+                                        double &vt, double &ps,double &cm){
 
     
+    pt_cp.start();
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     
+
     vector<F> _r1,_r2;
     
     for(int i = 0; i < (int)log2(vL.size()); i++)_r1.push_back(hash_to_field({0}));
@@ -148,6 +153,8 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
         y += _beta(i,_r1)*(rL[i]*rR[i] - rO[i]);
     }
     vector<u64> buff_u64(2);
+    pt_cp.end();
+    
     if(rank == 0){
         vector<F> Y(N);
         Y[0] = y;
@@ -156,6 +163,7 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
             Y[i].real = buff_u64[0];
             Y[i].img = buff_u64[1];
         }
+        pt_cp.start();
         fft(Y,(int)log2(N),true);
         F mul = F(1);
         F omega = getRootOfUnity(1+(int)log2(N)).inv();
@@ -169,12 +177,15 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
             y += beta2[i]*Y[i*N/_k];
         }
         buff_u64 = {y.real,y.img};
-        
+        pt_cp.end();
+    
     }else{
         buff_u64 = {y.real,y.img};
         MPI_Send(buff_u64.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
     MPI_Bcast(buff_u64.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
+    
+    pt_cp.start();
     
     y.real = buff_u64[0];y.img = buff_u64[1];
     vector<F> r1 = _r1,r2 = _r2;
@@ -191,7 +202,9 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
     y = r1[r1.size()-1]*y;
     
     vector<F> r = r1;r.insert(r.begin(),r2.begin(),r2.end());
-    return _zero_check_sumcheck(y,vL,vR,vO,R1,R2,r,N,_k,k,pt,vt,ps,cm);    
+    pt_cp.end();
+    
+    return _zero_check_sumcheck(y,vL,vR,vO,R1,R2,r,N,_k,k,vt,ps,cm);    
 }
 
 void compute_beta_shares(vector<F> &shares, vector<F> r, int k, int N, int _k){
@@ -230,16 +243,17 @@ vector<pair<F,vector<F>>> prove_phase2(
                   F yL,F yR, F yO,
                   int N, int size,
                   int _k, int k, F &a, F &b, F &c,
-                  double &pt, double &vt, double &ps, double &cm){
+                   double &vt, double &ps, double &cm){
 
     
     RA.clear();RB.clear();RC.clear();
     
     vector<F> _r = r;_r.pop_back();
 
+    pt_cp.start();
     _reduce_R1CS_matrixes(size, _r, RA, RB, RC, N);
     
-    
+        
     a = hash_to_field({0});
     b = hash_to_field({0}); c = hash_to_field({0});  
     
@@ -259,7 +273,9 @@ vector<pair<F,vector<F>>> prove_phase2(
    
     F i = (F(1)- r[r.size()-1]).inv();
     
+    pt_cp.end();
     secret_share_vector(R_aggr, _k, k, N);
+    pt_cp.start();
     R_aggr.resize(2*R_aggr.size(),F(0));
 
     vector<F> beta_shares;
@@ -269,7 +285,8 @@ vector<pair<F,vector<F>>> prove_phase2(
         beta_shares[i] = r[r.size()-1]*beta_shares[i];
     }
     beta_shares.resize(4*beta_shares.size(),F(0));
-    vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k, pt, vt, ps,cm);
+    pt_cp.end();
+    vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k,  vt, ps,cm);
     
     claim[1].first = (F(1)-claim[1].second[claim[1].second.size()-1]).inv()*i*claim[1].first;
     return claim;
@@ -460,7 +477,7 @@ void open_sparse_eval(vector<F> &codeword, vector<F> &row_data, vector<F> r, MT 
     open_plaintext(codeword, row_data, v1, v2, Com, y, l, k, N, ps, vt,false);
 }
 
-void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &pt,double &ps,double &vt){
+void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &ps,double &vt){
 
     vector<vector<F>> beta1(3),beta2(3);
     r1.pop_back();r2.pop_back();
@@ -472,20 +489,24 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
         printf("Wrong dimensions 2\n");
         exit(-1);
     }
+    pt_cp.start();
 
-    compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N, pt);
+    compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N);
     vector<F> codeword,row_data;
     MT Com;
+    pt_cp.end();
 
     commit_sparse_eval_witness(beta1, beta2, codeword , row_data, Com, N/2,  N);
-    pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N, pt, pt, pt);
+    pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
     open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps,vt);
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
-                                 vector<F> R, vector<F> _R,vector<F> codeword, vector<F> _codeword, MT &CR, F a, F b, F c, int N, int k, int _k, double &pt, double &vt, double &ps, double &cm){
+                                 vector<F> R, vector<F> _R,vector<F> codeword, vector<F> _codeword, MT &CR, F a, F b, F c, int N, int k, int _k, double &vt, double &ps, double &cm){
     
     
+    
+    pt_cp.start();
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     // Evaluate claims of _R, then apply the sumcheck to aggregate partial claims into one
@@ -634,7 +655,11 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     }
     v1.resize(next_pow2(v1.size()),F(0));
     v2.resize(next_pow2(v1.size()),F(0));
-    vector<pair<F,vector<F>>> claims = _quadratic_cosumcheck(sum,v1,v2,N,_k,k,pt,vt,ps,cm);
+    pt_cp.end();
+   
+    vector<pair<F,vector<F>>> claims = _quadratic_cosumcheck(sum,v1,v2,N,_k,k,vt,ps,cm);
+    pt_cp.start();
+   
     r1.clear();r2.clear();
     for(int i = 0; i < logk; i++) r2.push_back(claims[0].second[i]);
     for(int i = logk; i < claims[0].second.size(); i++) r1.push_back(claims[0].second[i]);
@@ -644,6 +669,7 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     for(int i = 0; i < codeword.size(); i++){
         codeword[i] += _b*_codeword[i];
     }
+    pt_cp.end();
     
     open_plaintext(codeword,R,v1,v2,CR,claims[0].first,500,k,N,ps,vt,true);
 }
@@ -677,7 +703,7 @@ void open_index(vector<F> &index_data,vector<F> &codeword, MT &index_Com, int N,
 }
 
 void coPIOP_prove(size_t size, int N, int _k, int k){
-    double pt = 0.0,vt = 0.0,ps = 0.0;
+    double vt = 0.0,ps = 0.0;
     double cm = 0.0;
     int logk = (int)log2(k);
     
@@ -695,7 +721,6 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
     dummy_setup(r_witness, mask_shares, N, 1<<logn, k, _k, 500);
     prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, 1<<logn, k, _k, 500);
-    
     //setup_randomness(r_witness, N, _k, k,500);
     commit_randomness(R, _R, codeword_R, _codeword_R, CR, _CR, N);
     // To ease development, we initialize a dummy index commitment. In practice, we could let the indexer 
@@ -706,6 +731,9 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     }
     init_dummy_index_commitment(index,index_data,index_codeword,index_Com,index_rate,N);
     
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    pt.start();
     commit(codeword, row_data, witness, r_witness, Com, 500, k, _k, N);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
     for(int i = 0; i < 4; i++){
@@ -724,19 +752,21 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
 
-    vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, pt, vt, ps,cm);
+    vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, vt, ps,cm);
     F a,b,c;
-    vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,pt,vt, ps,cm);
+    vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c,vt, ps,cm);
     
     
-    aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,pt,vt,ps,cm);
+    aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,vt,ps,cm);
     
     //return;
     
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
-                             claims1[0].second,claims2[0].second,index,N,pt,ps,vt);
+                             claims1[0].second,claims2[0].second,index,N,ps,vt);
     open_index(index_data,index_codeword, index_Com, N,ps, vt);
     open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps,vt);
+    pt.end();
+    
 }
 
 
@@ -785,7 +815,7 @@ void prove_R1CS_standard(size_t size){
     for(int i = 0; i < RA.size(); i++){
         R_aggr[i] = (a*RA[i] + b*RB[i] + c*RC[i]);
     }
-    claims = quadratic_sumcheck(a*claims[1].first+b*claims[2].first+c*claims[3].first, witness, R_aggr,F(0), vt, ps);
+    claims = quadratic_sumcheck(a*claims[1].first+b*claims[2].first+c*claims[3].first, witness, R_aggr,F(0));
     vector<F> r2 = claims[0].second;
     clock_t t2 = clock();
     pt += (double)((t2-t1))/(double)CLOCKS_PER_SEC;

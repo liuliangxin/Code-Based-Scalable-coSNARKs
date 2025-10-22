@@ -159,12 +159,12 @@ src/clean: src/CMakeFiles/pigeon.dir/clean
 src/CMakeFiles/pigeon.dir/all: Blake/CMakeFiles/blake3.dir/all
 	$(MAKE) $(MAKESILENT) -f src/CMakeFiles/pigeon.dir/build.make src/CMakeFiles/pigeon.dir/depend
 	$(MAKE) $(MAKESILENT) -f src/CMakeFiles/pigeon.dir/build.make src/CMakeFiles/pigeon.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27 "Built target pigeon"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28 "Built target pigeon"
 .PHONY : src/CMakeFiles/pigeon.dir/all
 
 # Build rule for subdir invocation for target.
 src/CMakeFiles/pigeon.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/chris/coSNARK_MPI/build/CMakeFiles 27
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/chris/coSNARK_MPI/build/CMakeFiles 28
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 src/CMakeFiles/pigeon.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/chris/coSNARK_MPI/build/CMakeFiles 0
 .PHONY : src/CMakeFiles/pigeon.dir/rule

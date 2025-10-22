@@ -102,7 +102,7 @@ pair<F,vector<F>> sumcheck(F y, vector<F> &v1, double &vt, double &ps){
 }
 
 
-vector<pair<F,vector<F>>> quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,F previous_r, double &vt, double &ps){
+vector<pair<F,vector<F>>> quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,F previous_r){
 	struct proof Pr;
 	//vector<F> r = generate_randomness(int(log2(v1.size())));
 	int rounds = int(log2(v1.size()));
@@ -133,11 +133,11 @@ vector<pair<F,vector<F>>> quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,F
 		rand = F::_random();///mimc_hash(rand,poly.c);
 		rand = F::_random();//mimc_hash(rand,poly.d);
 		e = clock();
-		ps += 5*sizeof(F)/1024.0;
+		//ps += 5*sizeof(F)/1024.0;
 		y = poly.eval(rand);
         r.push_back(rand);
 		
-        vt += (double)(e-s)/(double)CLOCKS_PER_SEC;
+        //vt += (double)(e-s)/(double)CLOCKS_PER_SEC;
 
 		for(int j = 0; j < L; j++){
             v1[j] = rand*(v1[2*j+1]-v1[2*j]) + v1[2*j];
@@ -212,7 +212,7 @@ vector<pair<F,vector<F>>> zerocheck_sumcheck(F y, vector<F> &v1, vector<F> &v2, 
     return {make_pair(v1[0],r),make_pair(v2[0],r),make_pair(v3[0],r),make_pair(v4[0],r)};
 }
 
-vector<pair<F,vector<F>>> cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vector<F> &v3,F previous_r, double &vt, double &ps){
+vector<pair<F,vector<F>>> cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vector<F> &v3,F previous_r){
 	struct proof Pr;
 	//vector<F> r = generate_randomness(int(log2(v1.size())));
 	int rounds = int(log2(v1.size()));
@@ -246,11 +246,11 @@ vector<pair<F,vector<F>>> cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vect
 		rand = F::_random();///mimc_hash(rand,poly.c);
 		rand = F::_random();//mimc_hash(rand,poly.d);
 		e = clock();
-		ps += 5*sizeof(F)/1024.0;
+		//ps += 5*sizeof(F)/1024.0;
 		y = poly.eval(rand);
         r.push_back(rand);
 		
-        vt += (double)(e-s)/(double)CLOCKS_PER_SEC;
+        //vt += (double)(e-s)/(double)CLOCKS_PER_SEC;
 
 		for(int j = 0; j < L; j++){
             v1[j] = rand*(v1[2*j+1]-v1[2*j]) + v1[2*j];
@@ -338,8 +338,8 @@ pair<F,vector<F>> cubic_sumcheck_prod(F y, vector<F> &v1, vector<F> &v2, vector<
     return make_pair((F(1)-rand)*v1[0] + rand*v2[0],r);
 }
 
-pair<F,vector<F>> prove_multiplication_tree_new(vector<vector<F>> &input, vector<F> &output, F previous_r, F y, vector<F> r, double &vt, double &ps){
-	
+pair<F,vector<F>> prove_multiplication_tree_new(vector<vector<F>> &input, vector<F> &output, F previous_r, F y, vector<F> r){
+	double vt,ps;
     int vectors = input.size();
 	int depth = (int)log2(input[0].size());
 	int size = input[0].size();
@@ -501,7 +501,7 @@ void prove_sparse_eval_bit(vector<F> r, F y, vector<vector<short>> &bits, vector
     pair<F,vector<F>> claim =  sumcheck(y, beta,  vt, ps);
     vector<F> out;
     
-    claim = prove_multiplication_tree_new(input,out,rand,claim.first,claim.second,vt,ps);
+    claim = prove_multiplication_tree_new(input,out,rand,claim.first,claim.second);
     printf("OK\n");
     beta.clear();precompute_beta(claim.second,beta);
     batch_sumcheck(claim.first, beta, bits, r,  neg_r);
@@ -643,7 +643,7 @@ void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, v
     Tr[7].resize(next_pow2(data[0].IDX1.size()),F(0));
     
     vector<F> out1,out2,out3,out4;
-    pair<F,vector<F>> claim = prove_multiplication_tree_new(Tr,out1,F(0),F(0),vector<F>(),vt,ps);
+    pair<F,vector<F>> claim = prove_multiplication_tree_new(Tr,out1,F(0),F(0),vector<F>());
     claims = compute_eval_claims(claim.second,beta1,{data[0].RD1,data[1].RD1,data[2].RD1},{data[0].IDX1,data[1].IDX1,data[2].IDX1},challenges,claim.first);
     witness_claims.push_back(claims[0]);
     witness_claims.push_back(claims[3]);
@@ -668,7 +668,7 @@ void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, v
     Tr[6].resize(next_pow2(data[0].FINAL_FR1.size()),F(0));
     Tr[7].resize(next_pow2(data[0].FINAL_FR1.size()),F(0));
     
-    claim = prove_multiplication_tree_new(Tr,out2,F(0),F(0),vector<F>(),vt,ps);
+    claim = prove_multiplication_tree_new(Tr,out2,F(0),F(0),vector<F>());
     claims = compute_final_claim(claim.second, {data[0].FINAL_FR1,data[1].FINAL_FR1,data[2].FINAL_FR1});
     index_claims.push_back(claims[0]);
     index_claims.push_back(claims[1]);
@@ -695,7 +695,7 @@ void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, v
     Tr[6].resize(next_pow2(data[0].IDX2.size()),F(0));
     Tr[7].resize(next_pow2(data[0].IDX2.size()),F(0));
     
-    claim = prove_multiplication_tree_new(Tr,out3,F(0),F(0),vector<F>(),vt,ps);
+    claim = prove_multiplication_tree_new(Tr,out3,F(0),F(0),vector<F>());
     claims = compute_eval_claims(claim.second,beta2,{data[0].RD2,data[1].RD2,data[2].RD2},{data[0].IDX2,data[1].IDX2,data[2].IDX2},challenges,claim.first);
     witness_claims.push_back(claims[0]);
     witness_claims.push_back(claims[3]);
@@ -720,7 +720,7 @@ void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, v
     Tr[6].resize(next_pow2(data[0].FINAL_FR2.size()),F(0));
     Tr[7].resize(next_pow2(data[0].FINAL_FR2.size()),F(0));
     
-    claim = prove_multiplication_tree_new(Tr,out4,F(0),F(0),vector<F>(),vt,ps);
+    claim = prove_multiplication_tree_new(Tr,out4,F(0),F(0),vector<F>());
     claims = compute_final_claim(claim.second, {data[0].FINAL_FR2,data[1].FINAL_FR2,data[2].FINAL_FR2});
     index_claims.push_back(claims[0]);
     index_claims.push_back(claims[1]);
@@ -743,7 +743,7 @@ void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, v
             B2[j] = beta2[data[i].IDX2[j]];
             Y[i] += B1[j]*B2[j]; 
         }    
-        vector<pair<F,vector<F>>> partial_claim = quadratic_sumcheck(Y[i],B1,B2,F(0),vt,ps);
+        vector<pair<F,vector<F>>> partial_claim = quadratic_sumcheck(Y[i],B1,B2,F(0));
         witness_claims.insert(witness_claims.end(),partial_claim.begin(),partial_claim.end());
     }
     if(y != a*Y[0]+b*Y[1]+c*Y[2]){
@@ -795,7 +795,7 @@ void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, v
     
     
     // TAKE THE EVALUATION CLAIM FROM THERE
-    quadratic_sumcheck(y_acc,witness,acc,F(0),vt,ps);
+    quadratic_sumcheck(y_acc,witness,acc,F(0));
 
     // Accumulate all other data
     vector<F> index_data(next_pow2(4*3*next_pow2(data[0].IDX2.size()) + 3*next_pow2(data[0].FINAL_FR1.size())+3*next_pow2(data[0].FINAL_FR2.size())),F(0));
@@ -864,7 +864,7 @@ void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, v
     for(int i = 0; i < index_claims.size(); i++){
         y_acc += index_claims[i].first;
     }
-    quadratic_sumcheck(y_acc,index_data,acc,F(0),vt,ps);
+    quadratic_sumcheck(y_acc,index_data,acc,F(0));
     clock_t t2 = clock();
     pt += (double)(t2-t1)/(double)CLOCKS_PER_SEC;
 

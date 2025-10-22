@@ -31,6 +31,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/pigeon.dir/polynomial.cpp.o.d"
   "CMakeFiles/pigeon.dir/sparse_eval.cpp.o"
   "CMakeFiles/pigeon.dir/sparse_eval.cpp.o.d"
+  "CMakeFiles/pigeon.dir/timer.cpp.o"
+  "CMakeFiles/pigeon.dir/timer.cpp.o.d"
   "CMakeFiles/pigeon.dir/utils.cpp.o"
   "CMakeFiles/pigeon.dir/utils.cpp.o.d"
   "CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o"

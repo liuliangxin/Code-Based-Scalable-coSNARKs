@@ -1,5 +1,6 @@
+#pragma once
 #include "MPI_utils.hpp"
-
+#include "timer.hpp"
 extern vector<vector<pair<int,int>>> A,B,C;
 // Transposed R1CS matrixes
 extern vector<vector<pair<int,int>>> tA,tB,tC;
@@ -7,15 +8,19 @@ extern vector<vector<pair<int,int>>> pA,pB,pC;
 extern int logm,logn;
 extern vector<int> real_idx_dim;
 
+extern timer pt_cp;
 
 F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F y = F(0),sum = F(0);
     //printf("%d,%d\n",data.size(),v1.size());
+    pt_cp.start();
     for(int i = 0; i < data.size(); i++){
         y += data[i]*v1[i];
     }
+    pt_cp.end();
+    
     vector<u64> f_element(2);
         
     if(rank == 0){
@@ -25,6 +30,8 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
             Y[i].real = f_element[0];
             Y[i].img = f_element[1];
         }
+        pt_cp.start();
+    
         fft(Y,(int)log2(Y.size()),true);
         
         F omega = getRootOfUnity(1+(int)log2(N)).inv();
@@ -41,6 +48,8 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
         }
         f_element[0] = sum.real;
         f_element[1] = sum.img;
+        pt_cp.end();
+    
         for(int i = 1; i < N; i++){
             MPI_Send(f_element.data(), 2,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }
@@ -60,19 +69,25 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F y = F(0),sum = F(0);
-    
+    pt_cp.start();
+     
     for(int i = 0; i < data1.size(); i++){
         y += data1[i]*data2[i]*v1[i];
     }
+    pt_cp.end();
+    
     vector<u64> f_element(2);
         
     if(rank == 0){
+        
         vector<F> Y(N);Y[0] = y;
         for(int i = 1; i < N; i++){
             MPI_Recv(f_element.data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
             Y[i].real = f_element[0];
             Y[i].img = f_element[1];
         }
+        pt_cp.start();
+    
         fft(Y,(int)log2(Y.size()),true);
         F omega = getRootOfUnity(1+(int)log2(N)).inv();
         F mul = F(1);
@@ -87,6 +102,8 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
         }
         f_element[0] = sum.real;
         f_element[1] = sum.img;
+        pt_cp.end();
+    
         for(int i = 1; i < N; i++){
             MPI_Send(f_element.data(), 2,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }
@@ -106,11 +123,14 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F a = F(0),b = F(0),c = F(0);
-        
+    pt_cp.start();
+      
     vector<F> coef; coef.push_back(H.a);coef.push_back(H.b);coef.push_back(H.c);
     vector<u64> coef_u;
     
     field_vector_serialize(coef,coef_u);
+    pt_cp.end();
+    
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N);
         _a[0] = coef[0];_b[0] = coef[1];_c[0] = coef[2]; 
@@ -119,6 +139,8 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
             field_vector_deserialize(coef_u,coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2]; 
         }
+        pt_cp.start();
+    
         fft(_a,(int)log2(_a.size()),true);
         fft(_b,(int)log2(_a.size()),true);
         fft(_c,(int)log2(_a.size()),true);
@@ -141,6 +163,8 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
         }
         coef[0] = a;coef[1] = b;coef[2] = c;
         field_vector_serialize(coef,coef_u);
+        pt_cp.end();
+    
         for(int i = 1; i < N; i++){
             MPI_Send(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }        
@@ -159,11 +183,13 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F a = F(0),b = F(0),c = F(0);
+    pt_cp.start();
         
     vector<F> coef; coef.push_back(H.a);coef.push_back(H.b);coef.push_back(H.c);
     vector<u64> coef_u;
     
     field_vector_serialize(coef,coef_u);
+    pt_cp.end();
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N);
         _a[0] = coef[0];_b[0] = coef[1];_c[0] = coef[2]; 
@@ -172,6 +198,8 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
             field_vector_deserialize(coef_u,coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2]; 
         }
+        pt_cp.start();
+    
         fft(_a,(int)log2(_a.size()),true);
         fft(_b,(int)log2(_a.size()),true);
         fft(_c,(int)log2(_a.size()),true);
@@ -194,15 +222,21 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
             c += v[j]*_c[N*j/_k];
         }
         coef[0] = a;coef[1] = b;coef[2] = c;
+        
         field_vector_serialize(coef,coef_u);
+        pt_cp.end();
         for(int i = 1; i < N; i++){
             MPI_Send(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }        
     }else{
         MPI_Send(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        pt_cp.start();
+    
         field_vector_deserialize(coef_u,coef);
         a = coef[0];b = coef[1];c = coef[2]; 
+        pt_cp.end();
+    
     }
 
     H = quadratic_poly(a,b,c);
@@ -215,6 +249,7 @@ vector<F> zero_check_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
                                     vector<F> h2, vector<F> &beta1, vector<F> &beta2,
                                     F b, F y, int k, int _k, int N){
     
+    pt_cp.start();
     
     fft(final_v1,(int)log2(final_v1.size()),true);
     fft(final_v2,(int)log2(final_v2.size()),true);
@@ -293,12 +328,15 @@ vector<F> zero_check_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
     ret.push_back(v1[0]);ret.push_back(v2[0]);ret.push_back(v3[0]);
     ret.push_back(beta2[0]);ret.push_back(r1[0]);ret.push_back(r2[0]);
     ret.insert(ret.end(),challenges.begin(),challenges.end());
+    pt_cp.end();
+    
     return ret;
 
 }
 
 vector<F> quadratic_sumcheck_local(vector<F> final_v1, vector<F> final_v2, F y, int k, int _k, int N){
     
+    pt_cp.start();
     
     fft(final_v1,(int)log2(final_v1.size()),true);
     fft(final_v2,(int)log2(final_v2.size()),true);
@@ -347,6 +385,8 @@ vector<F> quadratic_sumcheck_local(vector<F> final_v1, vector<F> final_v2, F y, 
     vector<F> ret;
     ret.push_back(v1[0]);ret.push_back(v2[0]);
     ret.insert(ret.end(),challenges.begin(),challenges.end());
+    pt_cp.end();
+    
     return ret;
 
 }
@@ -356,6 +396,7 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
                                     vector<F> h1, vector<F> h2,
                                     F b, F y, int k, int _k, int N){
     
+    pt_cp.start();
     
     fft(final_v1,(int)log2(final_v1.size()),true);
     fft(final_v2,(int)log2(final_v2.size()),true);
@@ -473,6 +514,8 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
     ret.push_back(v1[0]);ret.push_back(v2[0]);ret.push_back(v3[0]);
     ret.push_back(v4[0]);ret.push_back(r1[0]);ret.push_back(r2[0]);
     ret.insert(ret.end(),challenges.begin(),challenges.end());
+    pt_cp.end();
+    
     return ret;
 
 }
@@ -583,11 +626,14 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F a = F(0),b = F(0),c = F(0),d = F(0);
+    pt_cp.start();
         
     vector<F> coef; coef.push_back(H.a);coef.push_back(H.b);coef.push_back(H.c),coef.push_back(H.d);
     vector<u64> coef_u;
     
     field_vector_serialize(coef,coef_u);
+    pt_cp.end();
+    
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N),_d(N);
         _a[0] = coef[0];_b[0] = coef[1];_c[0] = coef[2],_d[0] = coef[3]; 
@@ -597,6 +643,8 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
             field_vector_deserialize(coef_u,coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2];_d[i] = coef[3];
         }
+        pt_cp.start();
+    
         vector<F> test_a;
         
         fft(_a,(int)log2(_a.size()),true);
@@ -639,6 +687,8 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
         }
         coef[0] = a;coef[1] = b;coef[2] = c;coef[3] = d;
         field_vector_serialize(coef,coef_u);
+        pt_cp.end();
+    
         for(int i = 1; i < N; i++){
             MPI_Send(coef_u.data(),8,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }       
@@ -658,11 +708,13 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff(2); 
+    pt_cp.start();
     
     F y = F(0);
     for(int i = 0; i < poly.size(); i++){
         y += poly[i]*beta1[i];
     }
+    pt_cp.end();
         
     if(rank == 0){
         vector<F> Y(N);Y[0] = y; 
@@ -671,11 +723,15 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
             Y[i].real = buff[0];
             Y[i].img = buff[1];
         }
+        pt_cp.start();
+    
         y = 0;
         for(int i = 0; i < beta2.size(); i++){
             y += Y[i]*beta2[i];
         }
         buff = {y.real,y.img};
+        pt_cp.end();
+    
     }else{
         buff = {y.real,y.img};
         MPI_Send(buff.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
@@ -687,6 +743,8 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
 }
 
 vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k, int _k){
+    
+    pt_cp.start();
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<F> Y(arr.size(),F(0));
@@ -696,6 +754,8 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
         }
     }
     vector<u64> Y_int;
+    pt_cp.end();
+    
     if(rank == 0){
         vector<vector<F>> partial_Y(arr.size());
         for(int i = 0; i < partial_Y.size(); i++){
@@ -708,6 +768,8 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
             field_vector_deserialize(Y_int,Y);
             for(int j = 0; j < Y.size(); j++) partial_Y[j][i] = Y[j];
         }
+        pt_cp.start();
+    
         Y.clear();Y.resize(arr.size(),F(0));
         for(int i = 0; i < partial_Y.size(); i++){
             fft(partial_Y[i],(int)log2(partial_Y[i].size()),true);
@@ -723,6 +785,8 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
             }
         }
         field_vector_serialize(Y,Y_int);
+        pt_cp.end();
+    
         
     }else{
         field_vector_serialize(Y,Y_int);
@@ -737,6 +801,7 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
 
 vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     int rank;
+    pt_cp.start();
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff(poly.size()*2); 
     
@@ -746,12 +811,17 @@ vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vect
             y[i] += poly[i][j]*beta1[j];
         }
     }
+    pt_cp.end();
     
     if(rank == 0){
+        
+        pt_cp.start();
         vector<F> Y(poly.size(),F(0));
         for(int i = 0; i < poly.size(); i++){
             Y[i] += beta2[0]*y[i];
         }
+        pt_cp.end();
+    
         for(int i = 1; i < N; i++){
             MPI_Recv(buff.data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
             for(int j = 0; j < poly.size(); j++){
@@ -759,7 +829,7 @@ vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vect
                 Y[j] += beta2[i]*v;
             }
         }
-    
+
         field_vector_serialize(Y,buff);
     }else{
         field_vector_serialize(y,buff);

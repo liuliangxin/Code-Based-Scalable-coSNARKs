@@ -1,6 +1,7 @@
 #include "MPI_utils.hpp"
 #include "Distributed_Sumcheck.h"
-
+#include "timer.hpp"
+extern timer pt_cp;
 
 vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<int> real_idx_dim;
@@ -65,7 +66,7 @@ cubic_poly aggregate_poly(cubic_poly H, int N, vector<F> &v){
 }
 
 
-vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2, int N, double &vt, double &ps){
+vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2, int N){
 	int offset = 4;
     //vector<F> r = generate_randomness(int(log2(v1.size())));
 	int rounds = int(log2(v1.size()))-offset;
@@ -74,6 +75,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 	vector<F> r;
     if(rounds > 0){
         for(int i = 0; i < rounds; i++){
+            pt_cp.start();
+    
             quadratic_poly poly = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
             linear_poly l1,l2;
                 
@@ -85,8 +88,11 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
             }
 
             vector<F> input;
+            pt_cp.end();
+    
             poly = aggregate_poly(poly,N);
-            
+            pt_cp.start();
+    
             if(poly.eval(0)+ poly.eval(1) != y){
                 printf("Error in distributed sumcheck round %d\n",i);
                 exit(-1);
@@ -99,6 +105,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
                 v1[j] = rand*(v1[2*j+1]-v1[2*j]) + v1[2*j];
                 v2[j] = rand*(v2[2*j+1]-v2[2*j]) + v2[2*j];
             }
+            pt_cp.end();
+    
         }
     }else{
         offset = int(log2(v1.size()));
@@ -129,11 +137,15 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
                 idx++;
             }   
         }
-        vector<pair<F,vector<F>>> res = quadratic_sumcheck(y,final_v1,final_v2,F(0),vt,ps);
+        pt_cp.start();
+    
+        vector<pair<F,vector<F>>> res = quadratic_sumcheck(y,final_v1,final_v2,F(0));
         reply.push_back(res[0].first);
         reply.push_back(res[1].first);
         reply.insert(reply.end(),res[0].second.begin(),res[0].second.end());
         field_vector_serialize(reply,buff_u64);
+        pt_cp.end();
+    
     }else{
         buff = final_v1; buff.insert(buff.end(),final_v2.begin(),final_v2.end());
         field_vector_serialize(buff,buff_u64);
@@ -154,7 +166,7 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 
 
 
-vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vector<F> &v3, vector<F> &v, int N, double &vt, double &ps){
+vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vector<F> &v3, vector<F> &v, int N){
 	int offset = 4;
     //vector<F> r = generate_randomness(int(log2(v1.size())));
 	int rounds = int(log2(v1.size()))-offset;
@@ -162,6 +174,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
 	vector<F> r;
 	if(rounds > 0){
         for(int i = 0; i < rounds; i++){
+            pt_cp.start();
+    
             cubic_poly poly = cubic_poly(F_ZERO,F_ZERO,F_ZERO,F_ZERO);
             linear_poly l1,l2,l3;
                 
@@ -174,8 +188,11 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
             }
 
             vector<F> input;
+            pt_cp.end();
+    
             poly = aggregate_poly(poly,N,v);
-            
+            pt_cp.start();
+    
             if(poly.eval(0)+ poly.eval(1) != y){
                 printf("Error in distributed sumcheck round %d\n",i);
                 exit(-1);
@@ -189,6 +206,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
                 v2[j] = rand*(v2[2*j+1]-v2[2*j]) + v2[2*j];
                 v3[j] = rand*(v3[2*j+1]-v3[2*j]) + v3[2*j];
             }
+            pt_cp.end();
+    
         }    
     }else{
         offset = int(log2(v1.size()));
@@ -222,12 +241,16 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
                 idx++;
             }   
         }
-        vector<pair<F,vector<F>>> res = cubic_sumcheck(y,final_v1,final_v2,final_v3,F(0),vt,ps);
+        pt_cp.start();
+    
+        vector<pair<F,vector<F>>> res = cubic_sumcheck(y,final_v1,final_v2,final_v3,F(0));
         reply.push_back(res[0].first);
         reply.push_back(res[1].first);
         reply.push_back(res[2].first);
         reply.insert(reply.end(),res[0].second.begin(),res[0].second.end());
         field_vector_serialize(reply,buff_u64);
+        pt_cp.end();
+    
     }else{
         buff = final_v1; 
         buff.insert(buff.end(),final_v2.begin(),final_v2.end());
@@ -250,8 +273,10 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
 
 
 
-pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &output, F y, vector<F> r, int N, double &vt, double &ps){
+pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &output, F y, vector<F> r, int N){
 
+    pt_cp.start();
+    
     int vectors = input.size();
 	int depth = (int)log2(next_pow2(input[0].size()));
 	int size = input[0].size();
@@ -319,6 +344,8 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     vector<u64> buff;
     pair<F,vector<F>> eval_claim;
     vector<F> buff_reply;
+    pt_cp.end();
+    
     if(rank == 0){
         vector<vector<F>> local_input(transcript[depth-1].size());
         for(int i = 0; i < local_input.size(); i++){
@@ -334,11 +361,14 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
                 local_input[j][i].img = buff[2*j+1];
             }
         }
-
-        eval_claim = prove_multiplication_tree_new(local_input, output, F(0),y, {}, vt, ps);
+        pt_cp.start();
+    
+        eval_claim = prove_multiplication_tree_new(local_input, output, F(0),y, {});
         buff_reply.push_back(eval_claim.first);
         buff_reply.insert(buff_reply.end(),eval_claim.second.begin(),eval_claim.second.end());
-        field_vector_serialize(buff_reply,buff);               
+        field_vector_serialize(buff_reply,buff);   
+        pt_cp.end();
+                
     }else{
         field_vector_serialize(transcript[depth-1],buff);
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
@@ -368,13 +398,17 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         r2.push_back(r[i]);
     }
     for(int i = depth-1; i >= 0; i--){
-		vector<F>  beta1,beta2;
+        pt_cp.start();
+    
+    	vector<F>  beta1,beta2;
 		precompute_beta(r2,beta2);
         precompute_beta(r1,beta1);
+        pt_cp.end();
+    
+        vector<pair<F,vector<F>>> claims = _cubic_sumcheck(sum,in1[i], in2[i],beta2, beta1, N );	
         
-        vector<pair<F,vector<F>>> claims = _cubic_sumcheck(sum,in1[i], in2[i],beta2, beta1, N , vt,ps);	
-        
-        
+        pt_cp.start();
+    
         F new_rand = hash_to_field(claims[0].second);
         r = claims[0].second;
         r.insert(r.begin(),new_rand);
@@ -386,7 +420,11 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         for(int j = r2.size(); j  < r.size(); j++){
             r1.push_back(r[j]);
         }
+        pt_cp.end();
+    
 	}
+    pt_cp.start();
+    
 
     vector<vector<F>> eval_points(3);
     
@@ -399,6 +437,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     for(int i = r.size()-(int)log2(N); i < r.size(); i++){
         eval_points[2].push_back(r[i]);
     }
+    pt_cp.end();
     
     return make_pair(sum,eval_points);
 }
@@ -438,6 +477,7 @@ void _reduce_R1CS_matrixes(size_t size, vector<F> r, vector<F> &RA, vector<F> &R
 
 void secret_share_vector(vector<F> &v, int _k, int k, int N){
     int ctr = 0;
+    pt_cp.start();
     
     vector<vector<F>> data(N);
     for(int i = 0; i < data.size(); i++){
@@ -464,16 +504,20 @@ void secret_share_vector(vector<F> &v, int _k, int k, int N){
     vector<F> buff = convert2vector(data);
     field_vector_serialize(buff,buff_u64);
     buff_recv_u64.resize(buff_u64.size(),(0));
+    pt_cp.end();
     
     MPI_Alltoall(buff_u64.data(),buff_u64.size()/N,MPI_UINT64_T,buff_recv_u64.data(),buff_u64.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
     
+    pt_cp.start();
     
     field_vector_deserialize(buff_recv_u64,v);
+    pt_cp.end();
+    
 }
 
 
 
-void compute_R1CS_betas(vector<F> r1, vector<F> r2, vector<sparse_eval_data> &data, vector<vector<F>> &beta1, vector<vector<F>> &beta2, int logm, int logn, int N, double &pt){
+void compute_R1CS_betas(vector<F> r1, vector<F> r2, vector<sparse_eval_data> &data, vector<vector<F>> &beta1, vector<vector<F>> &beta2, int logm, int logn, int N){
     vector<F> r11,r12,r21,r22;
     for(int i = 0 ; i < r1.size()/2; i++){
         r11.push_back(r1[i]);
@@ -563,9 +607,10 @@ void  compute_base_betas(vector<F> r1,vector<F> r2, vector<F> &base_beta1, vecto
 }
 
 
-vector<pair<F,vector<F>>> distributed_accumulation(vector<vector<F>> &polys, vector<vector<vector<F>>> eval_points, vector<F> evals, int N, double &vt, double &ps){
+vector<pair<F,vector<F>>> distributed_accumulation(vector<vector<F>> &polys, vector<vector<vector<F>>> eval_points, vector<F> evals, int N){
     int rank,ctr = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    pt_cp.start();
     vector<F> v1,v2,b;
     vector<F> r;
     F y;
@@ -617,8 +662,11 @@ vector<pair<F,vector<F>>> distributed_accumulation(vector<vector<F>> &polys, vec
     }
     v1.resize(next_pow2(v1.size()),F(0));
     v2.resize(next_pow2(v2.size()),F(0));
-
-    vector<pair<F,vector<F>>> claim = _quadratic_sumcheck(y,v1,v2,N,vt,ps);
+    pt_cp.end();
+    
+    vector<pair<F,vector<F>>> claim = _quadratic_sumcheck(y,v1,v2,N);
+    pt_cp.start();
+    
     if(rank == 0){
         vector<F> claimed_r1,claimed_r2;
         for(int i = 0; i < (int)log2(polys[0].size()); i++){
@@ -679,6 +727,8 @@ vector<pair<F,vector<F>>> distributed_accumulation(vector<vector<F>> &polys, vec
         }
 
     }
+    pt_cp.end();
+    
     return claim;
 }
 
@@ -687,11 +737,11 @@ vector<pair<F,vector<F>>> distributed_accumulation(vector<vector<F>> &polys, vec
 
 pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data, 
                         vector<F> r1, vector<F> r2, 
-                        int N, double &pt, double &ps, double &vt){
+                        int N){
     
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
-
+    pt_cp.start();
     vector<F> challenges(3);
     clock_t t1 = clock();
     for(int i = 0; i < 3; i++) challenges[i] = hash_to_field({0}); 
@@ -718,9 +768,12 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
         }
     }
     vector<F> output1,output2,output3;
-    pair<F,vector<vector<F>>> claims = prove_product(Tr, output1, F(0), {}, N, vt, ps);
+    pt_cp.end();
+    
+    pair<F,vector<vector<F>>> claims = prove_product(Tr, output1, F(0), {}, N);
     vector<F> v1,v2;
-
+    pt_cp.start();
+    
     precompute_beta(claims.second[0],v1);
     precompute_beta(claims.second[2],v2);
     vector<vector<F>> eval_points1 = claims.second;
@@ -739,7 +792,10 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
         acc_polys[2*i+6+3] = polys[3*i+1+9];
         acc_polys[2*i+1+6+3] = polys[3*i+2+9];
     }
+    pt_cp.end();
+    
     vector<F> evals = batch_distributed_eval(polys,v1,v2,N);
+    pt_cp.start();
     
     vector<F> beta_evals,evals1;
     vector<F> betas_r = claims.second[0];
@@ -796,7 +852,11 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
             Tr[2*j+1][i] = challenges[0]*base_beta1[i] +  challenges[1]*F(data[j].FINAL_FR1[i]) + challenges[2]*F(rank*data[j].FINAL_FR1.size() + i) + F(1);
         }
     }
-    claims = prove_product(Tr, output2, F(0), {}, N, vt, ps);
+    pt_cp.end();
+    
+    claims = prove_product(Tr, output2, F(0), {}, N);
+    pt_cp.start();
+    
     polys.clear();
     for(int i = 0; i < data.size(); i++){
         polys.push_back(convert_to_field(data[i].FINAL_FR1));
@@ -805,11 +865,13 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
     v1.clear();v2.clear();
     precompute_beta(claims.second[0],v1);
     precompute_beta(claims.second[2],v2);
+    pt_cp.end();
     vector<F> evals2 = batch_distributed_eval(polys,v1,v2,N);
     vector<vector<F>> eval_points2 = claims.second;
 
 
-
+    pt_cp.start();
+    
     Tr.clear();Tr.resize(6);
     for(int j = 0; j < data.size(); j++){
         Tr[2*j].clear();Tr[2*j+1].clear();
@@ -820,7 +882,11 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
             Tr[2*j+1][i] = challenges[0]*base_beta2[i] +  challenges[1]*F(data[j].FINAL_FR2[i]) + challenges[2]*F(rank*data[j].FINAL_FR2.size() + i) + F(1);
         }
     }
-    claims = prove_product(Tr, output3, F(0), {}, N, vt, ps);
+    pt_cp.end();
+    
+    claims = prove_product(Tr, output3, F(0), {}, N);
+    pt_cp.start();
+    
     polys.clear();
     for(int i = 0; i < data.size(); i++){
         polys.push_back(convert_to_field(data[i].FINAL_FR2));
@@ -829,9 +895,11 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
     v1.clear();v2.clear();
     precompute_beta(claims.second[0],v1);
     precompute_beta(claims.second[2],v2);
+    pt_cp.end();
     vector<F> evals3 = batch_distributed_eval(polys,v1,v2,N);
     vector<vector<F>> eval_points3 = claims.second;
-
+    pt_cp.start();
+    
     
     if(rank == 0){
         //printf("%d\n",output1.size());
@@ -852,7 +920,11 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
     acc_evals = evals3;
     acc_evals.insert(acc_evals.end(),evals1.begin(),evals1.end());
     acc_evals.insert(acc_evals.end(),evals2.begin(),evals2.end());
-    distributed_accumulation(acc_polys, acc_eval_points, acc_evals, N, vt, ps);
+    pt_cp.end();
+    
+    distributed_accumulation(acc_polys, acc_eval_points, acc_evals, N);
+    
+    pt_cp.start();
     /// Need to do the final sumcheck 
     vector<F> v3,ones(N,1);
     
@@ -898,8 +970,9 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
             ctr++;
         }
     }    
-
-    vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N,vt,ps);
+    pt_cp.end();
+    
+    vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
     
     beta_evals.resize(next_pow2(beta_evals.size()),F(0));
     return make_pair(evaluate_vector(beta_evals,temp_r),betas_r);

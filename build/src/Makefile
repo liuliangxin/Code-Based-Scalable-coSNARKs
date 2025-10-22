@@ -559,6 +559,30 @@ sparse_eval.cpp.s:
 	cd /home/chris/coSNARK_MPI/build && $(MAKE) $(MAKESILENT) -f src/CMakeFiles/pigeon.dir/build.make src/CMakeFiles/pigeon.dir/sparse_eval.cpp.s
 .PHONY : sparse_eval.cpp.s
 
+timer.o: timer.cpp.o
+.PHONY : timer.o
+
+# target to build an object file
+timer.cpp.o:
+	cd /home/chris/coSNARK_MPI/build && $(MAKE) $(MAKESILENT) -f src/CMakeFiles/pigeon.dir/build.make src/CMakeFiles/pigeon.dir/timer.cpp.o
+.PHONY : timer.cpp.o
+
+timer.i: timer.cpp.i
+.PHONY : timer.i
+
+# target to preprocess a source file
+timer.cpp.i:
+	cd /home/chris/coSNARK_MPI/build && $(MAKE) $(MAKESILENT) -f src/CMakeFiles/pigeon.dir/build.make src/CMakeFiles/pigeon.dir/timer.cpp.i
+.PHONY : timer.cpp.i
+
+timer.s: timer.cpp.s
+.PHONY : timer.s
+
+# target to generate assembly for a file
+timer.cpp.s:
+	cd /home/chris/coSNARK_MPI/build && $(MAKE) $(MAKESILENT) -f src/CMakeFiles/pigeon.dir/build.make src/CMakeFiles/pigeon.dir/timer.cpp.s
+.PHONY : timer.cpp.s
+
 utils.o: utils.cpp.o
 .PHONY : utils.o
 
@@ -668,6 +692,9 @@ help:
 	@echo "... sparse_eval.o"
 	@echo "... sparse_eval.i"
 	@echo "... sparse_eval.s"
+	@echo "... timer.o"
+	@echo "... timer.i"
+	@echo "... timer.s"
 	@echo "... utils.o"
 	@echo "... utils.i"
 	@echo "... utils.s"

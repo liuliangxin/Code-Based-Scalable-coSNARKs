@@ -1,9 +1,11 @@
+#pragma once
 #include "coSumcheck_MPI.h"
 #include "MPI_utils.hpp"
 #include "Fiat_Shamir.h"
+#include "timer.hpp"
 extern int queries;
-
-
+extern timer pt,pt_cp;
+extern timer_cpu pt_cpu;
 
 
 
@@ -43,9 +45,9 @@ void _zero_check_sumcheck_phase2(int iter, F r,vector<F> &v1,vector<F> &v2, vect
 
 vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1, 
                                 vector<F> &v2, vector<F> &v3, vector<F> &R1, vector<F> &R2, 
-                                vector<F> r, int N, int _k, int k, double &pt, double &vt, double &ps, double &cm){  
+                                vector<F> r, int N, int _k, int k, double &vt, double &ps, double &cm){  
     int M = v1.size();
-    
+    pt_cp.start();
     vector<F> h1(M,F(0)),h2(M,F(0));
     int j;
     
@@ -72,10 +74,12 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     
     precompute_beta(_r1,beta1);precompute_beta(_r2,beta2);
     
-    
+    pt_cp.end();
+
 
     F y_r = F_ip_prod(h1,h2,beta1,beta2,k,_k,N);
     
+   
     F b = hash_to_field({y_r});
     
     y += b*y_r;
@@ -86,18 +90,23 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     
     for(int i = 0; i < rounds; i++){
         cubic_poly H;
+        pt_cp.start();
         H = _zero_check_sumcheck_phase1(i, b,v1,v2, v3, beta1, h1, h2);
+        pt_cp.end();
+
         H = aggregate_cubic_poly(H,beta2,k,_k,N);
         
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
             //exit(-1);
         }
+        pt_cp.start();
+        
         challenges[i] = hash_to_field({H.a,H.b,H.c,H.d}); 
         
         y = H.eval(challenges[i]);
-        
         _zero_check_sumcheck_phase2(i, challenges[i],v1,v2, v3, beta1, h1, h2);
+        pt_cp.end();
         
     }
     
@@ -143,27 +152,34 @@ void _quadratic_batch_sumcheck_phase2(int iter, F r,vector<F> &v1,vector<F> &v2,
     }
 }
 
-vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<F> &v2, int N, int _k, int k, double &pt, double &vt, double &ps, double &cm){
+vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<F> &v2, int N, int _k, int k, double &vt, double &ps, double &cm){
     int M = v1.size();
     int rounds = (int)log2(M);
     vector<F> challenges(rounds);
     for(int i = 0; i < rounds; i++){
+        pt_cp.start();
+        
         quadratic_poly H = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++) H = H + linear_poly(v1[2*j+1]-v1[2*j],v1[2*j])*linear_poly(v2[2*j+1]-v2[2*j],v2[2*j]);
         
+        pt_cp.end();
         H = aggregate_quadratic_poly(H,k,_k,N);
         
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
             exit(-1);
         }
+        pt_cp.start();
+        
         challenges[i] = hash_to_field({H.a,H.b,H.c}); 
         
         y = H.eval(challenges[i]);
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
             v1[j] = challenges[i]*(v1[2*j+1]-v1[2*j]) + v1[2*j];
             v2[j] = challenges[i]*(v2[2*j+1]-v2[2*j]) + v2[2*j];
-        } 
+        }
+        pt_cp.end();
+         
     }
     vector<pair<F,vector<F>>> reply = F_quadratic_sumcheck_rest(v1[0], v2[0], y, k, _k, N);
     
@@ -176,9 +192,10 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
 
 vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1, 
                                 vector<F> &v2, vector<F> &v3, vector<F> &v4, vector<F> &R1, vector<F> &R2, 
-                                int N, int _k, int k, double &pt, double &vt, double &ps, double &cm){  
+                                int N, int _k, int k, double &vt, double &ps, double &cm){  
     int M = v1.size();
-    
+    pt_cp.start();
+        
     vector<F> h1(M,F(0)),h2(M,F(0));
     int j;
     
@@ -196,7 +213,8 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
     vector<F> challenges(rounds);
 
     vector<F> _r1,_r2,ones1(M,F(1)),ones2(k,F(1));
-
+    pt_cp.end();
+        
     F y_r = F_ip_prod(h1,h2,ones1,ones2,k,_k,N);
     F b = hash_to_field({y_r});
     
@@ -204,9 +222,12 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
     
     //printf("%d,%d,%d,%d\n",v1.size(),v2.size(),v3.size(),v4.size());
     for(int i = 0; i < rounds; i++){
+        pt_cp.start();
         quadratic_poly H;
         H = _quadratic_batch_sumcheck_phase1(i, b,v1,v2, v3,v4, h1, h2);
+        pt_cp.end();
         H = aggregate_quadratic_poly(H,k,_k,N);
+        pt_cp.start();
         
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
@@ -217,6 +238,7 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
         y = H.eval(challenges[i]);
         
         _quadratic_batch_sumcheck_phase2(i, challenges[i],v1,v2, v3, v4, h1, h2);
+        pt_cp.end();
         
     }
     

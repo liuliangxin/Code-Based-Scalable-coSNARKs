@@ -1,3 +1,4 @@
+#pragma once
 #include "coPIOP.h"
 #include "sparse_eval.hpp"
 #include "config_pc.hpp"

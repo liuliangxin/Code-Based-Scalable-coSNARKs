@@ -293,10 +293,24 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/pigeon.dir/sparse_eval.cpp.s"
 	cd /home/chris/coSNARK_MPI/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/chris/coSNARK_MPI/src/sparse_eval.cpp -o CMakeFiles/pigeon.dir/sparse_eval.cpp.s
 
+src/CMakeFiles/pigeon.dir/timer.cpp.o: src/CMakeFiles/pigeon.dir/flags.make
+src/CMakeFiles/pigeon.dir/timer.cpp.o: /home/chris/coSNARK_MPI/src/timer.cpp
+src/CMakeFiles/pigeon.dir/timer.cpp.o: src/CMakeFiles/pigeon.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object src/CMakeFiles/pigeon.dir/timer.cpp.o"
+	cd /home/chris/coSNARK_MPI/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/CMakeFiles/pigeon.dir/timer.cpp.o -MF CMakeFiles/pigeon.dir/timer.cpp.o.d -o CMakeFiles/pigeon.dir/timer.cpp.o -c /home/chris/coSNARK_MPI/src/timer.cpp
+
+src/CMakeFiles/pigeon.dir/timer.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/pigeon.dir/timer.cpp.i"
+	cd /home/chris/coSNARK_MPI/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/chris/coSNARK_MPI/src/timer.cpp > CMakeFiles/pigeon.dir/timer.cpp.i
+
+src/CMakeFiles/pigeon.dir/timer.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/pigeon.dir/timer.cpp.s"
+	cd /home/chris/coSNARK_MPI/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/chris/coSNARK_MPI/src/timer.cpp -o CMakeFiles/pigeon.dir/timer.cpp.s
+
 src/CMakeFiles/pigeon.dir/utils.cpp.o: src/CMakeFiles/pigeon.dir/flags.make
 src/CMakeFiles/pigeon.dir/utils.cpp.o: /home/chris/coSNARK_MPI/src/utils.cpp
 src/CMakeFiles/pigeon.dir/utils.cpp.o: src/CMakeFiles/pigeon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object src/CMakeFiles/pigeon.dir/utils.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object src/CMakeFiles/pigeon.dir/utils.cpp.o"
 	cd /home/chris/coSNARK_MPI/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/CMakeFiles/pigeon.dir/utils.cpp.o -MF CMakeFiles/pigeon.dir/utils.cpp.o.d -o CMakeFiles/pigeon.dir/utils.cpp.o -c /home/chris/coSNARK_MPI/src/utils.cpp
 
 src/CMakeFiles/pigeon.dir/utils.cpp.i: cmake_force
@@ -310,7 +324,7 @@ src/CMakeFiles/pigeon.dir/utils.cpp.s: cmake_force
 src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: src/CMakeFiles/pigeon.dir/flags.make
 src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/virgo_prime_field.cpp
 src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: src/CMakeFiles/pigeon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o"
 	cd /home/chris/coSNARK_MPI/build/src && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o -MF CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o.d -o CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o -c /home/chris/coSNARK_MPI/src/virgo_prime_field.cpp
 
 src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.i: cmake_force
@@ -339,6 +353,7 @@ pigeon_OBJECTS = \
 "CMakeFiles/pigeon.dir/mimc.cpp.o" \
 "CMakeFiles/pigeon.dir/polynomial.cpp.o" \
 "CMakeFiles/pigeon.dir/sparse_eval.cpp.o" \
+"CMakeFiles/pigeon.dir/timer.cpp.o" \
 "CMakeFiles/pigeon.dir/utils.cpp.o" \
 "CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o"
 
@@ -361,6 +376,7 @@ src/pigeon: src/CMakeFiles/pigeon.dir/merkle_tree.cpp.o
 src/pigeon: src/CMakeFiles/pigeon.dir/mimc.cpp.o
 src/pigeon: src/CMakeFiles/pigeon.dir/polynomial.cpp.o
 src/pigeon: src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o
+src/pigeon: src/CMakeFiles/pigeon.dir/timer.cpp.o
 src/pigeon: src/CMakeFiles/pigeon.dir/utils.cpp.o
 src/pigeon: src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o
 src/pigeon: src/CMakeFiles/pigeon.dir/build.make
@@ -368,7 +384,7 @@ src/pigeon: Blake/libblake3.a
 src/pigeon: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_cxx.so
 src/pigeon: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so
 src/pigeon: src/CMakeFiles/pigeon.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Linking CXX executable pigeon"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/chris/coSNARK_MPI/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Linking CXX executable pigeon"
 	cd /home/chris/coSNARK_MPI/build/src && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/pigeon.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

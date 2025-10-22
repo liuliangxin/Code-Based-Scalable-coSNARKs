@@ -423,4 +423,5 @@ src/CMakeFiles/pigeon.dir/coPIOP.cpp.o: \
  /home/chris/coSNARK_MPI/src/Fiat_Shamir.h \
  /home/chris/coSNARK_MPI/src/coSumcheck_MPI.h \
  /home/chris/coSNARK_MPI/src/coPCS.h \
- /home/chris/coSNARK_MPI/src/Distributed_Sumcheck.h
+ /home/chris/coSNARK_MPI/src/Distributed_Sumcheck.h \
+ /home/chris/coSNARK_MPI/src/timer.hpp

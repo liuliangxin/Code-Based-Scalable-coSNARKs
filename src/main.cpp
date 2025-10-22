@@ -192,7 +192,7 @@ void test_batch_check(int M,int N, int k, int _k, int l){
     MPI_Barrier(MPI_COMM_WORLD);
 
     double pt = 0.0,vt = 0,ps = 0,cm = 0;
-    vector<pair<F,vector<F>>> reply = _quadratic_batch_sumcheck(y, v1, v2, v3,v4, h1, h2, N, _k, k, pt, vt, ps, cm);
+    vector<pair<F,vector<F>>> reply = _quadratic_batch_sumcheck(y, v1, v2, v3,v4, h1, h2, N, _k, k,vt,ps,cm);
     if(rank == (0)){
         if(evaluate_vector(fl,reply[0].second) != reply[0].first){
             printf("ERROR L\n");
@@ -316,7 +316,7 @@ void test_zero_check(int M,int N, int k, int _k, int l){
     MPI_Barrier(MPI_COMM_WORLD);
 
     double pt = 0.0,vt = 0,ps = 0,cm = 0;
-    vector<pair<F,vector<F>>> reply = _zero_check_sumcheck(F(0), v1, v2, v3, h1, h2, r, N, _k, k, pt, vt, ps, cm);
+    vector<pair<F,vector<F>>> reply = _zero_check_sumcheck(F(0), v1, v2, v3, h1, h2, r, N, _k, k,vt,ps,cm);
     if(rank == (0)){
         if(evaluate_vector(fl,reply[0].second) != reply[0].first){
             printf("ERROR L\n");
@@ -397,7 +397,7 @@ void test_quadratic_sumheck(int N, int M){
         sum = buff[buff.size()-1];
     }
     double vt = 0.0,ps = 0.0;
-    vector<pair<F,vector<F>>> claims = _quadratic_sumcheck(sum, arr1, arr2, N, vt, ps);
+    vector<pair<F,vector<F>>> claims = _quadratic_sumcheck(sum, arr1, arr2, N);
     if(rank == 0){
         if(evaluate_vector(f1,claims[0].second) != claims[0].first){
             printf("ERROR1\n");
@@ -493,7 +493,7 @@ void test_product(int N, int M, int K){
     vector<F> output,r;
     double vt,ps;
     
-    pair<F,vector<vector<F>>> claim =  prove_product(input, output, F(0), r, N, vt, ps);
+    pair<F,vector<vector<F>>> claim =  prove_product(input, output, F(0), r, N);
     
     vector<F> b1,b2;
     precompute_beta(claim.second[0],b1);
@@ -566,7 +566,7 @@ void test_sparse_eval(int N, int M){
         r2.push_back(hash_to_field({0}));
     }
 
-    compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N, pt);
+    compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N);
     vector<F> RA,RB,RC;
     _reduce_R1CS_matrixes(M, r1, RA, RB, RC, N);
     
