@@ -693,8 +693,8 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
     setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
     setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
-    dummy_setup(r_witness, mask_shares, N, 1<<logm, k, _k, 500);
-    prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, 1<<logm, k, _k, 500);
+    dummy_setup(r_witness, mask_shares, N, 1<<logn, k, _k, 500);
+    prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, 1<<logn, k, _k, 500);
     
     //setup_randomness(r_witness, N, _k, k,500);
     commit_randomness(R, _R, codeword_R, _codeword_R, CR, _CR, N);

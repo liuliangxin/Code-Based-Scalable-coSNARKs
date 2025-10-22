@@ -435,7 +435,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         row_data[j] = mul*row_data[j];
         mul = mul*omega;
     }
-    
     fft(beta1,(int)log2(beta1.size()),false);
     omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(row_data.size()));
     mul = F(1);
@@ -447,7 +446,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     vector<F> y_mask(rounds),aggr_challenges(rounds),challenges(rounds);
     
     quadratic_poly H;
-   
     for(int i = 0; i < rounds; i++){
         
         folded_codewords[i] = codeword;
@@ -467,7 +465,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         }
         H = aggregate_quadratic_poly(H, beta2,  k,  _k,  N);
         if(H.eval(0) + H.eval(1) != y + aggr_challenges[i]*y_mask[i]){
-            printf("Error in open round %d\n",i);
+            printf("> Error in open round %d\n",i);
             return;
         }
         challenges[i] = hash_to_field({H.a,H.b,H.c});

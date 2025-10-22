@@ -12,7 +12,7 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F y = F(0),sum = F(0);
-    
+    //printf("%d,%d\n",data.size(),v1.size());
     for(int i = 0; i < data.size(); i++){
         y += data[i]*v1[i];
     }
@@ -28,7 +28,7 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
         fft(Y,(int)log2(Y.size()),true);
         
         F omega = getRootOfUnity(1+(int)log2(N)).inv();
-        F mul = F(1);
+        F mul = F(1); 
         for(int i = 0; i < Y.size(); i++){
             Y[i] = mul*Y[i];
             mul = mul*omega;
