@@ -22,3 +22,4 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c,
                         int N);
 void secret_share_vector(vector<F> &v, int _k, int k, int N);
 quadratic_poly aggregate_poly(quadratic_poly H, int N);
+void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N);

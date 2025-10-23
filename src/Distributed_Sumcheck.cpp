@@ -291,33 +291,6 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
 
 
 
-// New version of multiplication tree prover that takes as input vectors of different size
-void prove_product_opt(vector<vector<F>> &input, vector<F> &output){
-    int total_size;
-    int size;
-    for(int i = 0; i < input.size(); i++) {
-        if(i > 0 && input[i].size() > input[i-1].size()){
-            printf("Input is not sorted, exiting \n");
-            exit(-1);
-        }
-        input[i].resize(next_pow2(input[i].size()),F(1));
-        total_size += input[i].size();
-        size = input[i].size();
-    }
-    
-    vector<vector<F>> new_input;
-    vector<F> buff(size);
-    for(int i = 0; i < input.size(); i++){
-        int ctr = 0;
-        for(int j = 0; j < input[i].size()/size; j++){
-            for(int k = 0; k < size; k++) buff[k] = input[i][ctr++];
-            new_input.push_back(buff);
-        }
-    }
-    
-}
-
-
 pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &output, F y, vector<F> r, int N){
 
     pt_cp.start();
@@ -486,6 +459,39 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     pt_cp.end();
     
     return make_pair(sum,eval_points);
+}
+
+// New version of multiplication tree prover that takes as input vectors of different size
+void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
+    int total_size;
+    int size;
+    for(int i = 0; i < input.size(); i++) {
+        if(i > 0 && input[i].size() > input[i-1].size()){
+            printf("Input is not sorted, exiting \n");
+            exit(-1);
+        }
+        input[i].resize(next_pow2(input[i].size()),F(1));
+        total_size += input[i].size();
+        size = input[i].size();
+    }
+    
+    vector<vector<F>> new_input;
+    vector<F> buff(size);
+    for(int i = 0; i < input.size(); i++){
+        int ctr = 0;
+        for(int j = 0; j < input[i].size()/size; j++){
+            for(int k = 0; k < size; k++) buff[k] = input[i][ctr++];
+            new_input.push_back(buff);
+        }
+    }
+    vector<F> temp_out;
+    prove_product(new_input,temp_out,F(0),{},N);
+    int ctr = 0;
+    output.resize(input.size(),F(1));
+    for(int i = 0; i < input.size(); i++){
+        for(int j = 0; j < input[i].size()/size; j++)output[i] *= temp_out[ctr++];
+    }
+    
 }
 
 
