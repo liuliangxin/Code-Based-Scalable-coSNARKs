@@ -344,6 +344,10 @@ pair<F,vector<F>> cubic_sumcheck_prod(F y, vector<F> &v1, vector<F> &v2, vector<
     return make_pair((F(1)-rand)*v1[0] + rand*v2[0],r);
 }
 
+
+
+
+
 pair<F,vector<F>> prove_multiplication_tree_new(vector<vector<F>> &input, vector<F> &output, F previous_r, F y, vector<F> r){
 	double vt,ps;
     int vectors = input.size();
