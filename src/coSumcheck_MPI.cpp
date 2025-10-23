@@ -45,7 +45,7 @@ void _zero_check_sumcheck_phase2(int iter, F r,vector<F> &v1,vector<F> &v2, vect
 
 vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1, 
                                 vector<F> &v2, vector<F> &v3, vector<F> &R1, vector<F> &R2, 
-                                vector<F> r, int N, int _k, int k, double &ps, double &cm){  
+                                vector<F> r, int N, int _k, int k, double &ps){  
     int M = v1.size();
     pt_cp.start();
     vector<F> h1(M,F(0)),h2(M,F(0));
@@ -161,7 +161,7 @@ void _quadratic_batch_sumcheck_phase2(int iter, F r,vector<F> &v1,vector<F> &v2,
     }
 }
 
-vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<F> &v2, int N, int _k, int k, double &ps, double &cm){
+vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<F> &v2, int N, int _k, int k, double &ps){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int M = v1.size();
@@ -207,7 +207,7 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
 
 vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1, 
                                 vector<F> &v2, vector<F> &v3, vector<F> &v4, vector<F> &R1, vector<F> &R2, 
-                                int N, int _k, int k, double &ps, double &cm){  
+                                int N, int _k, int k, double &ps){  
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int M = v1.size();

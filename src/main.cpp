@@ -192,7 +192,7 @@ void test_batch_check(int M,int N, int k, int _k, int l){
     MPI_Barrier(MPI_COMM_WORLD);
 
     double pt = 0.0,vt = 0,ps = 0,cm = 0;
-    vector<pair<F,vector<F>>> reply = _quadratic_batch_sumcheck(y, v1, v2, v3,v4, h1, h2, N, _k, k,ps,cm);
+    vector<pair<F,vector<F>>> reply = _quadratic_batch_sumcheck(y, v1, v2, v3,v4, h1, h2, N, _k, k,ps);
     if(rank == (0)){
         if(evaluate_vector(fl,reply[0].second) != reply[0].first){
             printf("ERROR L\n");
@@ -316,7 +316,7 @@ void test_zero_check(int M,int N, int k, int _k, int l){
     MPI_Barrier(MPI_COMM_WORLD);
 
     double pt = 0.0,vt = 0,ps = 0,cm = 0;
-    vector<pair<F,vector<F>>> reply = _zero_check_sumcheck(F(0), v1, v2, v3, h1, h2, r, N, _k, k,ps,cm);
+    vector<pair<F,vector<F>>> reply = _zero_check_sumcheck(F(0), v1, v2, v3, h1, h2, r, N, _k, k,ps);
     if(rank == (0)){
         if(evaluate_vector(fl,reply[0].second) != reply[0].first){
             printf("ERROR L\n");

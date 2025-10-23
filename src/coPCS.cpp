@@ -4,12 +4,14 @@
 #include "timer.hpp"
 extern int rate;
 extern timer pt_cp,vt;
+extern double cm;
 
 void distributed_MT(vector<F> &data, MT &Com, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     merkle_tree::merkle_tree_prover::MT_commit_Blake(data.data(),Com.Base_MT, data.size());
     if(rank != 0){
+        
         MPI_Send(Com.Base_MT[Com.Base_MT.size()-1][0].arr,32,MPI_UINT8_T,0,0,MPI_COMM_WORLD);
     }else{
         vector<_hash> recv_hashes(N);
@@ -37,6 +39,7 @@ void dummy_setup(vector<F> &R_shares, vector<vector<F>> &mask_shares, int N, int
         
         for(int i = 1; i < N; i++){
             field_vector_serialize(encode_shares[i],buff);
+            cm += 8*buff.size()/1024.0;
             MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }
     }else{
@@ -54,7 +57,8 @@ void dummy_setup(vector<F> &R_shares, vector<vector<F>> &mask_shares, int N, int
             all_mask_shares[0] = transpose(all_mask_shares[0]);
             mask_shares[0] = all_mask_shares[0][0];
             for(int i = 1; i < N; i++){
-                field_vector_serialize(all_mask_shares[0][i],buff);            
+                field_vector_serialize(all_mask_shares[0][i],buff);    
+                cm += 8*buff.size()/1024.0;        
                 MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
             }
         }else{
@@ -77,7 +81,8 @@ void dummy_setup(vector<F> &R_shares, vector<vector<F>> &mask_shares, int N, int
                 mask_shares[i] = all_mask_shares[i][0];
                 
                 for(int j = 1; j < N; j++){
-                    field_vector_serialize(all_mask_shares[i][j],buff);            
+                    field_vector_serialize(all_mask_shares[i][j],buff);      
+                    cm += 8*buff.size()/1024.0;      
                     MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,j,0,MPI_COMM_WORLD);
                 }
             }
@@ -182,7 +187,7 @@ void encode(vector<F> &codeword, vector<F> &row_data, vector<vector<F>> &data, v
     
     field_vector_serialize(shares_v,send_buff);
     recv_buff.resize(send_buff.size());
-
+    cm += 8*send_buff.size()/1024.0;        
     MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
 
     field_vector_deserialize(recv_buff,row);
@@ -247,7 +252,7 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     field_vector_serialize(shares_v,send_buff);
     recv_buff.resize(send_buff.size());
     pt_cp.end();
-    
+    cm += 8*send_buff.size()/1024.0;        
     MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
     pt_cp.start();
     
@@ -312,6 +317,9 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
                                  double &ps,
                                  bool verify = true){
     
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
     int row_size = 4*M;
     double temp_ps = 0.0;
     vector<vector<bool>> visited(N);
@@ -330,9 +338,9 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
         }
         temp_ps = 0.0;
     }
-    if(ps > 0){
-        ps += 32.0*(int)log2(N)/1024.0;
-    }
+
+    if(rank == 0) ps += 32.0*(int)(N)/1024.0;
+
     vector<vector<u32>> temp_queries = query_indexes;
     for(int i = 0; i < Middle_trees.size(); i++){
         for(int j = 0; j < temp_queries.size(); j++){
@@ -361,10 +369,7 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
                 temp_ps = 0.0;
             }
         }
-        if(ps > 0){
-            ps += 32.0*(int)log2(N)/1024.0;
-        }
-        
+        if(rank == 0) ps += 32.0*(int)(N)/1024.0;
     }
     F two_inv = F(2).inv();
     for(int i = 0; i < replies.size()-1; i++){
@@ -536,6 +541,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     if(rank != 0){
         vector<u64> buff;
         field_vector_serialize(codeword,buff);
+        cm += 8*buff.size()/1024.0;
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }else{
         vt.start();
@@ -679,6 +685,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     if(rank != 0){
         vector<u64> buff;
         field_vector_serialize(codeword,buff);
+        cm += 8*buff.size()/1024.0;
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }else{
         vt.start();

@@ -16,6 +16,9 @@ vector<vector<pair<int,int>>> tA,tB,tC;
 int logm,logn;
 bool bit_method = false;
 int index_rate = 4;
+extern double ps_plain; 
+double cm = 0.0;
+    
 timer pt,pt_cp;
 timer_cpu pt_cpu;
 timer vt;
@@ -130,7 +133,7 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
                                         vector<F> rO,
                                         vector<F> R1,
                                         vector<F> R2, 
-                                        int N, int _k, int k,  double &ps,double &cm){
+                                        int N, int _k, int k,  double &ps){
 
     
     pt_cp.start();
@@ -181,8 +184,10 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
     
     }else{
         buff_u64 = {y.real,y.img};
+        cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
     MPI_Bcast(buff_u64.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
     
     pt_cp.start();
@@ -204,7 +209,7 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
     vector<F> r = r1;r.insert(r.begin(),r2.begin(),r2.end());
     pt_cp.end();
     
-    return _zero_check_sumcheck(y,vL,vR,vO,R1,R2,r,N,_k,k,ps,cm);    
+    return _zero_check_sumcheck(y,vL,vR,vO,R1,R2,r,N,_k,k,ps);    
 }
 
 void compute_beta_shares(vector<F> &shares, vector<F> r, int k, int N, int _k){
@@ -242,7 +247,7 @@ vector<pair<F,vector<F>>> prove_phase2(
                   vector<F> r,
                   F yL,F yR, F yO,
                   int N, int size,
-                  int _k, int k, F &a, F &b, F &c,  double &ps, double &cm){
+                  int _k, int k, F &a, F &b, F &c,  double &ps){
 
     
     RA.clear();RB.clear();RC.clear();
@@ -285,7 +290,7 @@ vector<pair<F,vector<F>>> prove_phase2(
     }
     beta_shares.resize(4*beta_shares.size(),F(0));
     pt_cp.end();
-    vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k, ps,cm);
+    vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k, ps);
     
     claim[1].first = (F(1)-claim[1].second[claim[1].second.size()-1]).inv()*i*claim[1].first;
     return claim;
@@ -416,7 +421,7 @@ void compute_witness_vector(vector<F> r1, vector<F> r2, vector<sparse_eval_data>
 
 }
 
-void evaluate_sparse_matrix(size_t size, int N, vector<F> r1, vector<F> r2, F y, F a, F b, F c, double &pt, double &ps, double &vt, double &cm){
+void evaluate_sparse_matrix(size_t size, int N, vector<F> r1, vector<F> r2, F y, F a, F b, F c, double &pt, double &ps, double &vt){
     vector<F> witness;
     vector<vector<F>> R;
     vector<vector<F>> Code;
@@ -501,7 +506,7 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
-                                 vector<F> R, vector<F> _R,vector<F> codeword, vector<F> _codeword, MT &CR, F a, F b, F c, int N, int k, int _k, double &ps, double &cm){
+                                 vector<F> R, vector<F> _R,vector<F> codeword, vector<F> _codeword, MT &CR, F a, F b, F c, int N, int k, int _k, double &ps){
     
     
     
@@ -656,7 +661,7 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     v2.resize(next_pow2(v1.size()),F(0));
     pt_cp.end();
    
-    vector<pair<F,vector<F>>> claims = _quadratic_cosumcheck(sum,v1,v2,N,_k,k,ps,cm);
+    vector<pair<F,vector<F>>> claims = _quadratic_cosumcheck(sum,v1,v2,N,_k,k,ps);
     pt_cp.start();
    
     r1.clear();r2.clear();
@@ -705,7 +710,6 @@ void open_index(vector<F> &index_data,vector<F> &codeword, MT &index_Com, int N,
 
 void coPIOP_prove(size_t size, int N, int _k, int k){
     double ps = 0.0;
-    double cm = 0.0;
     int logk = (int)log2(k);
     
     vector<F> witness,vL,vO,vR,R,_R;
@@ -754,12 +758,12 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
 
-    vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, ps,cm);
+    vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, ps);
     F a,b,c;
-    vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c, ps,cm);
+    vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c, ps);
     
     
-    aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,ps,cm);
+    aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,ps);
     
     //return;
     
@@ -770,18 +774,21 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     pt.end();
     pt_cpu.end();
     MPI_Barrier(MPI_COMM_WORLD);
-    printf("Pt: %lf, CPU Only Pt: %lf, Computation only: %lf\n", pt.get_time(),pt_cpu.get_time(),pt_cp.get_time());
+    printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf, Vt: %lf\n", rank, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time(),vt.get_time());
     MPI_Barrier(MPI_COMM_WORLD);
-    vector<double> buff = {vt.get_time()};
+    vector<double> buff = {vt.get_time(),ps,cm};
     if(rank != 0){
-        MPI_Send(buff.data(),1,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
+        MPI_Send(buff.data(),3,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
     }else{
         double total_vt = vt.get_time();
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff.data(),1,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Recv(buff.data(),3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
             total_vt += buff[0];
+            ps += buff[1];
+            cm += buff[2];
         }
-        printf("Vt : %lf, Ps: XXX\n",total_vt);
+        sleep(1);
+        printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps+ps_plain,cm/1024.0);
     }
 }
 

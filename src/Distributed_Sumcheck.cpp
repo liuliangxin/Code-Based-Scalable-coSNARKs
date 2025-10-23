@@ -3,7 +3,7 @@
 #include "timer.hpp"
 extern timer pt_cp,vt;
 double ps_plain = 0.0; 
-
+extern double cm; 
 vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<int> real_idx_dim;
 
@@ -23,9 +23,10 @@ quadratic_poly aggregate_poly(quadratic_poly H, int N){
     }else{
         buff = {H.a,H.b,H.c};
         field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }   
-
+    if(rank == 0)cm += (N-1)*8*buff_u64.size()/1024.0;
     MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff_u64,buff);
@@ -56,8 +57,10 @@ cubic_poly aggregate_poly(cubic_poly H, int N, vector<F> &v){
     }else{
         buff = {H.a,H.b,H.c,H.d};
         field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
     MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff_u64,buff);
@@ -156,10 +159,11 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
     }else{
         buff = final_v1; buff.insert(buff.end(),final_v2.begin(),final_v2.end());
         field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(2+offset+(int)log2(N))); 
     }
-    
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
     MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
 	if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
@@ -269,10 +273,12 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
         buff.insert(buff.end(),final_v2.begin(),final_v2.end());
         buff.insert(buff.end(),final_v3.begin(),final_v3.end());
         field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(3+offset+(int)log2(N))); 
     
     }
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
     MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
 	if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
@@ -384,10 +390,11 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
                 
     }else{
         field_vector_serialize(transcript[depth-1],buff);
+        cm += 8*buff.size()/1024.0;
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff.clear();buff.resize(2*(1 + log2(N*transcript[depth-1].size())));
     }
-
+    if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff,buff_reply);
@@ -518,7 +525,7 @@ void secret_share_vector(vector<F> &v, int _k, int k, int N){
     field_vector_serialize(buff,buff_u64);
     buff_recv_u64.resize(buff_u64.size(),(0));
     pt_cp.end();
-    
+    cm += 8*buff_u64.size()/1024.0;
     MPI_Alltoall(buff_u64.data(),buff_u64.size()/N,MPI_UINT64_T,buff_recv_u64.data(),buff_u64.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
     
     pt_cp.start();
