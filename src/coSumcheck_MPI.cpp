@@ -4,7 +4,7 @@
 #include "Fiat_Shamir.h"
 #include "timer.hpp"
 extern int queries;
-extern timer pt,pt_cp;
+extern timer pt,pt_cp,vt;
 extern timer_cpu pt_cpu;
 
 
@@ -45,7 +45,7 @@ void _zero_check_sumcheck_phase2(int iter, F r,vector<F> &v1,vector<F> &v2, vect
 
 vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1, 
                                 vector<F> &v2, vector<F> &v3, vector<F> &R1, vector<F> &R2, 
-                                vector<F> r, int N, int _k, int k, double &vt, double &ps, double &cm){  
+                                vector<F> r, int N, int _k, int k, double &ps, double &cm){  
     int M = v1.size();
     pt_cp.start();
     vector<F> h1(M,F(0)),h2(M,F(0));
@@ -67,7 +67,9 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     vector<F> _r1,_r2,beta1,beta2;
     
 
-
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
     for(int i = 0; i < (int)log2(k); i++) _r2.push_back(r[i]);
     for(int i = (int)log2(k); i < r.size(); i++) _r1.push_back(r[i]);
 
@@ -79,13 +81,15 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
 
     F y_r = F_ip_prod(h1,h2,beta1,beta2,k,_k,N);
     
-   
+    if(rank == 0)vt.start();
+    
+    
     F b = hash_to_field({y_r});
     
     y += b*y_r;
     
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    if(rank == 0)vt.end();
+    
     
     
     for(int i = 0; i < rounds; i++){
@@ -96,6 +100,8 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
 
         H = aggregate_cubic_poly(H,beta2,k,_k,N);
         
+        if(rank == 0)vt.start();
+    
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
             //exit(-1);
@@ -103,8 +109,9 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
         pt_cp.start();
         
         challenges[i] = hash_to_field({H.a,H.b,H.c,H.d}); 
-        
+            
         y = H.eval(challenges[i]);
+        if(rank == 0)vt.end();
         _zero_check_sumcheck_phase2(i, challenges[i],v1,v2, v3, beta1, h1, h2);
         pt_cp.end();
         
@@ -152,7 +159,9 @@ void _quadratic_batch_sumcheck_phase2(int iter, F r,vector<F> &v1,vector<F> &v2,
     }
 }
 
-vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<F> &v2, int N, int _k, int k, double &vt, double &ps, double &cm){
+vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<F> &v2, int N, int _k, int k, double &ps, double &cm){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int M = v1.size();
     int rounds = (int)log2(M);
     vector<F> challenges(rounds);
@@ -164,7 +173,8 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
         
         pt_cp.end();
         H = aggregate_quadratic_poly(H,k,_k,N);
-        
+        if(rank == 0)vt.start();
+    
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
             exit(-1);
@@ -172,6 +182,7 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
         pt_cp.start();
         
         challenges[i] = hash_to_field({H.a,H.b,H.c}); 
+        if(rank == 0)vt.end();
         
         y = H.eval(challenges[i]);
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
@@ -192,7 +203,9 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
 
 vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1, 
                                 vector<F> &v2, vector<F> &v3, vector<F> &v4, vector<F> &R1, vector<F> &R2, 
-                                int N, int _k, int k, double &vt, double &ps, double &cm){  
+                                int N, int _k, int k, double &ps, double &cm){  
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int M = v1.size();
     pt_cp.start();
         
@@ -214,11 +227,14 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
 
     vector<F> _r1,_r2,ones1(M,F(1)),ones2(k,F(1));
     pt_cp.end();
-        
+    
     F y_r = F_ip_prod(h1,h2,ones1,ones2,k,_k,N);
+    if(rank == 0)vt.start();
+    
     F b = hash_to_field({y_r});
     
     y += b*y_r;
+    if(rank == 0)vt.end();
     
     //printf("%d,%d,%d,%d\n",v1.size(),v2.size(),v3.size(),v4.size());
     for(int i = 0; i < rounds; i++){
@@ -228,7 +244,8 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
         pt_cp.end();
         H = aggregate_quadratic_poly(H,k,_k,N);
         pt_cp.start();
-        
+        if(rank == 0)vt.start();
+    
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
             //exit(-1);
@@ -236,6 +253,7 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
         challenges[i] = hash_to_field({H.a,H.b,H.c}); 
         
         y = H.eval(challenges[i]);
+        if(rank == 0)vt.end();
         
         _quadratic_batch_sumcheck_phase2(i, challenges[i],v1,v2, v3, v4, h1, h2);
         pt_cp.end();

@@ -1,7 +1,9 @@
 #include "coPCS.h"
 #include "Fiat_Shamir.h"
 #include "Distributed_Sumcheck.h"
+#include "timer.hpp"
 extern int rate;
+extern timer pt_cp,vt;
 
 void distributed_MT(vector<F> &data, MT &Com, int N){
     int rank;
@@ -209,6 +211,7 @@ void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &R_shares, MT &C
 }
 // Commitment algorithm when given the secret shares
 void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vector<F> &R_shares, MT &Com, int l, int k, int _k, int N){
+    pt_cp.start();
     row_data.resize(next_pow2(W_shares.size()+l),0);
     // Input distribution emulation 
     //printf(">> %d\n",row.size());
@@ -219,11 +222,13 @@ void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vecto
         row_data[j + W_shares.size()] = R_shares[j]; 
     }
     encode_protocol_step2(W_shares, R_shares, codeword);
+    pt_cp.end();
     distributed_MT(codeword, Com,N);
 }
 
 
 void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data, MT &Com, int k, int N){
+    pt_cp.start();
     vector<vector<F>> matrix_data(N);
     for(int i = 0; i < N; i++){
         matrix_data[i].resize(data.size()/k);
@@ -241,13 +246,17 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     
     field_vector_serialize(shares_v,send_buff);
     recv_buff.resize(send_buff.size());
-
+    pt_cp.end();
+    
     MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
-
+    pt_cp.start();
+    
     field_vector_deserialize(recv_buff,row_data);
     codeword = row_data;
     codeword.resize(codeword.size()*2,F(0));
     fft(codeword,(int)log2(codeword.size()),false);
+    pt_cp.end();
+    
     distributed_MT(codeword,Com,N);
 }
 
@@ -310,7 +319,8 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
         visited[i].resize(2*M,false);
     }
     vector<_hash> path;
-    
+    vt.start();
+        
     for(int i = 0; i < query_indexes.size(); i++){
         path = merkle_tree::merkle_tree_prover::open_tree_blake(Initial_tree.Base_MT,query_indexes[i][1]/4);
         merkle_tree::merkle_tree_verifier::verify_claim_opt_blake(Initial_tree.Base_MT,path.data(),query_indexes[i][1]/4,M,visited[query_indexes[i][0]],temp_ps);
@@ -401,6 +411,8 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
 
         }
     }
+    vt.end();
+        
     //printf("%lf\n",ps);
 
 }
@@ -410,8 +422,10 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
 void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword, 
              vector<F> &row_data, vector<vector<F>> &mask_data, 
              MT &Com, vector<MT> Mask_Com, 
-             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps, double &vt){
+             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps){
     
+    
+    pt_cp.start();
     
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -446,8 +460,11 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     vector<F> y_mask(rounds),aggr_challenges(rounds),challenges(rounds);
     
     quadratic_poly H;
+    pt_cp.end();
+    
     for(int i = 0; i < rounds; i++){
-        
+        pt_cp.start();
+    
         folded_codewords[i] = codeword;
         if(i < masking_rounds){
             y_mask[i] = F_ip(mask_data[i],beta1,beta2,k,_k,N);
@@ -463,11 +480,15 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             vector<F> dummy;
             H = step1(i,F(0),beta1,row_data,dummy);
         }
+        pt_cp.end();
+    
         H = aggregate_quadratic_poly(H, beta2,  k,  _k,  N);
         if(H.eval(0) + H.eval(1) != y + aggr_challenges[i]*y_mask[i]){
             printf("> Error in open round %d\n",i);
             return;
         }
+        pt_cp.start();
+    
         challenges[i] = hash_to_field({H.a,H.b,H.c});
         y = H.eval(challenges[i]);
 
@@ -477,6 +498,8 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             vector<F> dummy;
             step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,dummy,eval_MT[i],N);
         }
+        pt_cp.end();
+    
     }
     // Generate opening proofs 
     
@@ -515,6 +538,8 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         field_vector_serialize(codeword,buff);
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }else{
+        vt.start();
+        
         vector<vector<F>> final_codeword(N);
         final_codeword[0] = codeword;
         vector<u64> buff(2*codeword.size());
@@ -565,6 +590,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         }else{
             printf("PC Verification Success\n");
         }
+        vt.end();
         
     }
 
@@ -572,8 +598,9 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 }
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
-                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt, bool secret_shared, bool verify){
+                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, bool secret_shared, bool verify){
 
+    pt_cp.start();
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int rounds = (int)log2(row_data.size())-1;
@@ -594,13 +621,17 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     vector<F> challenges(rounds);
     
     quadratic_poly H;
+    pt_cp.end();
+    
     for(int i = 0; i < rounds; i++){
         folded_codewords[i] = codeword;
-            
+        pt_cp.start();
+        
         vector<F> dummy;
         H = step1(i,F(0),v1,row_data,dummy);
         
         //printf("(%lld,%lld),(%lld,%lld),(%lld,%lld)\n",H.a.real,H.a.img,H.b.real,H.b.img,H.c.real,H.c.img);
+        pt_cp.end();
         if(!secret_shared){
             H.a = v2[rank]*H.a;
             H.b = v2[rank]*H.b;
@@ -609,6 +640,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         }
         else H = aggregate_quadratic_poly(H,v2,k,2*k,N);
         //H = aggregate_quadratic_poly(H, v2,  k,  _k,  N);
+        pt_cp.start();
         if(H.eval(0) + H.eval(1) != y && verify){
             printf("Error in open round %d\n",i);
             //return;
@@ -616,6 +648,8 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         challenges[i] = hash_to_field({H.a,H.b,H.c});
         y = H.eval(challenges[i]);
         step2(challenges[i], F(0), i, v1, row_data,codeword,dummy,eval_MT[i],N);
+        pt_cp.end();
+    
     }
 
 
@@ -647,6 +681,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         field_vector_serialize(codeword,buff);
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }else{
+        vt.start();
         vector<vector<F>> final_codeword(N);
         final_codeword[0] = codeword;
         vector<u64> buff(2*codeword.size());
@@ -707,6 +742,8 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         }else{
             printf("PC Verification Success\n");
         }
+        vt.end();
+        
         
     }
 }

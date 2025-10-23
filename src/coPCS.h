@@ -23,10 +23,10 @@ void prepare_mask_shares(vector<vector<F>> &mask_shares, vector<vector<F>> &mask
 void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword, 
              vector<F> &row_data, vector<vector<F>> &mask_data, 
              MT &Com, vector<MT> Mask_Com, 
-             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps, double &vt);
+             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps);
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
-                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, double &vt, bool secret_shared,bool verify=true);
+                    vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, bool secret_shared,bool verify=true);
 
 void commit_randomness(vector<F> R, vector<F> _R, vector<F> &codeword, vector<F> &_codeword, MT &CR, MT &_CR, int N);
 void distributed_MT(vector<F> &data, MT &Com, int N);
