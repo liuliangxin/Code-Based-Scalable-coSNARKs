@@ -5,9 +5,9 @@
 #include <math.h>
 #include "utils.hpp"
 #include "merkle_tree.h"
-
+#include "timer.hpp"
 vector<int> real_idx_dim;
-
+extern timer vt;
 pair<F,vector<F>> batch_sumcheck(F y, vector<F> &beta,vector<vector<short>> &_bits, vector<F> r, vector<F> neg_r){
     r.resize(next_pow2(r.size()),F(1));
 
@@ -124,6 +124,8 @@ vector<pair<F,vector<F>>> quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,F
 		
 		clock_t s,e;
 		s = clock();
+        vt.start();
+		
 		if(poly.eval(0)+ poly.eval(1) != y){
             printf("Error in sumcheck round %d\n",i);
             exit(-1);
@@ -135,7 +137,8 @@ vector<pair<F,vector<F>>> quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,F
 		e = clock();
 		//ps += 5*sizeof(F)/1024.0;
 		y = poly.eval(rand);
-        r.push_back(rand);
+        vt.end();
+		r.push_back(rand);
 		
         //vt += (double)(e-s)/(double)CLOCKS_PER_SEC;
 
@@ -237,6 +240,7 @@ vector<pair<F,vector<F>>> cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vect
 		
 		clock_t s,e;
 		s = clock();
+        vt.start();
 		if(poly.eval(0)+ poly.eval(1) != y){
             printf("Error in sumcheck round %d\n",i);
             exit(-1);
@@ -248,6 +252,8 @@ vector<pair<F,vector<F>>> cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vect
 		e = clock();
 		//ps += 5*sizeof(F)/1024.0;
 		y = poly.eval(rand);
+        vt.end();
+		
         r.push_back(rand);
 		
         //vt += (double)(e-s)/(double)CLOCKS_PER_SEC;

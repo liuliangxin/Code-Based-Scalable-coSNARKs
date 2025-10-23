@@ -466,14 +466,14 @@ void commit_sparse_eval_witness(vector<vector<F>> &beta1, vector<vector<F>> &bet
     plaintext_commit(data, codeword,row_data,Com,k,N);
 }
 
-void open_sparse_eval(vector<F> &codeword, vector<F> &row_data, vector<F> r, MT &Com, F y,int l, int k, int N, double &ps, double &vt){
+void open_sparse_eval(vector<F> &codeword, vector<F> &row_data, vector<F> r, MT &Com, F y,int l, int k, int N, double &ps){
     vector<F> r1,r2,v1,v2;
 
     for(int i = 0; i < (int)log2(k); i++) r2.push_back(r[i]);
     for(int i = r2.size(); i < r.size() ; i++) r1.push_back(r[i]);
     
     precompute_beta(r1,v1);precompute_beta(r2,v2);
-    open_plaintext(codeword, row_data, v1, v2, Com, y, l, k, N, ps, vt,false);
+    open_plaintext(codeword, row_data, v1, v2, Com, y, l, k, N, ps,false);
 }
 
 void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &ps,double &vt){
@@ -497,7 +497,7 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 
     commit_sparse_eval_witness(beta1, beta2, codeword , row_data, Com, N/2,  N);
     pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
-    open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps,vt);
+    open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps);
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,

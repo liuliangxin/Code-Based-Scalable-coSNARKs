@@ -1,7 +1,7 @@
 #include "MPI_utils.hpp"
 #include "Distributed_Sumcheck.h"
 #include "timer.hpp"
-extern timer pt_cp;
+extern timer pt_cp,vt;
 
 vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<int> real_idx_dim;
@@ -70,7 +70,9 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 	int offset = 4;
     //vector<F> r = generate_randomness(int(log2(v1.size())));
 	int rounds = int(log2(v1.size()))-offset;
-	
+	int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
     F rand;
 	vector<F> r;
     if(rounds > 0){
@@ -89,10 +91,11 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 
             vector<F> input;
             pt_cp.end();
-    
+
             poly = aggregate_poly(poly,N);
             pt_cp.start();
-    
+            if(rank == 0)vt.start();
+            
             if(poly.eval(0)+ poly.eval(1) != y){
                 printf("Error in distributed sumcheck round %d\n",i);
                 exit(-1);
@@ -100,6 +103,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
             rand = hash_to_field({poly.a,poly.b,poly.c});
             
             y = poly.eval(rand);
+            if(rank == 0)vt.end();
+        
             r.push_back(rand);        
             for(int j = 0; j < L; j++){
                 v1[j] = rand*(v1[2*j+1]-v1[2*j]) + v1[2*j];
@@ -119,8 +124,6 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
         final_v2[i] = v2[i];
     }
 
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<F> reply;
     if(rank == 0){
         int idx = final_v1.size(); 
@@ -138,7 +141,7 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
             }   
         }
         pt_cp.start();
-    
+        
         vector<pair<F,vector<F>>> res = quadratic_sumcheck(y,final_v1,final_v2,F(0));
         reply.push_back(res[0].first);
         reply.push_back(res[1].first);
@@ -167,7 +170,10 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 
 
 vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vector<F> &v3, vector<F> &v, int N){
-	int offset = 4;
+	int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
+    int offset = 4;
     //vector<F> r = generate_randomness(int(log2(v1.size())));
 	int rounds = int(log2(v1.size()))-offset;
 	F rand;
@@ -192,7 +198,9 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
     
             poly = aggregate_poly(poly,N,v);
             pt_cp.start();
-    
+        
+            if(rank == 0)vt.start();
+        
             if(poly.eval(0)+ poly.eval(1) != y){
                 printf("Error in distributed sumcheck round %d\n",i);
                 exit(-1);
@@ -200,6 +208,7 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
             rand = hash_to_field({poly.a,poly.b,poly.c,poly.d});
             
             y = poly.eval(rand);
+            if(rank == 0)vt.end();
             r.push_back(rand);        
             for(int j = 0; j < L; j++){
                 v1[j] = rand*(v1[2*j+1]-v1[2*j]) + v1[2*j];
@@ -212,8 +221,6 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
     }else{
         offset = int(log2(v1.size()));
     }
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     
     vector<F> final_v1(1<<(offset)),final_v2(1<<(offset)),final_v3(1<<(offset)),buff;
     vector<u64> buff_u64;

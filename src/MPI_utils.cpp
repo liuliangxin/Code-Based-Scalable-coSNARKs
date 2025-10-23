@@ -8,7 +8,7 @@ extern vector<vector<pair<int,int>>> pA,pB,pC;
 extern int logm,logn;
 extern vector<int> real_idx_dim;
 
-extern timer pt_cp;
+extern timer pt_cp,vt;
 
 F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
     int rank;
@@ -308,6 +308,7 @@ vector<F> zero_check_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
             p.a = p.a + b*p_r.a;p.b = p.b + b*p_r.b - _p.a;p.c = p.c + b*p_r.c-_p.b;
             poly = poly + p* linear_poly(beta2[2*j+1]-beta2[2*j],beta2[2*j]);
         }
+        vt.start();
         if(poly.eval(0) + poly.eval(1) != y){
             printf("Error in sumcheck functionality %d\n",i);
             exit(-1);
@@ -315,6 +316,7 @@ vector<F> zero_check_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
         
         challenges[i] = F::_random();
         y = poly.eval(challenges[i]);
+        vt.end();
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
             v1[j] = challenges[i]*(v1[2*j+1]-v1[2*j]) + v1[2*j];
             v2[j] = challenges[i]*(v2[2*j+1]-v2[2*j]) + v2[2*j];
@@ -369,6 +371,7 @@ vector<F> quadratic_sumcheck_local(vector<F> final_v1, vector<F> final_v2, F y, 
             l2 = linear_poly(v2[2*j+1]-v2[2*j],v2[2*j]);
             p = p + l1*l2;
         }
+        vt.start();
         
         if(p.eval(0) + p.eval(1) != y){
             printf("Error in sumcheck functionality %d\n",i);
@@ -377,10 +380,12 @@ vector<F> quadratic_sumcheck_local(vector<F> final_v1, vector<F> final_v2, F y, 
         
         challenges[i] = F::_random();
         y = p.eval(challenges[i]);
+        vt.end();
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
             v1[j] = challenges[i]*(v1[2*j+1]-v1[2*j]) + v1[2*j];
             v2[j] = challenges[i]*(v2[2*j+1]-v2[2*j]) + v2[2*j];
-        }        
+        }
+                
     }
     vector<F> ret;
     ret.push_back(v1[0]);ret.push_back(v2[0]);
@@ -493,6 +498,7 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
         p.a = p.a + b*p_r.a;
         p.b = p.b + b*p_r.b;
         p.c = p.c + b*p_r.c;
+        vt.start();
         
         if(p.eval(0) + p.eval(1) != y){
             printf("Error in sumcheck functionality %d\n",i);
@@ -501,6 +507,7 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
         
         challenges[i] = F::_random();
         y = p.eval(challenges[i]);
+        vt.end();
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
             v1[j] = challenges[i]*(v1[2*j+1]-v1[2*j]) + v1[2*j];
             v2[j] = challenges[i]*(v2[2*j+1]-v2[2*j]) + v2[2*j];
