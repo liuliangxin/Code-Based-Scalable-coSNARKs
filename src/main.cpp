@@ -630,7 +630,7 @@ void test_mult_tree(vector<int> dims, int N){
         for(int i = 0; i < N; i++){
             data[i].resize(dims.size());
             for(int j = 0; j < dims.size(); j++){
-                data[i][j] = generate_randomness(dims.size()/N);
+                data[i][j] = generate_randomness(dims[j]/N);
                 for(int k = 0; k < data[i][j].size(); k++) prod[j] *= data[i][j][k];
             }
         }
@@ -646,7 +646,6 @@ void test_mult_tree(vector<int> dims, int N){
             for(int j = 0; j < input[i].size(); j++) input[i][j] = v[ctr++];
         }
     }
-    
     prove_product_opt(input, output, N);
     if(rank == 0){
         for(int i = 0; i < output.size(); i++){

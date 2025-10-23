@@ -362,7 +362,6 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     pair<F,vector<F>> eval_claim;
     vector<F> buff_reply;
     pt_cp.end();
-    
     if(rank == 0){
         vector<vector<F>> local_input(transcript[depth-1].size());
         for(int i = 0; i < local_input.size(); i++){
@@ -370,7 +369,6 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
             local_input[i][0] = transcript[depth-1][i];
         }
         buff.resize(2*transcript[depth-1].size());
-        
         for(int i = 1; i < N; i++){
             MPI_Recv(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
             for(int j = 0; j < buff.size()/2; j++){
@@ -379,20 +377,23 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
             }
         }
         pt_cp.start();
-    
         eval_claim = prove_multiplication_tree_new(local_input, output, F(0),y, {});
         buff_reply.push_back(eval_claim.first);
         buff_reply.insert(buff_reply.end(),eval_claim.second.begin(),eval_claim.second.end());
+        
         field_vector_serialize(buff_reply,buff);   
         pt_cp.end();
                 
     }else{
+    
         field_vector_serialize(transcript[depth-1],buff);
         cm += 8*buff.size()/1024.0;
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff.clear();buff.resize(2*(1 + log2(N*transcript[depth-1].size())));
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
+    //printf("%d ?? %d\n",rank,buff.size());
+    
     MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff,buff_reply);
@@ -402,7 +403,6 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         }
     }
     
-
     //printf("Final prod len : %d\n",transcript[depth-1].size());
 		
 	F sum = eval_claim.first;//evaluate_vector(transcript[depth-1],r);
@@ -461,6 +461,8 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
 
 // New version of multiplication tree prover that takes as input vectors of different size
 void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int total_size;
     int size;
     for(int i = 0; i < input.size(); i++) {
@@ -485,10 +487,13 @@ void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
     vector<F> temp_out;
     prove_product(new_input,temp_out,F(0),{},N);
     int ctr = 0;
-    output.resize(input.size(),F(1));
-    for(int i = 0; i < input.size(); i++){
-        for(int j = 0; j < input[i].size()/size; j++)output[i] *= temp_out[ctr++];
+    if(rank == 0){
+        output.resize(input.size(),F(1));
+        for(int i = 0; i < input.size(); i++){
+            for(int j = 0; j < input[i].size()/size; j++)output[i] *= temp_out[ctr++];
+        }
     }
+    
 
 }
 

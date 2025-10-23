@@ -432,7 +432,7 @@ pair<F,vector<F>> prove_multiplication_tree_new(vector<vector<F>> &input, vector
         }
         proof P;
 		vector<F> beta;
-		if(transcript[depth-1].size() < 32){
+        if(transcript[depth-1].size() < 32){
             output = transcript[depth-1];
         }
         //precompute_beta(r,beta);
