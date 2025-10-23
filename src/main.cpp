@@ -618,6 +618,45 @@ void test_sparse_eval(int N, int M){
     //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N, pt, pt, pt);
 }
 
+void test_mult_tree(vector<int> dims, int N){
+    int rank,size = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    vector<F> output;
+    for(int i = 0; i < dims.size(); i++) size += dims[i];
+    vector<vector<F>> input;
+    vector<F> prod(dims.size(),F(1));
+    if(rank == 0){
+        vector<vector<vector<F>>> data(N);
+        for(int i = 0; i < N; i++){
+            data[i].resize(dims.size());
+            for(int j = 0; j < dims.size(); j++){
+                data[i][j] = generate_randomness(dims.size()/N);
+                for(int k = 0; k < data[i][j].size(); k++) prod[j] *= data[i][j][k];
+            }
+        }
+        input = data[0];
+        distribute_data_tensor(data);
+    }else{
+        vector<F> v;
+        get_data(v,size/N);
+        input.resize(dims.size());
+        int ctr = 0;
+        for(int i = 0; i < dims.size(); i++){
+            input[i].resize(dims[i]/N);
+            for(int j = 0; j < input[i].size(); j++) input[i][j] = v[ctr++];
+        }
+    }
+    
+    prove_product_opt(input, output, N);
+    if(rank == 0){
+        for(int i = 0; i < output.size(); i++){
+            if(output[i] != prod[i]){
+                printf("Error %d\n",i);
+            }
+        }
+    }
+}
+
 
 
 int main(int argc, char *argv[]){
@@ -681,20 +720,9 @@ int main(int argc, char *argv[]){
     vector<MT> Com_mask;
     
     
-    //test_sparse_eval(N, M);
-    
-    //beta.resize(2*RA.size(),F(0));
-    //compute_secret_shares(beta,_beta_shares,N,k,_k,false);
-    /*
-    for(int i = 0; i < beta_shares.size(); i++){
-        if(_beta_shares[rank][i] != beta_shares[i]){
-            printf("Error %d\n",i);
-            exit(-1);
-        }
-    }
-    */
-    //test_batch_check(M,N, k,  _k, 500);
-    coPIOP_prove(M, N, _k, k);
+    vector<int> dims = {1<<16,1<<14,1<<14};
+    test_mult_tree(dims, N);
+    //coPIOP_prove(M, N, _k, k);
     
     // ==================================================== //
     /*

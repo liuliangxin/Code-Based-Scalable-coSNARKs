@@ -314,7 +314,6 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
 			input.push_back(temp_vector);
 		}
 	}
-	
 	// Initialize total input
 	int total_input_size = vectors*size;
 	
@@ -404,8 +403,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     }
     
 
-
-	//printf("Final prod len : %d\n",transcript[depth-1].size());
+    //printf("Final prod len : %d\n",transcript[depth-1].size());
 		
 	F sum = eval_claim.first;//evaluate_vector(transcript[depth-1],r);
     r = eval_claim.second;
@@ -491,7 +489,7 @@ void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
     for(int i = 0; i < input.size(); i++){
         for(int j = 0; j < input[i].size()/size; j++)output[i] *= temp_out[ctr++];
     }
-    
+
 }
 
 
