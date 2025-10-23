@@ -2,6 +2,7 @@
 #include "Distributed_Sumcheck.h"
 #include "timer.hpp"
 extern timer pt_cp,vt;
+double ps_plain = 0.0; 
 
 vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<int> real_idx_dim;
@@ -101,7 +102,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
                 exit(-1);
             }
             rand = hash_to_field({poly.a,poly.b,poly.c});
-            
+            if(rank == 0)ps_plain += 16*(3)/1024.0;
+        
             y = poly.eval(rand);
             if(rank == 0)vt.end();
         
@@ -143,6 +145,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
         pt_cp.start();
         
         vector<pair<F,vector<F>>> res = quadratic_sumcheck(y,final_v1,final_v2,F(0));
+        if(rank == 0)ps_plain += 16*(2+3*(int)log2(N))/1024.0;
+        
         reply.push_back(res[0].first);
         reply.push_back(res[1].first);
         reply.insert(reply.end(),res[0].second.begin(),res[0].second.end());
@@ -206,7 +210,7 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
                 exit(-1);
             }
             rand = hash_to_field({poly.a,poly.b,poly.c,poly.d});
-            
+            if(rank == 0)ps_plain += 16*4/1024.0;
             y = poly.eval(rand);
             if(rank == 0)vt.end();
             r.push_back(rand);        
@@ -251,6 +255,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
         pt_cp.start();
     
         vector<pair<F,vector<F>>> res = cubic_sumcheck(y,final_v1,final_v2,final_v3,F(0));
+        ps_plain += 16*(3+4*(int)log2(N))/1024.0;
+            
         reply.push_back(res[0].first);
         reply.push_back(res[1].first);
         reply.push_back(res[2].first);

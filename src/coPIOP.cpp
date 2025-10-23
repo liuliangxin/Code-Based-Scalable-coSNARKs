@@ -476,7 +476,7 @@ void open_sparse_eval(vector<F> &codeword, vector<F> &row_data, vector<F> r, MT 
     open_plaintext(codeword, row_data, v1, v2, Com, y, l, k, N, ps,false);
 }
 
-void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &ps,double &vt){
+void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &ps){
 
     vector<vector<F>> beta1(3),beta2(3);
     r1.pop_back();r2.pop_back();
@@ -704,7 +704,7 @@ void open_index(vector<F> &index_data,vector<F> &codeword, MT &index_Com, int N,
 }
 
 void coPIOP_prove(size_t size, int N, int _k, int k){
-    double vt = 0.0,ps = 0.0;
+    double ps = 0.0;
     double cm = 0.0;
     int logk = (int)log2(k);
     
@@ -764,12 +764,25 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     //return;
     
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
-                             claims1[0].second,claims2[0].second,index,N,ps,vt);
+                             claims1[0].second,claims2[0].second,index,N,ps);
     open_index(index_data,index_codeword, index_Com, N,ps);
     open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps);
     pt.end();
     pt_cpu.end();
+    MPI_Barrier(MPI_COMM_WORLD);
     printf("Pt: %lf, CPU Only Pt: %lf, Computation only: %lf\n", pt.get_time(),pt_cpu.get_time(),pt_cp.get_time());
+    MPI_Barrier(MPI_COMM_WORLD);
+    vector<double> buff = {vt.get_time()};
+    if(rank != 0){
+        MPI_Send(buff.data(),1,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
+    }else{
+        double total_vt = vt.get_time();
+        for(int i = 1; i < N; i++){
+            MPI_Recv(buff.data(),1,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            total_vt += buff[0];
+        }
+        printf("Vt : %lf, Ps: XXX\n",total_vt);
+    }
 }
 
 

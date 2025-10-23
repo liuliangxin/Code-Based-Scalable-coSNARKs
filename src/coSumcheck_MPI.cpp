@@ -109,7 +109,7 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
         pt_cp.start();
         
         challenges[i] = hash_to_field({H.a,H.b,H.c,H.d}); 
-            
+        if(rank == 0) ps += 4*16/1024.0;
         y = H.eval(challenges[i]);
         if(rank == 0)vt.end();
         _zero_check_sumcheck_phase2(i, challenges[i],v1,v2, v3, beta1, h1, h2);
@@ -119,6 +119,8 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     
     
     vector<pair<F,vector<F>>> reply = F_zero_check_rest(v1[0], v2[0], v3[0], h1[0], h2[0], beta1, beta2, b, y, k, _k, N);
+    if(rank == 0) ps += 16*(4*(int)log2(N)+5)/1024.0;
+        
     for(int i = 0; i < 4; i++){
         reply[i].second.insert(reply[i].second.end(),challenges.begin(),challenges.end());
     }
@@ -183,7 +185,8 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
         
         challenges[i] = hash_to_field({H.a,H.b,H.c}); 
         if(rank == 0)vt.end();
-        
+        if(rank == 0) ps += 3*16/1024.0;
+
         y = H.eval(challenges[i]);
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++){
             v1[j] = challenges[i]*(v1[2*j+1]-v1[2*j]) + v1[2*j];
@@ -193,6 +196,7 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
          
     }
     vector<pair<F,vector<F>>> reply = F_quadratic_sumcheck_rest(v1[0], v2[0], y, k, _k, N);
+    if(rank == 0) ps += 16*(3*(int)log2(N)+2)/1024.0;
     
     for(int i = 0; i < 2; i++){
         reply[i].second.insert(reply[i].second.end(),challenges.begin(),challenges.end());
@@ -254,13 +258,16 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
         
         y = H.eval(challenges[i]);
         if(rank == 0)vt.end();
-        
+        if(rank == 0) ps += 16*(3)/1024.0;
+    
         _quadratic_batch_sumcheck_phase2(i, challenges[i],v1,v2, v3, v4, h1, h2);
         pt_cp.end();
         
     }
     
     vector<pair<F,vector<F>>> reply = F_batch_sumcheck_rest(v1[0], v2[0], v3[0], v4[0], h1[0], h2[0], b, y, k, _k, N);
+    if(rank == 0) ps += 16*(3*(int)log2(N)+6)/1024.0;
+    
     for(int i = 0; i < 4; i++){
         reply[i].second.insert(reply[i].second.end(),challenges.begin(),challenges.end());
     }

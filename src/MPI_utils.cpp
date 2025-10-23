@@ -331,6 +331,13 @@ vector<F> zero_check_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
     ret.push_back(beta2[0]);ret.push_back(r1[0]);ret.push_back(r2[0]);
     ret.insert(ret.end(),challenges.begin(),challenges.end());
     pt_cp.end();
+
+    vt.start();
+    if((v1[0]*v2[0]-v3[0] + b*r1[0]*r2[0])*beta2[0] != y){
+        printf("Error in final sumcheck step\n");
+        exit(-1);
+    }
+    vt.end();
     
     return ret;
 
@@ -522,6 +529,12 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
     ret.push_back(v4[0]);ret.push_back(r1[0]);ret.push_back(r2[0]);
     ret.insert(ret.end(),challenges.begin(),challenges.end());
     pt_cp.end();
+    vt.start();
+    if((v1[0]*v2[0]+v3[0]*v4[0] + b*r1[0]*r2[0]) != y){
+        printf("Error in final sumcheck step\n");
+        exit(-1);
+    }
+    vt.end();
     
     return ret;
 
