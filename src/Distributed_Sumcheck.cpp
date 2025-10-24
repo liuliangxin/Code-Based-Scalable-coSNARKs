@@ -462,7 +462,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
 }
 
 // New version of multiplication tree prover that takes as input vectors of different size
-void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
+pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int total_size;
@@ -487,7 +487,7 @@ void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
         }
     }
     vector<F> temp_out;
-    prove_product(new_input,temp_out,F(0),{},N);
+    pair<F,vector<vector<F>>> claim = prove_product(new_input,temp_out,F(0),{},N);
     int ctr = 0;
     if(rank == 0){
         output.resize(input.size(),F(1));
@@ -495,7 +495,7 @@ void prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
             for(int j = 0; j < input[i].size()/size; j++)output[i] *= temp_out[ctr++];
         }
     }
-    
+    return claim;
 
 }
 
@@ -869,7 +869,7 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     compute_transcript(Tr, data, challenges, beta1, beta2, r1, r2, N);
     sort_transcript(Tr, order);
     
-    prove_product_opt(Tr, output, N);
+    pair<F,vector<vector<F>>> claim = prove_product_opt(Tr, output, N);
     if(rank == 0){
         vector<F> organized_output(output.size());
         for(int i = 0; i < output.size(); i++){
@@ -881,6 +881,23 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
             }
         }
     }
+    vector<F> r = claim.second[0];
+    vector<vector<F>> polys;
+    for(int i = 0; i < data.size(); i++){
+        polys.push_back(beta1[i]);
+        polys.push_back(convert_to_field(data[i].RD1));
+        polys.push_back(convert_to_field(data[i].IDX1));
+    }
+    for(int i = 0; i < data.size(); i++){
+        polys.push_back(beta2[i]);
+        polys.push_back(convert_to_field(data[i].RD2));
+        polys.push_back(convert_to_field(data[i].IDX2));        
+    }
+    for(int i = 0; i < data.size(); i++) polys.push_back(convert_to_field(data[i].FINAL_FR1));
+    for(int i = 0; i < data.size(); i++) polys.push_back(convert_to_field(data[i].FINAL_FR2));
+    
+
+
     
 }
 
@@ -934,7 +951,6 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
         polys.push_back(convert_to_field(data[i].IDX1));
         acc_polys[2*i+3] = polys[3*i+1];
         acc_polys[2*i+1+3] = polys[3*i+2];
-
     }
     for(int i = 0; i < data.size(); i++){
         polys.push_back(beta2[i]);
