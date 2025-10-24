@@ -6,6 +6,7 @@
 #include <math.h>
 #include <omp.h>
 #include "polynomial.h"
+#include <algorithm>
 
 extern int MAX_CHUNCK;
 extern double proving_time;
@@ -1237,8 +1238,8 @@ void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector
 F sequence_eval(int size, vector<F> r1, vector<F> r2){
     vector<F> r; 
     
-    for(int i = 0; i < r2.size(); i++) r.push_back(r2[i]); 
     for(int i = 0; i < (int)log2(size)-r2.size(); i++) r.push_back(r1[i]);
+    for(int i = 0; i < r2.size(); i++) r.push_back(r2[i]); 
     printf("%d,%d\n",size,r.size());
     F sum = F(0);
     for(int i = 0; i < (int)log2(size); i++){
@@ -1249,6 +1250,7 @@ F sequence_eval(int size, vector<F> r1, vector<F> r2){
 
 F betas_eval(int size, vector<F> r11, vector<F> r12, vector<F> r21, vector<F> r22){
     F prod = F(1);
+    //reverse(r12.begin(),r12.end());
     //printf("%d,%d,%d\n",r11.size(),r12.size(), (int)log2(size));
     for(int i = 0; i < r12.size(); i++){
         prod *= (r12[i]*r22[i] + (F(1) - r12[i])*(F(1)- r22[i]));

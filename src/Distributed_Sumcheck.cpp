@@ -822,7 +822,7 @@ void compute_transcript(vector<vector<F>> &Tr, vector<sparse_eval_data> &data, v
         Tr[2*j+1+12].resize(next_pow2(data[0].FINAL_FR1.size()),F(1));
     
         for(int i = 0; i < data[j].FINAL_FR1.size(); i++){
-            Tr[2*j+0+12][i] = challenges[0]*base_beta1[i] +  challenges[2]*F(rank*data[j].FINAL_FR1.size() + i) + F(1);
+            Tr[2*j+0+12][i] =   challenges[0]*base_beta1[i]+F(1)  +  challenges[2]*F(rank*data[j].FINAL_FR1.size() + i);
             Tr[2*j+1+12][i] = challenges[0]*base_beta1[i] +  challenges[1]*F(data[j].FINAL_FR1[i]) + challenges[2]*F(rank*data[j].FINAL_FR1.size() + i) + F(1);
         }
     }
@@ -830,7 +830,7 @@ void compute_transcript(vector<vector<F>> &Tr, vector<sparse_eval_data> &data, v
         Tr[2*j+18].resize(next_pow2(data[0].FINAL_FR2.size()),F(1));
         Tr[2*j+1+18].resize(next_pow2(data[0].FINAL_FR2.size()),F(1));
         for(int i = 0; i < data[j].FINAL_FR2.size(); i++){
-            Tr[2*j+18][i] = challenges[0]*base_beta2[i] +  challenges[2]*F(rank*data[j].FINAL_FR2.size() + i) + F(1);
+            Tr[2*j+18][i] =   challenges[2]*F(rank*data[j].FINAL_FR2.size() + i) + F(1) + challenges[0]*base_beta2[i]; 
             Tr[2*j+1+18][i] = challenges[0]*base_beta2[i] +  challenges[1]*F(data[j].FINAL_FR2[i]) + challenges[2]*F(rank*data[j].FINAL_FR2.size() + i) + F(1);
         }
     }
@@ -907,21 +907,23 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     vector<F> evals = batch_distributed_eval_opt(polys, r, claim.second[2], N);
     if(rank == 0){
         vector<F> Tr_evals(24,F(0));
-        vector<F> r11,r12,r21,r22;
+        vector<F> r11,r12,r21,r22,_r;
+        
         for(int i  = 0; i < r1.size()-(int)log2(N); i++){
-            r12.push_back(r1[i]);
-        }
-        for(int i = r12.size(); i < r1.size(); i++){
             r11.push_back(r1[i]);
+        }
+        for(int i = r11.size(); i < r1.size(); i++){
+            r12.push_back(r1[i]);
         }
         
         for(int i  = 0; i < r2.size()-(int)log2(N); i++){
-            r22.push_back(r2[i]);
-        }
-        for(int i = r22.size(); i < r2.size(); i++){
             r21.push_back(r2[i]);
         }
- 
+        for(int i = r22.size(); i < r2.size(); i++){
+            r22.push_back(r2[i]);
+        }
+        
+
         for(int i = 0; i < data.size();i++){
             Tr_evals[2*i] = challenges[0]*evals[3*i] +  challenges[1]*evals[3*i+1] + challenges[2]*evals[3*i+2] + F(1);
             Tr_evals[2*i+1] = Tr_evals[2*i] +  challenges[1];
@@ -931,16 +933,24 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
             Tr_evals[2*i+1+6] = Tr_evals[2*i+6] +  challenges[1];
         }
         for(int i = 0; i < data.size(); i++){
-            Tr_evals[2*i + 12] = challenges[0]*betas_eval(data[i].FINAL_FR1.size(),r11,r12,r,claim.second[2]) + challenges[2]*sequence_eval(N*next_pow2(data[i].FINAL_FR1.size()),r,claim.second[2]) + F(1);
-            Tr_evals[2*i + 13] = Tr_evals[2*i + 12] + challenges[1]*Tr_evals[i+18];
+            Tr_evals[2*i + 12] =  challenges[0]*betas_eval(data[i].FINAL_FR1.size(),r11,r12,r,claim.second[2]) + F(1) + challenges[2]*sequence_eval(N*next_pow2(data[i].FINAL_FR1.size()),r,claim.second[2]);
+            Tr_evals[2*i + 13] = Tr_evals[2*i + 12] + challenges[1]*evals[i+18];
         }
         for(int i = 0; i < data.size(); i++){
-            Tr_evals[2*i + 18] = challenges[0]*betas_eval(data[i].FINAL_FR2.size(),r21,r22,r,claim.second[2]) + challenges[2]*sequence_eval(N*next_pow2(data[i].FINAL_FR2.size()),r,claim.second[2]) + F(1);
-            Tr_evals[2*i + 19] = Tr_evals[2*i + 18] + challenges[1]*Tr_evals[i+3+18];
+            Tr_evals[2*i + 18] =  challenges[2]*sequence_eval(N*next_pow2(data[i].FINAL_FR2.size()),r,claim.second[2]) + F(1) + challenges[0]*betas_eval(data[i].FINAL_FR2.size(),r21,r22,r,claim.second[2]);
+            Tr_evals[2*i + 19] = Tr_evals[2*i + 18] + challenges[1]*evals[i+3+18];
         }
+
+        /*
+        printf("%d,%d\n",_r.size(),beta.size());
+        if(evaluate_vector(beta,_r) != betas_eval(data[0].FINAL_FR1.size(),r11,r12,r,claim.second[2])){
+            printf("ERROR\n");
+        }*/
+        
         for(int i = 0; i < Tr_evals.size(); i++){
             if(Tr_evals[i] != debug_evals[order[i]]){
-                printf("error %d\n",i);
+                printf("error %d \n",i);
+                //return;
             }
         }
         
