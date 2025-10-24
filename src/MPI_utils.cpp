@@ -839,6 +839,60 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
     return Y;
 }
 
+vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vector<F> r2, int N){
+    int rank;
+    pt_cp.start();
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    vector<u64> buff(poly.size()*2); 
+    
+    int max_size = 0;
+    for(int i = 0; i < poly.size(); i++){
+        if(poly[i].size() > max_size) max_size = poly[i].size();
+    }
+    vector<F> r,y(poly.size(),F(0)); 
+    for(int i = 0; i < (int)log2(max_size); i++) r.push_back(r1[i]);
+
+    vector<F> beta1; precompute_beta(r,beta1);
+
+    for(int i = 0; i < poly.size(); i++){
+        for(int j  = 0; j < poly[i].size(); j++) y[i] += poly[i][j]*beta1[j];
+        
+        for(int j = (int)log2(poly[i].size()); j < r.size(); j++) y[i] *= (F(1)-r[j]).inv();
+    }
+    pt_cp.end();
+    
+    if(rank == 0){
+        
+        pt_cp.start();
+        vector<F> beta2;precompute_beta(r2,beta2);
+        vector<F> Y(poly.size(),F(0));
+        for(int i = 0; i < poly.size(); i++){
+            Y[i] += beta2[0]*y[i];
+        }
+        pt_cp.end();
+    
+        for(int i = 1; i < N; i++){
+            MPI_Recv(buff.data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            for(int j = 0; j < poly.size(); j++){
+                F v; v.real = buff[2*j];v.img = buff[2*j+1];
+                Y[j] += beta2[i]*v;
+            }
+        }
+
+        field_vector_serialize(Y,buff);
+    }else{
+        field_vector_serialize(y,buff);
+        cm += 8*buff.size()/1024.0;
+        MPI_Send(buff.data(),2*poly.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+    }
+    if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
+    MPI_Bcast(buff.data(),2*poly.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    field_vector_deserialize(buff,y);
+    return y;
+}
+
+
+
 vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     int rank;
     pt_cp.start();

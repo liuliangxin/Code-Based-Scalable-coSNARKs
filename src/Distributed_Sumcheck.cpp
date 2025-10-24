@@ -882,6 +882,7 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         }
     }
     vector<F> r = claim.second[0];
+    r.insert(r.end(),claim.second[1].begin(),claim.second[1].end());
     vector<vector<F>> polys;
     for(int i = 0; i < data.size(); i++){
         polys.push_back(beta1[i]);
@@ -896,9 +897,8 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     for(int i = 0; i < data.size(); i++) polys.push_back(convert_to_field(data[i].FINAL_FR1));
     for(int i = 0; i < data.size(); i++) polys.push_back(convert_to_field(data[i].FINAL_FR2));
     
-
-
-    
+    vector<F> evals = batch_distributed_eval_opt(polys, r, claim.second[2], N);
+    vector<F> Tr_eval;    
 }
 
 
