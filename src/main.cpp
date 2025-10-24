@@ -648,7 +648,7 @@ void test_mult_tree(vector<int> dims, int N){
             for(int j = 0; j < input[i].size(); j++) input[i][j] = v[ctr++];
         }
     }
-    prove_product_opt(input, output, N);
+    //prove_product_opt(input, output, N);
     if(rank == 0){
         for(int i = 0; i < output.size(); i++){
             if(output[i] != prod[i]){

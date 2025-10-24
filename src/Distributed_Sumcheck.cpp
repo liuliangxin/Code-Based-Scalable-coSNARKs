@@ -462,7 +462,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
 }
 
 // New version of multiplication tree prover that takes as input vectors of different size
-pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N){
+pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N, vector<F> &evals){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int total_size;
@@ -495,6 +495,10 @@ pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> 
             for(int j = 0; j < input[i].size()/size; j++)output[i] *= temp_out[ctr++];
         }
     }
+    vector<F> r = claim.second[0];
+    r.insert(r.end(),claim.second[1].begin(),claim.second[1].end());
+    evals = batch_distributed_eval_opt(input, r, claim.second[2], N);
+    
     return claim;
 
 }
@@ -867,9 +871,12 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     for(int i = 0; i < 3; i++) challenges[i] = hash_to_field({0}); 
     
     compute_transcript(Tr, data, challenges, beta1, beta2, r1, r2, N);
-    sort_transcript(Tr, order);
     
-    pair<F,vector<vector<F>>> claim = prove_product_opt(Tr, output, N);
+    //vector<F> test_v = Tr[13];
+    
+    sort_transcript(Tr, order);
+    vector<F> debug_evals;
+    pair<F,vector<vector<F>>> claim = prove_product_opt(Tr, output, N, debug_evals);
     if(rank == 0){
         vector<F> organized_output(output.size());
         for(int i = 0; i < output.size(); i++){
@@ -900,6 +907,21 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     vector<F> evals = batch_distributed_eval_opt(polys, r, claim.second[2], N);
     if(rank == 0){
         vector<F> Tr_evals(24,F(0));
+        vector<F> r11,r12,r21,r22;
+        for(int i  = 0; i < r1.size()-(int)log2(N); i++){
+            r12.push_back(r1[i]);
+        }
+        for(int i = r12.size(); i < r1.size(); i++){
+            r11.push_back(r1[i]);
+        }
+        
+        for(int i  = 0; i < r2.size()-(int)log2(N); i++){
+            r22.push_back(r2[i]);
+        }
+        for(int i = r22.size(); i < r2.size(); i++){
+            r21.push_back(r2[i]);
+        }
+ 
         for(int i = 0; i < data.size();i++){
             Tr_evals[2*i] = challenges[0]*evals[3*i] +  challenges[1]*evals[3*i+1] + challenges[2]*evals[3*i+2] + F(1);
             Tr_evals[2*i+1] = Tr_evals[2*i] +  challenges[1];
@@ -909,8 +931,17 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
             Tr_evals[2*i+1+6] = Tr_evals[2*i+6] +  challenges[1];
         }
         for(int i = 0; i < data.size(); i++){
-            Tr_evals[2*i + 12] = challenges[0]*betas_eval(data[i].FINAL_FR1.size(),r1,r2,r,claim.second[2]) + challenges[2]*sequence_eval(data[i].FINAL_FR1.size(),r,claim.second[2]) + F(1);
-            Tr_evals[2*i + 13] = Tr_evals[2*i + 13] + challenges[1];
+            Tr_evals[2*i + 12] = challenges[0]*betas_eval(data[i].FINAL_FR1.size(),r11,r12,r,claim.second[2]) + challenges[2]*sequence_eval(N*next_pow2(data[i].FINAL_FR1.size()),r,claim.second[2]) + F(1);
+            Tr_evals[2*i + 13] = Tr_evals[2*i + 12] + challenges[1]*Tr_evals[i+18];
+        }
+        for(int i = 0; i < data.size(); i++){
+            Tr_evals[2*i + 18] = challenges[0]*betas_eval(data[i].FINAL_FR2.size(),r21,r22,r,claim.second[2]) + challenges[2]*sequence_eval(N*next_pow2(data[i].FINAL_FR2.size()),r,claim.second[2]) + F(1);
+            Tr_evals[2*i + 19] = Tr_evals[2*i + 18] + challenges[1]*Tr_evals[i+3+18];
+        }
+        for(int i = 0; i < Tr_evals.size(); i++){
+            if(Tr_evals[i] != debug_evals[order[i]]){
+                printf("error %d\n",i);
+            }
         }
         
         //if(evaluate_vector(Tr_evals,claims.second[1]) != claims.first){
