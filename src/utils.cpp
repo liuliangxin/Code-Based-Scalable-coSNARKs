@@ -1241,11 +1241,18 @@ F sequence_eval(int size, vector<F> r1, vector<F> r2){
 
     F sum = F(0);
     for(int i = 0; i < (int)log2(size); i++){
-        sum += r[i]*F(size/(1<<(i+1)));
+        sum += r[(int)log2(size)-1-i]*F(size/(1<<(i+1)));
     }
     return sum;
 }
 
-F betas_eval(int size, vector<F> r1, vector<F> r2){
-    return F(0);
+F betas_eval(int size, vector<F> r11, vector<F> r12, vector<F> r21, vector<F> r22){
+    F prod = F(1);
+    for(int i = 0; i < r12.size(); i++){
+        prod *= (r12[i]*r22[i] + (F(1) - r12[i])*(F(1)- r22[i]));
+    }
+    for(int i = 0; i < r11.size(); i++){
+        prod *= (r11[i]*r21[i] + (F(1) - r11[i])*(F(1)- r21[i]));
+    }
+    return prod;
 }

@@ -909,7 +909,7 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
             Tr_evals[2*i+1+6] = Tr_evals[2*i+6] +  challenges[1];
         }
         for(int i = 0; i < data.size(); i++){
-            Tr_evals[2*i + 12] = challenges[0]*betas_eval(data[i].FINAL_FR1.size(),r1,r2) + challenges[2]*sequence_eval(data[i].FINAL_FR1.size(),r,claim.second[2]) + F(1);
+            Tr_evals[2*i + 12] = challenges[0]*betas_eval(data[i].FINAL_FR1.size(),r1,r2,r,claim.second[2]) + challenges[2]*sequence_eval(data[i].FINAL_FR1.size(),r,claim.second[2]) + F(1);
             Tr_evals[2*i + 13] = Tr_evals[2*i + 13] + challenges[1];
         }
         
