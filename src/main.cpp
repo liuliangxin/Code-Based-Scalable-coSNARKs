@@ -19,6 +19,7 @@
 #include "Distributed_Sumcheck.h"
 #include "MPI_utils.hpp"
 #include "timer.hpp"
+#include <algorithm>
 int tensor_row_size;
 int mul_counter= 0;
 
@@ -659,38 +660,8 @@ void test_mult_tree(vector<int> dims, int N){
 
 
 int main(int argc, char *argv[]){
-    /*
-    vector<F> arr = generate_randomness(4);
-    vector<F> poly = arr;
-    for(int i = 0; i < arr.size(); i++){
-        printf("%lld,%lld\n",arr[i].real,arr[i].img);
-    }
-    printf("==========\n");
-
-    fft(poly,(int)log2(arr.size()),true);
-    F omega = getRootOfUnity(3+(int)log2(poly.size()));omega = omega.inv();
-    F mul = F(1);
-    for(int i = 0; i < poly.size(); i++){
-        poly[i] = mul*poly[i];
-        mul = omega*mul;
-    }
-    vector<F> arr2 = poly;arr2.resize(4*poly.size(),F(0));   
-    fft(arr2,(int)log2(arr2.size()),false);
     
     
-    fft(arr2,(int)log2(arr2.size()),true);
-    arr2.resize(2*arr2.size(),F(0));
-    fft(arr2,(int)log2(arr2.size()),false);
-    vector<F> poly2;
-    for(int i = 0; i < arr.size(); i++){
-        poly2.push_back(arr2[2*4*i + 1]);
-        printf("%lld,%lld\n",poly2[i].real,arr[i].real);
-    }
-    
-    //fft(p_evals,(int)log2())
-    exit(-1);
-    */
-
     
   
     

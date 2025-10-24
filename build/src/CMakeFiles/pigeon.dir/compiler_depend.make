@@ -86,6 +86,8 @@ src/CMakeFiles/pigeon.dir/Distributed_Sumcheck.cpp.o: /home/chris/coSNARK_MPI/sr
   /usr/include/c++/13/bits/functexcept.h \
   /usr/include/c++/13/bits/functional_hash.h \
   /usr/include/c++/13/bits/hash_bytes.h \
+  /usr/include/c++/13/bits/hashtable.h \
+  /usr/include/c++/13/bits/hashtable_policy.h \
   /usr/include/c++/13/bits/invoke.h \
   /usr/include/c++/13/bits/ios_base.h \
   /usr/include/c++/13/bits/istream.tcc \
@@ -152,6 +154,7 @@ src/CMakeFiles/pigeon.dir/Distributed_Sumcheck.cpp.o: /home/chris/coSNARK_MPI/sr
   /usr/include/c++/13/bits/uniform_int_dist.h \
   /usr/include/c++/13/bits/unique_lock.h \
   /usr/include/c++/13/bits/unique_ptr.h \
+  /usr/include/c++/13/bits/unordered_map.h \
   /usr/include/c++/13/bits/uses_allocator.h \
   /usr/include/c++/13/bits/uses_allocator_args.h \
   /usr/include/c++/13/bits/utility.h \
@@ -228,6 +231,7 @@ src/CMakeFiles/pigeon.dir/Distributed_Sumcheck.cpp.o: /home/chris/coSNARK_MPI/sr
   /usr/include/c++/13/tuple \
   /usr/include/c++/13/type_traits \
   /usr/include/c++/13/typeinfo \
+  /usr/include/c++/13/unordered_map \
   /usr/include/c++/13/utility \
   /usr/include/c++/13/variant \
   /usr/include/c++/13/vector \
@@ -4395,6 +4399,7 @@ src/CMakeFiles/pigeon.dir/main.cpp.o: /home/chris/coSNARK_MPI/src/main.cpp \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
   /usr/include/assert.h \
+  /usr/include/c++/13/algorithm \
   /usr/include/c++/13/array \
   /usr/include/c++/13/backward/auto_ptr.h \
   /usr/include/c++/13/backward/binders.h \
@@ -4455,6 +4460,7 @@ src/CMakeFiles/pigeon.dir/main.cpp.o: /home/chris/coSNARK_MPI/src/main.cpp \
   /usr/include/c++/13/bits/ptr_traits.h \
   /usr/include/c++/13/bits/quoted_string.h \
   /usr/include/c++/13/bits/range_access.h \
+  /usr/include/c++/13/bits/ranges_algo.h \
   /usr/include/c++/13/bits/ranges_algobase.h \
   /usr/include/c++/13/bits/ranges_base.h \
   /usr/include/c++/13/bits/ranges_cmp.h \
@@ -4544,6 +4550,7 @@ src/CMakeFiles/pigeon.dir/main.cpp.o: /home/chris/coSNARK_MPI/src/main.cpp \
   /usr/include/c++/13/optional \
   /usr/include/c++/13/ostream \
   /usr/include/c++/13/pstl/execution_defs.h \
+  /usr/include/c++/13/pstl/glue_algorithm_defs.h \
   /usr/include/c++/13/pstl/glue_memory_defs.h \
   /usr/include/c++/13/pstl/pstl_config.h \
   /usr/include/c++/13/ratio \
@@ -7342,6 +7349,8 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /home/chris/coSNARK_MPI/src/merkle_tree.cpp:
 
+/usr/include/c++/13/pstl/glue_algorithm_defs.h:
+
 /home/chris/coSNARK_MPI/src/flo-shani.c:
 
 /home/chris/coSNARK_MPI/src/coSumcheck_MPI.cpp:
@@ -7419,6 +7428,8 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 /usr/lib/gcc/x86_64-linux-gnu/13/include/pkuintrin.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/include/omp.h:
+
+/usr/include/c++/13/algorithm:
 
 /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h:
 
@@ -7548,8 +7559,6 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
-
 /usr/lib/gcc/x86_64-linux-gnu/13/include/syslimits.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
@@ -7634,9 +7643,11 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /usr/include/x86_64-linux-gnu/bits/endian.h:
 
-/usr/include/c++/13/bits/stl_bvector.h:
+/usr/include/x86_64-linux-gnu/bits/cpu-set.h:
 
-/usr/include/c++/13/bits/allocator.h:
+/usr/include/x86_64-linux-gnu/bits/byteswap.h:
+
+/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
 
 /usr/include/c++/13/bits/stl_algobase.h:
 
@@ -7718,6 +7729,10 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /usr/include/c++/13/bits/ios_base.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
+
+/usr/include/c++/13/bits/hashtable.h:
+
 /usr/include/errno.h:
 
 /usr/include/c++/13/bits/functexcept.h:
@@ -7774,6 +7789,8 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /usr/include/c++/13/bits/char_traits.h:
 
+/usr/include/c++/13/bits/hashtable_policy.h:
+
 /usr/include/c++/13/bits/basic_ios.tcc:
 
 /usr/include/c++/13/pstl/execution_defs.h:
@@ -7797,6 +7814,10 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 /usr/lib/gcc/x86_64-linux-gnu/13/include/avx512vbmivlintrin.h:
 
 /usr/include/x86_64-linux-gnu/gnu/stubs.h:
+
+/usr/include/x86_64-linux-gnu/bits/confname.h:
+
+/usr/include/c++/13/bits/locale_facets_nonio.h:
 
 /usr/include/x86_64-linux-gnu/bits/wchar2-decl.h:
 
@@ -7904,6 +7925,8 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /usr/include/c++/13/bits/ranges_base.h:
 
+/usr/include/c++/13/bits/ranges_algo.h:
+
 /usr/include/c++/13/bits/invoke.h:
 
 /home/chris/coSNARK_MPI/src/constants.h:
@@ -7959,6 +7982,8 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 /usr/include/c++/13/charconv:
 
 /usr/include/c++/13/backward/binders.h:
+
+/usr/include/c++/13/bits/stl_bvector.h:
 
 /usr/include/x86_64-linux-gnu/bits/environments.h:
 
@@ -8080,6 +8105,8 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /usr/include/c++/13/bits/quoted_string.h:
 
+/usr/include/c++/13/bits/unordered_map.h:
+
 /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
@@ -8157,10 +8184,6 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 /usr/include/c++/13/bits/streambuf_iterator.h:
 
 /usr/include/c++/13/ostream:
-
-/usr/include/c++/13/bits/locale_facets_nonio.h:
-
-/usr/include/x86_64-linux-gnu/bits/confname.h:
 
 /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h:
 
@@ -8314,6 +8337,10 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 
 /usr/include/c++/13/tr1/legendre_function.tcc:
 
+/usr/include/c++/13/bits/allocator.h:
+
+/usr/include/c++/13/unordered_map:
+
 /home/chris/coSNARK_MPI/src/utils.hpp:
 
 /usr/include/c++/13/vector:
@@ -8347,9 +8374,3 @@ src/CMakeFiles/pigeon.dir/virgo_prime_field.cpp.o: /home/chris/coSNARK_MPI/src/v
 /usr/include/x86_64-linux-gnu/asm/unistd.h:
 
 /usr/include/x86_64-linux-gnu/asm/unistd_64.h:
-
-/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
-
-/usr/include/x86_64-linux-gnu/bits/byteswap.h:
-
-/usr/include/x86_64-linux-gnu/bits/cpu-set.h:
