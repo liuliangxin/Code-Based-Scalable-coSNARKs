@@ -789,6 +789,38 @@ vector<pair<F,vector<F>>> distributed_accumulation(vector<vector<F>> &polys, vec
 
 
 
+void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data, 
+                        vector<F> r1, vector<F> r2, int N){
+    
+    vector<vector<F>> Tr(24);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    pt_cp.start();
+    vector<F> challenges(3);
+    clock_t t1 = clock();
+    for(int i = 0; i < 3; i++) challenges[i] = hash_to_field({0}); 
+    
+    for(int j = 0; j < data.size(); j++){
+        Tr[2*j].resize(next_pow2(data[j].IDX1.size()),F(1));
+        Tr[2*j+1].resize(next_pow2(data[j].IDX1.size()),F(1));
+        for(int i = 0; i < data[j].IDX1.size(); i++){
+            Tr[2*j][i] = challenges[0]*beta1[j][i] +  challenges[1]*F(data[j].RD1[i]) + challenges[2]*F(data[j].IDX1[i]) + F(1);
+            Tr[2*j+1][i] = challenges[0]*beta1[j][i] +  challenges[1]*F(data[j].WR1[i]) + challenges[2]*F(data[j].IDX1[i]) + F(1);
+        }
+    }
+    for(int j = 0; j < data.size(); j++){
+        Tr[2*j+6].resize(next_pow2(data[0].IDX2.size()),F(1));
+        Tr[2*j+1+6].resize(next_pow2(data[0].IDX2.size()),F(1));
+        for(int i = 0; i < data[j].IDX2.size(); i++){
+            Tr[2*j+6][i] = challenges[0]*beta2[j][i] +  challenges[1]*F(data[j].RD2[i]) + challenges[2]*F(data[j].IDX2[i]) + F(1);
+            Tr[2*j+1+6][i] = challenges[0]*beta2[j][i] +  challenges[1]*F(data[j].WR2[i]) + challenges[2]*F(data[j].IDX2[i]) + F(1);
+        }
+    }
+    
+
+}
+
+
 
 pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data, 
                         vector<F> r1, vector<F> r2, 
