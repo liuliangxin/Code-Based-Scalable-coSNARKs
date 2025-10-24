@@ -615,8 +615,9 @@ void test_sparse_eval(int N, int M){
             printf("Error 3\n");
         }
     
-
+    MPI_Barrier(MPI_COMM_WORLD);
     //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N, pt, pt, pt);
+    _prove_sparse_eval_opt(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index, r1, r2, N);
 }
 
 void test_mult_tree(vector<int> dims, int N){
@@ -675,7 +676,6 @@ int main(int argc, char *argv[]){
     
 
 
-
     //encode_locally(C,R_shares,500,N,M,k,_k);
     MPI_Init (&argc, &argv);
     
@@ -690,8 +690,12 @@ int main(int argc, char *argv[]){
     vector<MT> Com_mask;
     
     
-    vector<int> dims = {1<<16,1<<14,1<<14};
-    test_mult_tree(dims, N);
+    //vector<int> dims = {1<<16,1<<14,1<<14};
+    //test_mult_tree(dims, N);
+    
+    test_sparse_eval(N, M);
+    
+    
     //coPIOP_prove(M, N, _k, k);
     
     // ==================================================== //

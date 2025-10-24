@@ -823,7 +823,6 @@ void compute_transcript(vector<vector<F>> &Tr, vector<sparse_eval_data> &data, v
         }
     }
     for(int j = 0; j < data.size(); j++){
-        Tr[2*j+18].clear();Tr[2*j+1].clear();
         Tr[2*j+18].resize(next_pow2(data[0].FINAL_FR2.size()),F(1));
         Tr[2*j+1+18].resize(next_pow2(data[0].FINAL_FR2.size()),F(1));
         for(int i = 0; i < data[j].FINAL_FR2.size(); i++){
@@ -845,7 +844,8 @@ void sort_transcript(vector<vector<F>> &Tr, vector<int> &order){
     // By default, std::sort sorts pairs based on the first element, then the second if first elements are equal.
     std::sort(sizes.begin(), sizes.end());
     reverse(sizes.begin(),sizes.end());
-    for(int i = 0; i < sizes.size(); i++) order.push_back(sizes[i].second);
+    order.resize(sizes.size());
+    for(int i = 0; i < sizes.size(); i++) order[sizes[i].second] = i;
     
     vector<vector<F>> temp;
     for(int i = 0; i < sizes.size(); i++) temp.push_back(Tr[sizes[i].second]);
@@ -857,6 +857,7 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
                         vector<F> r1, vector<F> r2, int N){
     
     vector<vector<F>> Tr(24);
+    vector<F> output;
     vector<int> order;
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -867,6 +868,20 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     
     compute_transcript(Tr, data, challenges, beta1, beta2, r1, r2, N);
     sort_transcript(Tr, order);
+    
+    prove_product_opt(Tr, output, N);
+    if(rank == 0){
+        vector<F> organized_output(output.size());
+        for(int i = 0; i < output.size(); i++){
+            organized_output[i] = output[order[i]];
+        }
+        for(int i = 0; i < 6; i++){
+            if(organized_output[2*i]*organized_output[2*i+1+12] != organized_output[2*i+1]*organized_output[2*i+12]){
+                printf("Error phase 2 %d\n",i);
+            }
+        }
+    }
+    
 }
 
 
