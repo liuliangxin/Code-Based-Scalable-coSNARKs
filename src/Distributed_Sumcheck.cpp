@@ -898,7 +898,26 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     for(int i = 0; i < data.size(); i++) polys.push_back(convert_to_field(data[i].FINAL_FR2));
     
     vector<F> evals = batch_distributed_eval_opt(polys, r, claim.second[2], N);
-    vector<F> Tr_eval;    
+    if(rank == 0){
+        vector<F> Tr_evals(24,F(0));
+        for(int i = 0; i < data.size();i++){
+            Tr_evals[2*i] = challenges[0]*evals[3*i] +  challenges[1]*evals[3*i+1] + challenges[2]*evals[3*i+2] + F(1);
+            Tr_evals[2*i+1] = Tr_evals[2*i] +  challenges[1];
+        }
+        for(int i = 0; i < data.size();i++){
+            Tr_evals[2*i+6] = challenges[0]*evals[3*i+9] +  challenges[1]*evals[3*i+1+9] + challenges[2]*evals[3*i+2+9] + F(1);
+            Tr_evals[2*i+1+6] = Tr_evals[2*i+6] +  challenges[1];
+        }
+        for(int i = 0; i < data.size(); i++){
+            Tr_evals[2*i + 12] = challenges[0]*betas_eval(data[i].FINAL_FR1.size(),r1,r2) + challenges[2]*sequence_eval(data[i].FINAL_FR1.size(),r,claim.second[2]) + F(1);
+            Tr_evals[2*i + 13] = Tr_evals[2*i + 13] + challenges[1];
+        }
+        
+        //if(evaluate_vector(Tr_evals,claims.second[1]) != claims.first){
+        //    printf("Sparse Eval Error 1\n");
+        //}
+    }
+       
 }
 
 

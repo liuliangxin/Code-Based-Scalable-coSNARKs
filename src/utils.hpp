@@ -85,3 +85,6 @@ vector<vector<F>> F_batch_quad_sumcheck_rest_functionality(F y, F b, vector<vect
                                                                      vector<vector<F>> &_r2, 
                                                                      int _k, int k,
                                                                     double &pt, double &vt, double &ps);
+
+F sequence_eval(int size, vector<F> r1, vector<F> r2);
+F betas_eval(int size, vector<F> r1, vector<F> r2);

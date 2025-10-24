@@ -663,8 +663,16 @@ void test_mult_tree(vector<int> dims, int N){
 int main(int argc, char *argv[]){
     
     
-    
-  
+    vector<F> arr(1<<12);
+    for(int i = 0; i < arr.size(); i++) arr[i] = i;
+    vector<F> r1 = generate_randomness(10);
+    vector<F> r2 = generate_randomness(2);
+    vector<F> r = r1; r.insert(r.end(),r2.begin(),r2.end());
+
+    if(evaluate_vector(arr,r) != sequence_eval(arr.size(), r1, r2)){
+        printf("error\n");
+    } 
+    exit(-1);
     
     int K = 1<<atoi(argv[1]);
     int N = atoi(argv[2]);

@@ -1231,3 +1231,21 @@ void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector
         }
     }
 }
+
+
+
+F sequence_eval(int size, vector<F> r1, vector<F> r2){
+    vector<F> r; 
+    for(int i = 0; i < (int)log2(size)-r2.size(); i++) r.push_back(r1[i]);
+    for(int i = 0; i < r2.size(); i++) r.push_back(r2[i]); 
+
+    F sum = F(0);
+    for(int i = 0; i < (int)log2(size); i++){
+        sum += r[i]*F(size/(1<<(i+1)));
+    }
+    return sum;
+}
+
+F betas_eval(int size, vector<F> r1, vector<F> r2){
+    return F(0);
+}
