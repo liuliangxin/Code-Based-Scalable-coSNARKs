@@ -947,45 +947,116 @@ void send_index(vector<vector<int>> &Data,vector<int> dim , int N){
     }
 }
 
-void send_R1CS_matrixes(vector<vector<int>> &Data, int N){
+void send_matrix_dims(vector<int> dim1, vector<int> dim2, vector<int> dim3, int idx){
+    vector<int> buff = {(int)dim1.size(),(int)dim2.size(),(int)dim3.size()};
+    MPI_Send(buff.data(),3,MPI_INT,idx,0,MPI_COMM_WORLD);
+    buff = dim1;buff.insert(buff.end(),dim2.begin(),dim2.end());
+    buff.insert(buff.end(),dim3.begin(),dim3.end());
+    MPI_Send(buff.data(),buff.size(),MPI_INT,idx,0,MPI_COMM_WORLD);
+}
+
+void receive_matrix_dims(vector<int> &dim1, vector<int> &dim2, vector<int> &dim3){
+    vector<int> buff(3);
+    MPI_Recv(buff.data(),3,MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    vector<int> sizes = buff;
+    buff.resize(sizes[0]+sizes[1]+sizes[2]);
+    MPI_Recv(buff.data(),buff.size(),MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    dim1.resize(sizes[0]);dim2.resize(sizes[1]);dim3.resize(sizes[2]);
+    int ctr = 0;
+    for(int i = 0; i < sizes[0]; i++)dim1[i] = buff[ctr++];
+    for(int i = 0; i < sizes[1]; i++)dim2[i] = buff[ctr++];
+    for(int i = 0; i < sizes[2]; i++)dim3[i] = buff[ctr++];
+}
+
+void send_R1CS_matrixes(vector<vector<int>> &Data,vector<vector<int>> tA_dim,vector<vector<int>> tB_dim,vector<vector<int>> tC_dim, int N){
     for(int i = 1; i < N; i++){
+        send_matrix_dims(tA_dim[i],tB_dim[i],tC_dim[i],i);
         MPI_Send(Data[i].data(),Data[i].size(),MPI_INT,i,0,MPI_COMM_WORLD);
     }
 }
 
-void parse_R1CS_matrixes(vector<int> &data, int N, int M){
-    
-    pA.resize(2*M/N); pB.resize(2*M/N); pC.resize(2*M/N);
-    for(int i = 0; i < 2*M/N; i++){
-        if(data[2*i] == -1){
+void parse_R1CS_matrixes(vector<int> &data, vector<int> &dimsA, vector<int> &dimsB, vector<int> &dimsC, int N, int M){
+    int ctr = 0; 
+    //pA.resize(2*M/N); pB.resize(2*M/N); pC.resize(2*M/N);
+    for(int i = 0; i < dimsA.size(); i++){
+        
+        if(data[2*ctr] == -1){
+            pA.push_back({});
+            ctr++;
             continue;
-        }
-        pA[i].resize(1);
-        pA[i][0].first = data[2*i];
-        pA[i][0].second = data[2*i+1];
+        }else{
+            vector<pair<int,int>> buff;
+            for(int j = 0; j < dimsA[i]; j++){
+                buff.push_back(make_pair(data[2*ctr],data[2*ctr+1]));
+                ctr++;
+            }        
+            pA.push_back(buff);    
+        
+        } 
+        //pA[i].resize(1);
+        //pA[i][0].first = data[2*i];
+        //pA[i][0].second = data[2*i+1];
     }
-    for(int i = 0; i < 2*M/N; i++){
-        if(data[2*i + 4*M/N] == -1){
+    for(int i = 0; i < dimsB.size(); i++){
+        if(data[2*ctr] == -1){
+            pB.push_back({});
+            ctr++;
+            continue;
+        }else{
+            vector<pair<int,int>> buff;
+            for(int j = 0; j < dimsB[i]; j++){
+                buff.push_back(make_pair(data[2*ctr],data[2*ctr+1]));
+                ctr++;
+            }        
+            pB.push_back(buff);    
+        } 
+
+        /*
+        if(data[2*ctr] == -1){
             continue;
         }
         pB[i].resize(1);
         pB[i][0].first = data[2*i + 4*M/N];
         pB[i][0].second = data[2*i + 1 + 4*M/N];
+        */
     }
-    for(int i = 0; i < 2*M/N; i++){
+    for(int i = 0; i < dimsC.size(); i++){
+          if(data[2*ctr] == -1){
+            pC.push_back({});
+            ctr++;
+            continue;
+        }else{
+            vector<pair<int,int>> buff;
+            for(int j = 0; j < dimsC[i]; j++){
+                buff.push_back(make_pair(data[2*ctr],data[2*ctr+1]));
+                ctr++;
+            }        
+            pC.push_back(buff);    
+        } 
+        /*
         if(data[2*i + 8*M/N] == -1){
             continue;
         }
         pC[i].resize(1);
         pC[i][0].first = data[2*i + 8*M/N];
-        pC[i][0].second = data[2*i + 1 + 8*M/N];
+        pC[i][0].second = data[2*i + 1 + 8*M/N];*/
+        
     }
 }
 
 void receive_R1CS_matrixes(int N, int M){
-    vector<int> data(12*M/N);
+    vector<int> dim1,dim2,dim3;
+    
+    receive_matrix_dims(dim1, dim2, dim3);
+    int total_size = 0;
+    for(int i = 0; i < dim1.size(); i++) total_size += dim1[i];
+    for(int i = 0; i < dim2.size(); i++) total_size += dim2[i];
+    for(int i = 0; i < dim3.size(); i++) total_size += dim3[i];
+    
+    vector<int> data(2*total_size);
+    
     MPI_Recv(data.data(),data.size(),MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-    parse_R1CS_matrixes(data,N,M);
+    parse_R1CS_matrixes(data,dim1,dim2,dim3,N,M);
 }
 
 void parse_index(vector<sparse_eval_data> &index,vector<int> &dim, vector<int> &data){
@@ -1084,7 +1155,7 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
         parse_index(index,dims,parsed_data[0]);
         vector<vector<int>> parsed_R1CS_matrixes(N);
         printf("%d,%d,%d\n",tA.size(),tB.size(),tC.size());
-        //vector<vector<int>> tA_dim(N),;
+        vector<vector<int>> tA_dim(N),tB_dim(N),tC_dim(N);
         for(int i = 0; i < N; i++){
             //parsed_R1CS_matrixes[i].resize(12*M/N,0);
             for(int j = 0; j < tA.size()/N; j++){
@@ -1093,9 +1164,11 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
                         parsed_R1CS_matrixes[i].push_back(tA[i*tA.size()/N + j][k].first);
                         parsed_R1CS_matrixes[i].push_back(tA[i*tA.size()/N + j][k].second);
                     }
+                    tA_dim[i].push_back(tA[i*tA.size()/N + j].size());
                 }else{
                     parsed_R1CS_matrixes[i].push_back(-1);
                     parsed_R1CS_matrixes[i].push_back(-1);
+                    tA_dim[i].push_back(1);
                 }
             }
             for(int j = 0;  j < tB.size()/N; j++){
@@ -1104,11 +1177,14 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
                         parsed_R1CS_matrixes[i].push_back(tB[i*tB.size()/N + j][k].first);
                         parsed_R1CS_matrixes[i].push_back(tB[i*tB.size()/N + j][k].second);
                     }
+                    tB_dim[i].push_back(tB[i*tB.size()/N + j].size());
+
                     //parsed_R1CS_matrixes[i][2*j + 4*M/N] = tB[i*2*M/N + j][0].first;
                     //parsed_R1CS_matrixes[i][2*j+1 + 4*M/N] = tB[i*2*M/N + j][0].second;
                 }else{
                     parsed_R1CS_matrixes[i].push_back(-1);
                     parsed_R1CS_matrixes[i].push_back(-1);
+                    tB_dim[i].push_back(1);
                 }
             }
             for(int j = 0; j < tC.size()/N; j++){
@@ -1117,26 +1193,28 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
                         parsed_R1CS_matrixes[i].push_back(tC[i*tC.size()/N + j][k].first);
                         parsed_R1CS_matrixes[i].push_back(tC[i*tC.size()/N + j][k].second);
                     }
+                    tC_dim[i].push_back(tC[i*tC.size()/N + j].size());
+                
                     //parsed_R1CS_matrixes[i][2*j + 8*M/N] = tC[i*2*M/N + j][0].first;
                     //parsed_R1CS_matrixes[i][2*j+1 + 8*M/N] = tC[i*2*M/N + j][0].second;
                 }else{
                     parsed_R1CS_matrixes[i].push_back(-1);
                     parsed_R1CS_matrixes[i].push_back(-1);
+                    tC_dim[i].push_back(1);
                 }
             }
         }
-        for(int i = 0; i < parsed_R1CS_matrixes.size();i++){
-            printf("%d\n",parsed_R1CS_matrixes[i].size());
-        }
-        return;   
-        send_R1CS_matrixes(parsed_R1CS_matrixes,N);        
-        parse_R1CS_matrixes(parsed_R1CS_matrixes[0],N,M);
+        
+        send_R1CS_matrixes(parsed_R1CS_matrixes,tA_dim,tB_dim,tC_dim,N);        
+        parse_R1CS_matrixes(parsed_R1CS_matrixes[0],tA_dim[0],tB_dim[0],tC_dim[0],N,M);
+        return;
     }else{
         logm = (int)log2(M);
         logn = (int)log2(M)+1;
         receive_index(index,dims);
-        return;   
         receive_R1CS_matrixes(N,M);
+        return;   
+        
     }
 }
 
