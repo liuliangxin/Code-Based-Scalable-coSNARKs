@@ -666,6 +666,10 @@ void test_mult_tree(vector<int> dims, int N){
 
 int main(int argc, char *argv[]){
     
+
+    generate_R1CS_matrixes(1<<atoi(argv[1]), 1);
+    
+    exit(-1);
     
     int K = 1<<atoi(argv[1]);
     int N = atoi(argv[2]);
@@ -693,8 +697,8 @@ int main(int argc, char *argv[]){
     
     //vector<int> dims = {1<<16,1<<14,1<<14};
     //test_mult_tree(dims, N);
-    
-    test_sparse_eval(N, M);
+    generate_R1CS_matrixes(N, 1);
+    //test_sparse_eval(N, M);
     
     
     //coPIOP_prove(M, N, _k, k);

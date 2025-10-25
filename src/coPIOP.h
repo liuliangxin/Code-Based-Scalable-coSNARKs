@@ -1,10 +1,10 @@
+#pragma once
 #include "config_pc.hpp"
 #include "constants.h"
 #include <vector>
 #include <math.h>
 #include "utils.hpp"
 
-int gate_ctr = 0;
 
 struct gate{
     int id,id_right;

@@ -18,7 +18,7 @@ bool bit_method = false;
 int index_rate = 4;
 extern double ps_plain; 
 double cm = 0.0;
-extern int gate_ctr;
+int gate_ctr = 0;
 timer pt,pt_cp;
 timer_cpu pt_cpu;
 timer vt;
@@ -29,7 +29,13 @@ void transpose_R1CS_matrixes(){
 
 
     for(int i = 0; i < A.size(); i++){
-        for(int j = 0; j < A[i].size(); j++) tA[A[i][j].first].push_back(make_pair(A[i][j].first,A[i][j].second));
+        for(int j = 0; j < A[i].size(); j++){
+            if(tA.size() <= A[i][j].first){
+                printf("Error %d,%d\n",tA.size(),A[i][j].first);
+                exit(-1);
+            }
+            tA[A[i][j].first].push_back(make_pair(A[i][j].first,A[i][j].second));
+        } 
     }
     for(int i = 0; i < B.size(); i++){
         for(int j = 0; j < B[i].size(); j++) tB[B[i][j].first].push_back(make_pair(B[i][j].first,B[i][j].second));
@@ -39,12 +45,15 @@ void transpose_R1CS_matrixes(){
         for(int j = 0; j < C[i].size(); j++) tC[C[i][j].first].push_back(make_pair(C[i][j].first,C[i][j].second));
     }
 
+    /*
     for(int i = 0; i < tA.size(); i++){
         if(tA[i].size() > 1 || tB[i].size() > 1 || tC[i].size() > 1){
             printf("> Error\n");
             exit(-1);
         }
     }
+    */
+    
 }
 
 gate add_input(){
@@ -61,8 +70,7 @@ gate add_mul(int size, int add_ctr){
     gate gt;
     vector<int> wires;
     wires.push_back((unsigned int)rand()%size);
-    
-    for(int i = 0; i < size-1; i++){
+    for(int i = 0; i < add_ctr-1; i++){
         while(true){
             bool is_dublicate = false;
             unsigned int num = (unsigned int)rand()%size;
@@ -78,14 +86,17 @@ gate add_mul(int size, int add_ctr){
             }
         }
     }
+    
     gt.id = gate_ctr++;
     gt.id_left = wires;
     gt.id_right = (unsigned int)rand()%size;
     gt.type = 2;
+    return gt;
 }
 
 // Dummy computation represeting multiplication tree
 // 0: Default, multree
+// 1: Random circuit
 void generate_R1CS_matrixes(size_t size, int type){
     int n = size;
     int m = 0;
@@ -118,15 +129,20 @@ void generate_R1CS_matrixes(size_t size, int type){
             }
         }
         if(add_ctr != 0) gates.push_back(add_mul(gates.size(), add_ctr));
-        A.resize(gates.size());B.resize(gates.size());C.resize(gates.size());
-        for(int i = 0; i  < A.size(); i++){
-            A[i].resize(gates[i].id_left.size());B[i].resize(1);
+        
+        A.resize(gates.size()-size/16);B.resize(gates.size()-size/16);C.resize(gates.size()-size/16);
+        for(int i = size/16; i  < A.size(); i++){
+            A[i].resize(gates[i].id_left.size());B[i].resize(1);C[i].resize(1);
             for(int j = 0; j < A[i].size(); j++){
                 A[i][j] = {gates[i].id_left[j],gates[i].id-size/16};
             }
             B[i][0] = {gates[i].id_right,gates[i].id-size/16};
             C[i][0] = {gates[i].id,gates[i].id-size/16};
         }
+        logm = (int)log2(next_pow2(gates.size()-size/16));
+        logn = (int)log2(next_pow2(gates.size()));    
+        printf("%d,%d\n",logm,logn);
+
     }
     transpose_R1CS_matrixes();
 }
