@@ -667,8 +667,9 @@ void test_mult_tree(vector<int> dims, int N){
 int main(int argc, char *argv[]){
     
 
+    vector<F> w,vl,vr,vo;
     generate_R1CS_matrixes(1<<atoi(argv[1]), 1);
-    
+    prepare_witness_data(1<<atoi(argv[1]),w,vl,vr,vo,1);
     exit(-1);
     
     int K = 1<<atoi(argv[1]);

@@ -1196,41 +1196,68 @@ F get_offset_product(int size,int pos,vector<F> r){
 }
 
 
-void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector<F> &vR, vector<F> &vO){
-    witness.resize(2*size,0);
-    vL.resize(size,0);
-    vR.resize(size,0);
-    vO.resize(size,0);
-    for(int i = 0; i < size; i++){
-        witness[i] = random();
-    }
-    
-    int n = size;
-    int m = 0;
-    for(int j = 0; j < (int)log2(size); j++){
-        for(int i = 0; i < size/(1<<(j+1)); i++){
-            if(n+i >= 2*size){
+void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector<F> &vR, vector<F> &vO, int type){
+    if(type == 0){
+        witness.resize(2*size,0);
+        vL.resize(size,0);
+        vR.resize(size,0);
+        vO.resize(size,0);
+        for(int i = 0; i < size; i++){
+            witness[i] = random();
+        }
+        
+        int n = size;
+        int m = 0;
+        for(int j = 0; j < (int)log2(size); j++){
+            for(int i = 0; i < size/(1<<(j+1)); i++){
+                if(n+i >= 2*size){
+                    printf("Error\n");
+                    exit(-1);
+                }
+                witness[n+i] =  witness[2*i + m]*witness[2*i+m + 1];            
+            }
+            m += size/(1<<j);
+            n += size/(1<<(j+1));
+        }
+        for(int i = 0; i < size-1; i++){
+            
+            vL[i] = witness[A[i][0].first];
+            vR[i] = witness[B[i][0].first];
+            vO[i] = witness[C[i][0].first];
+        }
+        
+        for(int i = 0; i < vO.size(); i++){
+            if(vL[i]*vR[i] != vO[i]){
                 printf("Error\n");
                 exit(-1);
             }
-            witness[n+i] =  witness[2*i + m]*witness[2*i+m + 1];            
         }
-        m += size/(1<<j);
-        n += size/(1<<(j+1));
-    }
-    for(int i = 0; i < size-1; i++){
-        
-        vL[i] = witness[A[i][0].first];
-        vR[i] = witness[B[i][0].first];
-        vO[i] = witness[C[i][0].first];
+    }else{
+        witness = generate_randomness(size/16);
+        vector<F> vL,vR,vO;
+        for(int i = 0; i < A.size(); i++){
+            if(A[i].size() == 0) continue;
+            F new_wire = 0;
+            for(int j = 0; j < A[i].size(); j++){
+                new_wire += witness[A[i][j].first];
+            }
+            vL.push_back(new_wire);
+            new_wire *= witness[B[i][0].first];
+            vR.push_back(witness[B[i][0].first]);
+            witness.push_back(new_wire);
+            vO.push_back(new_wire);
+        }
+        for(int i = 0; i < vL.size(); i++){
+            if(vL[i]*vR[i] != vO[i]){
+                printf("Error in proving data consistency\n");
+                exit(-1);
+            }
+        }
+        vL.resize(next_pow2(vL.size()),F(0));
+        vR.resize(next_pow2(vR.size()),F(0));
+        vO.resize(next_pow2(vO.size()),F(0));
     }
     
-    for(int i = 0; i < vO.size(); i++){
-        if(vL[i]*vR[i] != vO[i]){
-            printf("Error\n");
-            exit(-1);
-        }
-    }
 }
 
 

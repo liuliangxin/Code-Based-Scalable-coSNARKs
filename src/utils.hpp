@@ -66,7 +66,7 @@ F _beta(int i, vector<F> r);
 vector<F> convert_to_field(vector<int> &arr);
 F beta_identity(vector<F> r1, vector<F> r2);
 F get_offset_product(int size,int pos,vector<F> r);\
-void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector<F> &vR, vector<F> &vO);
+void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector<F> &vR, vector<F> &vO, int type=0);
 vector<vector<F>> F_zero_check_rest_functionality(F y, F b, vector<vector<F>> &_v1, 
                                 vector<vector<F>> &_v2, 
                                 vector<vector<F>> &_v3, 
