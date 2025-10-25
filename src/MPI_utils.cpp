@@ -1081,38 +1081,52 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
         //    printf("%d\n",parsed_data[0][i]);
         //}
         send_index(parsed_data,dims , N);
-        return;
         parse_index(index,dims,parsed_data[0]);
         vector<vector<int>> parsed_R1CS_matrixes(N);
+        printf("%d,%d,%d\n",tA.size(),tB.size(),tC.size());
+        //vector<vector<int>> tA_dim(N),;
         for(int i = 0; i < N; i++){
-            parsed_R1CS_matrixes[i].resize(12*M/N,0);
-            for(int j = 0; j < 2*M/N; j++){
-                if(tA[i*2*M/N + j].size()){
-                    parsed_R1CS_matrixes[i][2*j] = tA[i*2*M/N + j][0].first;
-                    parsed_R1CS_matrixes[i][2*j+1] = tA[i*2*M/N + j][0].second;
+            //parsed_R1CS_matrixes[i].resize(12*M/N,0);
+            for(int j = 0; j < tA.size()/N; j++){
+                if(tA[i*tA.size()/N + j].size()){
+                    for(int k = 0; k < tA[i*tA.size()/N + j].size(); k++){
+                        parsed_R1CS_matrixes[i].push_back(tA[i*tA.size()/N + j][k].first);
+                        parsed_R1CS_matrixes[i].push_back(tA[i*tA.size()/N + j][k].second);
+                    }
                 }else{
-                    parsed_R1CS_matrixes[i][2*j] = -1;
-                    parsed_R1CS_matrixes[i][2*j+1] = -1;
+                    parsed_R1CS_matrixes[i].push_back(-1);
+                    parsed_R1CS_matrixes[i].push_back(-1);
                 }
             }
-            for(int j = 0;  j < 2*M/N; j++){
-                if(tB[i*2*M/N + j].size()){
-                    parsed_R1CS_matrixes[i][2*j + 4*M/N] = tB[i*2*M/N + j][0].first;
-                    parsed_R1CS_matrixes[i][2*j+1 + 4*M/N] = tB[i*2*M/N + j][0].second;
+            for(int j = 0;  j < tB.size()/N; j++){
+                if(tB[i*tB.size()/N + j].size()){
+                    for(int k = 0; k < tB[i*tB.size()/N + j].size(); k++){
+                        parsed_R1CS_matrixes[i].push_back(tB[i*tB.size()/N + j][k].first);
+                        parsed_R1CS_matrixes[i].push_back(tB[i*tB.size()/N + j][k].second);
+                    }
+                    //parsed_R1CS_matrixes[i][2*j + 4*M/N] = tB[i*2*M/N + j][0].first;
+                    //parsed_R1CS_matrixes[i][2*j+1 + 4*M/N] = tB[i*2*M/N + j][0].second;
                 }else{
-                    parsed_R1CS_matrixes[i][2*j+ 4*M/N] = -1;
-                    parsed_R1CS_matrixes[i][2*j+1+ 4*M/N] = -1;
+                    parsed_R1CS_matrixes[i].push_back(-1);
+                    parsed_R1CS_matrixes[i].push_back(-1);
                 }
             }
-            for(int j = 0; j < 2*M/N; j++){
-                if(tC[i*2*M/N + j].size()){
-                    parsed_R1CS_matrixes[i][2*j + 8*M/N] = tC[i*2*M/N + j][0].first;
-                    parsed_R1CS_matrixes[i][2*j+1 + 8*M/N] = tC[i*2*M/N + j][0].second;
+            for(int j = 0; j < tC.size()/N; j++){
+                if(tC[i*tC.size()/N + j].size()){
+                    for(int k = 0; k < tC[i*tC.size()/N + j].size(); k++){
+                        parsed_R1CS_matrixes[i].push_back(tC[i*tC.size()/N + j][k].first);
+                        parsed_R1CS_matrixes[i].push_back(tC[i*tC.size()/N + j][k].second);
+                    }
+                    //parsed_R1CS_matrixes[i][2*j + 8*M/N] = tC[i*2*M/N + j][0].first;
+                    //parsed_R1CS_matrixes[i][2*j+1 + 8*M/N] = tC[i*2*M/N + j][0].second;
                 }else{
-                    parsed_R1CS_matrixes[i][2*j+ 8*M/N] = -1;
-                    parsed_R1CS_matrixes[i][2*j+1+ 8*M/N] = -1;
+                    parsed_R1CS_matrixes[i].push_back(-1);
+                    parsed_R1CS_matrixes[i].push_back(-1);
                 }
             }
+        }
+        for(int i = 0; i < parsed_R1CS_matrixes.size();i++){
+            printf("%d\n",parsed_R1CS_matrixes[i].size());
         }
         return;   
         send_R1CS_matrixes(parsed_R1CS_matrixes,N);        
