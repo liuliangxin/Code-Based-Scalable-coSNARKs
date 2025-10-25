@@ -4,7 +4,19 @@
 #include <math.h>
 #include "utils.hpp"
 
-void generate_R1CS_matrixes(size_t size);
+int gate_ctr = 0;
+
+struct gate{
+    int id,id_right;
+    vector<int> id_left;
+    // type 0: Input
+    // type 1: mul
+    // type 2: add
+    int type;
+};
+
+
+void generate_R1CS_matrixes(size_t size, int type= 0);
 void prepare_data(size_t size, vector<F> &witness, vector<F> &vL, vector<F> &vR, vector<F> &vO);
 void secret_share_proving_data(vector<F> &witness, 
                                vector<vector<F>> &tr, 

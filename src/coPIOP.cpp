@@ -18,7 +18,7 @@ bool bit_method = false;
 int index_rate = 4;
 extern double ps_plain; 
 double cm = 0.0;
-    
+extern int gate_ctr;
 timer pt,pt_cp;
 timer_cpu pt_cpu;
 timer vt;
@@ -47,26 +47,54 @@ void transpose_R1CS_matrixes(){
     }
 }
 
+gate add_input(){
+    gate gt;
+    gt.id = gate_ctr++;
+    gt.id_left.push_back(-1);
+    gt.id_right = -1;
+    gt.type = 0;
+    return gt;
+}
+
+gate add_mul(int size, int add_ctr){
+    gate gt;
+    
+}
 
 // Dummy computation represeting multiplication tree
-void generate_R1CS_matrixes(size_t size){
+// 0: Default, multree
+void generate_R1CS_matrixes(size_t size, int type){
     int n = size;
     int m = 0;
     int counter = 0;
-    A.resize(size); B.resize(size); C.resize(size);
-    for(int j = 0; j < (int)log2(size); j++){
-        for(int i = 0; i < size/(1<<(j+1)); i++){
-            A[counter].resize(1);B[counter].resize(1);C[counter].resize(1);
-            A[counter][0] = {2*i + m,i+m/2};
-            B[counter][0] = {2*i+1+m,i+m/2};
-            C[counter][0] = {n+i,i+m/2};
-            counter++;
+    if(type == 0){
+        A.resize(size); B.resize(size); C.resize(size);
+        for(int j = 0; j < (int)log2(size); j++){
+            for(int i = 0; i < size/(1<<(j+1)); i++){
+                A[counter].resize(1);B[counter].resize(1);C[counter].resize(1);
+                A[counter][0] = {2*i + m,i+m/2};
+                B[counter][0] = {2*i+1+m,i+m/2};
+                C[counter][0] = {n+i,i+m/2};
+                counter++;
+            }
+            m+=size/(1<<(j));
+            n+=size/(1<<(j+1));
         }
-        m+=size/(1<<(j));
-        n+=size/(1<<(j+1));
+        logm = (int)log2(size);
+        logn = (int)log2(size)+1;    
+    }else{
+        vector<gate> gates;
+        for(int i = 0; i < size/16; i++) gates.push_back(add_input());
+        int add_ctr = 0;
+        for(int i = 0; i < size; i++){
+            if(rand()%2 == 0){
+                add_ctr++;
+            }else{
+                gates.push_back(add_mul(gates.size(),add_ctr));
+                add_ctr = 0;
+            }
+        }
     }
-    logm = (int)log2(size);
-    logn = (int)log2(size)+1;
     transpose_R1CS_matrixes();
     
 }

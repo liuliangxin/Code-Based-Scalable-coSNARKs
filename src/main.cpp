@@ -20,9 +20,10 @@
 #include "MPI_utils.hpp"
 #include "timer.hpp"
 #include <algorithm>
+
 int tensor_row_size;
 int mul_counter= 0;
-
+extern timer pt;
 extern vector<vector<pair<int, int>>> A,B,C;
 extern vector<vector<pair<int, int>>> pA,pB,pC;
 extern int logm,logn;
@@ -558,7 +559,7 @@ void test_sparse_eval(int N, int M){
     vector<F> r1,r2;
     vector<vector<F>> beta1(3),beta2(3);
     F a = hash_to_field({0}), b = hash_to_field({0}), c = hash_to_field({0});
-    double pt = 0.0;
+    //double pt = 0.0;
 
     for(int i = 0; i < logm; i++){
         r1.push_back(hash_to_field({0}));
@@ -616,8 +617,11 @@ void test_sparse_eval(int N, int M){
         }
     
     MPI_Barrier(MPI_COMM_WORLD);
-    //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N, pt, pt, pt);
+    pt.start();
+    //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N);
     _prove_sparse_eval_opt(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index, r1, r2, N);
+    pt.end();
+    printf("%lf\n",pt.get_time());
 }
 
 void test_mult_tree(vector<int> dims, int N){
