@@ -860,6 +860,8 @@ void sort_transcript(vector<vector<F>> &Tr, vector<int> &order){
 void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data, 
                         vector<F> r1, vector<F> r2, int N){
     
+    
+    pt_cp.start();
     vector<vector<F>> Tr(24);
     vector<F> output;
     vector<int> order;
@@ -876,6 +878,8 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     
     sort_transcript(Tr, order);
     vector<F> debug_evals;
+    pt_cp.end();
+    
     pair<F,vector<vector<F>>> claim = prove_product_opt(Tr, output, N, debug_evals);
     if(rank == 0){
         vector<F> organized_output(output.size());
@@ -905,6 +909,8 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     for(int i = 0; i < data.size(); i++) polys.push_back(convert_to_field(data[i].FINAL_FR2));
     
     vector<F> evals = batch_distributed_eval_opt(polys, r, claim.second[2], N);
+    pt_cp.start();
+    
     vector<F> beta_evals;
     
     for(int i = 0; i < data.size(); i++){
@@ -969,50 +975,54 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     order.clear();
     vector<F> v1,v2,v3,ones(N,1);
     vector<vector<F>> _beta2_sorted,_beta1_sorted = beta1;
+    vector<F> aggr_challenges = {a,b,c};
     sort_transcript(_beta1_sorted,order);    
     for(int i = 0; i < beta2.size(); i++) _beta2_sorted.push_back(beta2[order[i]]);
     
     for(int i = 0; i < beta1.size(); i++){
-        v1.insert(v1.end(),beta1[i].begin(),beta1[i].end());
-        v2.insert(v2.end(),beta2[i].begin(),beta2[i].end());
+        v1.insert(v1.end(),_beta1_sorted[i].begin(),_beta1_sorted[i].end());
+        v2.insert(v2.end(),_beta2_sorted[i].begin(),_beta2_sorted[i].end());
     }
     v1.resize(next_pow2(v1.size()),F(0));v2.resize(next_pow2(v2.size()),F(0));
     
-    
     int ca = 0,cb = 0,cc = 0;
-    v3.resize(4*next_pow2(real_idx_dim[0])/N,F(0));
+    v3.resize(next_pow2(real_idx_dim[0]+real_idx_dim[1]+real_idx_dim[2])/N,F(0));
     if(rank != N-1){
+    
         int ctr = 0;
-        for(int i = 0 ; i < next_pow2(real_idx_dim[0])/N; i++){
-            v3[ctr] = a;
+        for(int i = 0 ; i < next_pow2(real_idx_dim[order[0]])/N; i++){
+            v3[ctr] = aggr_challenges[order[0]];
             ctr++;
         }
-        for(int i = 0 ; i < next_pow2(real_idx_dim[1])/N; i++){
-            v3[ctr] = b;
+        for(int i = 0 ; i < next_pow2(real_idx_dim[order[1]])/N; i++){
+            v3[ctr] = aggr_challenges[order[1]];
             ctr++;
         }
-        for(int i = 0 ; i < next_pow2(real_idx_dim[2])/N; i++){
-            v3[ctr] = c;
+        for(int i = 0 ; i < next_pow2(real_idx_dim[order[2]])/N; i++){
+            v3[ctr] = aggr_challenges[order[2]];
             ctr++;
         }
     }else{
-        int ctr = 0;
-        for(int i = 0 ; i < real_idx_dim[0] - (N-1)*next_pow2(real_idx_dim[0])/N; i++){
-            v3[ctr] = a;
-            ctr++;
-        }
-        ctr = next_pow2(real_idx_dim[0])/N;
-        for(int i = 0 ; i < real_idx_dim[1] - (N-1)*next_pow2(real_idx_dim[1])/N; i++){
-            v3[ctr] = b;
-            ctr++;
-        }
-        ctr = 2*next_pow2(real_idx_dim[1])/N;
         
-        for(int i = 0 ; i < real_idx_dim[2] - (N-1)*next_pow2(real_idx_dim[2])/N; i++){
-            v3[ctr] = c;
+        int ctr = 0;
+        for(int i = 0 ; i < real_idx_dim[order[0]] - (N-1)*next_pow2(real_idx_dim[order[0]])/N; i++){
+            v3[ctr] = aggr_challenges[order[0]];
+            ctr++;
+        }
+        ctr = next_pow2(real_idx_dim[order[0]])/N;
+        for(int i = 0 ; i < real_idx_dim[order[1]] - (N-1)*next_pow2(real_idx_dim[order[1]])/N; i++){
+            v3[ctr] = aggr_challenges[order[1]];
+            ctr++;
+        }
+        ctr = 2*next_pow2(real_idx_dim[order[1]])/N;
+        
+        for(int i = 0 ; i < real_idx_dim[order[2]] - (N-1)*next_pow2(real_idx_dim[order[2]])/N; i++){
+            v3[ctr] = aggr_challenges[order[2]];
             ctr++;
         }
     }    
+    pt_cp.end();
+    
     vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
     
     //for(int i = 0; i < )
