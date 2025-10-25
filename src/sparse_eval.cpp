@@ -533,14 +533,13 @@ void prepare_data(vector<vector<pair<int,int>>> &M, int logm, int logn, sparse_e
     int ctr = 0;
     for(int i = 0; i < M.size(); i++){
         for(int j = 0; j < M[i].size(); j++){
-            data.RD1[ctr] = r_count[i];
-            data.WR1[ctr] = r_count[i] + (1);
+            data.RD1[ctr] = r_count[M[i][j].second];
+            data.WR1[ctr] = r_count[M[i][j].second] + (1);
             data.IDX1[ctr] = i;
             ctr++;
-            r_count[i]++;
+            r_count[M[i][j].second]++;
         }
     }
-    
     for(int i = ctr; i < data.IDX1.size(); i++){
             data.RD1[i] = r_count[0];
             data.WR1[i] = r_count[0] + (1);

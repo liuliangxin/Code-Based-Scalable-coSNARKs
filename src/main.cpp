@@ -549,13 +549,13 @@ void test_product(int N, int M, int K){
 
 
 
-void test_sparse_eval(int N, int M){
+void test_sparse_eval(int N, int M, int type){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<sparse_eval_data> index;
         
-    distribute_index(N, M, index);
-    
+    distribute_index(N, M, index,type);
+    return;
     vector<F> r1,r2;
     vector<vector<F>> beta1(3),beta2(3);
     F a = hash_to_field({0}), b = hash_to_field({0}), c = hash_to_field({0});
@@ -619,7 +619,7 @@ void test_sparse_eval(int N, int M){
     MPI_Barrier(MPI_COMM_WORLD);
     pt.start();
     //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N);
-    _prove_sparse_eval_opt(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index, r1, r2, N);
+    //_prove_sparse_eval_opt(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index, r1, r2, N);
     pt.end();
     printf("%lf\n",pt.get_time());
 }
@@ -713,8 +713,8 @@ int main(int argc, char *argv[]){
     
     //vector<int> dims = {1<<16,1<<14,1<<14};
     //test_mult_tree(dims, N);
-    generate_R1CS_matrixes(N, 1);
-    //test_sparse_eval(N, M);
+    //generate_R1CS_matrixes(N, 1);
+    test_sparse_eval(N, M,1);
     
     
     //coPIOP_prove(M, N, _k, k);

@@ -940,6 +940,7 @@ void send_index(vector<vector<int>> &Data,vector<int> dim , int N){
     vector<int> buff;
     vector<int> dim_buff = dim;
     dim_buff.insert(dim_buff.end(),real_idx_dim.begin(),real_idx_dim.end());
+    
     for(int i = 1; i < N; i++){
         MPI_Send(dim_buff.data(),dim_buff.size(),MPI_INT,i,0,MPI_COMM_WORLD);
         MPI_Send(Data[i].data(),Data[i].size(),MPI_INT,i,0,MPI_COMM_WORLD);
@@ -1039,7 +1040,7 @@ void receive_index(vector<sparse_eval_data> &index,vector<int> &dim){
     parse_index(index,dim, data);
 }
 
-void distribute_index(int N, int M,vector<sparse_eval_data> &index){
+void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     index.resize(3);
@@ -1048,7 +1049,7 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index){
     if(rank == 0){
         vector<sparse_eval_data> data;
         vector<vector<int>> parsed_data(N);
-        generate_R1CS_matrixes(M);
+        generate_R1CS_matrixes(M,type);
         prepare_R1CS_data(A, B, C, logm, logn, data);
         for(int i = 0; i < data.size(); i++){
             dims.push_back(data[i].FINAL_FR1.size()/N);
@@ -1080,6 +1081,7 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index){
         //    printf("%d\n",parsed_data[0][i]);
         //}
         send_index(parsed_data,dims , N);
+        return;
         parse_index(index,dims,parsed_data[0]);
         vector<vector<int>> parsed_R1CS_matrixes(N);
         for(int i = 0; i < N; i++){
@@ -1112,14 +1114,14 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index){
                 }
             }
         }
-            
+        return;   
         send_R1CS_matrixes(parsed_R1CS_matrixes,N);        
         parse_R1CS_matrixes(parsed_R1CS_matrixes[0],N,M);
     }else{
         logm = (int)log2(M);
         logn = (int)log2(M)+1;
-        
         receive_index(index,dims);
+        return;   
         receive_R1CS_matrixes(N,M);
     }
 }
