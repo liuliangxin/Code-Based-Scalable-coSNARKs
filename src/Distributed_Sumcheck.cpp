@@ -8,7 +8,7 @@ double ps_plain = 0.0;
 extern double cm; 
 vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<int> real_idx_dim;
-
+extern int logm,logn;
 quadratic_poly aggregate_poly(quadratic_poly H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -515,21 +515,25 @@ void _reduce_R1CS_matrixes(size_t size, vector<F> r, vector<F> &RA, vector<F> &R
     for(int i = r.size() - (int)log2(N); i < r.size(); i++){
         r2.push_back(r[i]);
     }
-
+    
     precompute_beta(r1,beta1);precompute_beta(r2,beta2);
     
-    RA.resize(pA.size(),F(0));RB.resize(pB.size(),F(0));RC.resize(pC.size(),F(0));
+    int M = (1<<logn)/N;
+    RA.resize(M,F(0));RB.resize(M,F(0));RC.resize(M,F(0));
+    
     for(int i = 0; i < pA.size(); i++){
         if(pA[i].size()){
             //if(rank == 1) printf("%d,(%d,%d),(%d,%d,%d)\n",rank,pA[i][0].first,pA[i][0].first%RA.size(),pA[i][0].second,pA[i][0].second/(pA.size()/2),pA[i][0].second%(pA.size()/2));
-            RA[pA[i][0].first%RA.size()] += beta1[pA[i][0].second%(pA.size()/2)]*beta2[pA[i][0].second/(pA.size()/2)];
+            for(int j = 0; j < pA[i].size(); j++){
+                RA[pA[i][j].first%RA.size()] += beta1[pA[i][j].second%((1<<logm)/N)]*beta2[pA[i][j].second/((1<<logm)/N)];
+            }
         }
         if(pB[i].size()){
             //printf("> %d, %d\n",rank,pB[i][0].second);
-            RB[pB[i][0].first%RB.size()] += beta1[pB[i][0].second%(pB.size()/2)]*beta2[pB[i][0].second/(pB.size()/2)];
+            RB[pB[i][0].first%RB.size()] += beta1[pB[i][0].second%((1<<logm)/N)]*beta2[pB[i][0].second/((1<<logm)/N)];
         } 
         if(pC[i].size()){
-            RC[pC[i][0].first%RC.size()] += beta1[pC[i][0].second%(pC.size()/2)]*beta2[pC[i][0].second/(pC.size()/2)];
+            RC[pC[i][0].first%RC.size()] += beta1[pC[i][0].second%((1<<logm)/N)]*beta2[pC[i][0].second/((1<<logm)/N)];
         }
     }
 }

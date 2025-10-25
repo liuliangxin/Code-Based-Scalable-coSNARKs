@@ -1116,11 +1116,19 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     index.resize(3);
     vector<int> dims;
+    vector<int> buff(2);
         
+    if(rank == 0){
+        generate_R1CS_matrixes(M,type);
+        buff[0] = logm;
+        buff[1]= logn;
+    }
+    
+    MPI_Bcast(buff.data(),2,MPI_INT,0,MPI_COMM_WORLD);
+    
     if(rank == 0){
         vector<sparse_eval_data> data;
         vector<vector<int>> parsed_data(N);
-        generate_R1CS_matrixes(M,type);
         prepare_R1CS_data(A, B, C, logm, logn, data);
         for(int i = 0; i < data.size(); i++){
             dims.push_back(data[i].FINAL_FR1.size()/N);
@@ -1207,13 +1215,11 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
         
         send_R1CS_matrixes(parsed_R1CS_matrixes,tA_dim,tB_dim,tC_dim,N);        
         parse_R1CS_matrixes(parsed_R1CS_matrixes[0],tA_dim[0],tB_dim[0],tC_dim[0],N,M);
-        return;
     }else{
-        logm = (int)log2(M);
-        logn = (int)log2(M)+1;
+        logm = buff[0];
+        logn = buff[1];
         receive_index(index,dims);
         receive_R1CS_matrixes(N,M);
-        return;   
         
     }
 }

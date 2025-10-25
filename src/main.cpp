@@ -555,7 +555,6 @@ void test_sparse_eval(int N, int M, int type){
     vector<sparse_eval_data> index;
         
     distribute_index(N, M, index,type);
-    return;
     vector<F> r1,r2;
     vector<vector<F>> beta1(3),beta2(3);
     F a = hash_to_field({0}), b = hash_to_field({0}), c = hash_to_field({0});
@@ -567,11 +566,9 @@ void test_sparse_eval(int N, int M, int type){
     for(int i = 0; i < logn; i++){
         r2.push_back(hash_to_field({0}));
     }
-
     compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N);
     vector<F> RA,RB,RC;
     _reduce_R1CS_matrixes(M, r1, RA, RB, RC, N);
-    
     
     
     vector<vector<F>> polys = {RA,RB,RC};
@@ -589,21 +586,20 @@ void test_sparse_eval(int N, int M, int type){
     }
     
     reduce_R1CS_matrixes(M,r1,_RA,_RB,_RC);
-      
         for(int i = 0; i < RA.size(); i++){
             if(RA[i] != _RA[i + rank*pA.size()]){
-               printf("Error %d,%d, (%lld,%lld),(%lld,%lld)\n",i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
+               printf("Error %d,%d,%d, (%lld,%lld),(%lld,%lld)\n",rank,i,RA.size(),RA[i].real,RA[i].img,_RA[i + rank*pA.size()].real,_RA[i + rank*pA.size()].img);
             }
         }
         for(int i = 0; i < RB.size(); i++){
             if(RB[i] != _RB[i + rank*pB.size()]){
-               printf("Error %d,%d, (%lld,%lld),(%lld,%lld)\n",i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
+               printf("Error %d,%d,%d, (%lld,%lld),(%lld,%lld)\n",rank,i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
             }
         }
 
         for(int i = 0; i < RC.size(); i++){
             if(RC[i] != _RC[i + rank*pC.size()]){
-               printf("Error %d,%d, (%lld,%lld),(%lld,%lld)\n",i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
+               printf("Error %d,%d,%d, (%lld,%lld),(%lld,%lld)\n",rank,i,RC.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
             }
         }
         if(evaluate_vector(_RA,r2) != Y[0]){
@@ -615,11 +611,12 @@ void test_sparse_eval(int N, int M, int type){
         if(evaluate_vector(_RC,r2) != Y[2]){
             printf("Error 3\n");
         }
-    
+        return;
+
     MPI_Barrier(MPI_COMM_WORLD);
     pt.start();
     //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N);
-    //_prove_sparse_eval_opt(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index, r1, r2, N);
+    _prove_sparse_eval_opt(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index, r1, r2, N);
     pt.end();
     printf("%lf\n",pt.get_time());
 }
