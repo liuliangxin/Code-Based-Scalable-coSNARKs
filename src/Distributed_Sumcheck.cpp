@@ -905,6 +905,13 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     for(int i = 0; i < data.size(); i++) polys.push_back(convert_to_field(data[i].FINAL_FR2));
     
     vector<F> evals = batch_distributed_eval_opt(polys, r, claim.second[2], N);
+    vector<F> beta_evals;
+    
+    for(int i = 0; i < data.size(); i++){
+        beta_evals.push_back(evals[3*i]);
+        beta_evals.push_back(evals[3*i + 9]);
+    }
+
     if(rank == 0){
         vector<F> Tr_evals(24,F(0));
         vector<F> r11,r12,r21,r22,_r;
@@ -919,7 +926,7 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         for(int i  = 0; i < r2.size()-(int)log2(N); i++){
             r21.push_back(r2[i]);
         }
-        for(int i = r22.size(); i < r2.size(); i++){
+        for(int i = r21.size(); i < r2.size(); i++){
             r22.push_back(r2[i]);
         }
         
@@ -958,6 +965,59 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         //    printf("Sparse Eval Error 1\n");
         //}
     }
+
+    order.clear();
+    vector<F> v1,v2,v3,ones(N,1);
+    vector<vector<F>> _beta2_sorted,_beta1_sorted = beta1;
+    sort_transcript(_beta1_sorted,order);    
+    for(int i = 0; i < beta2.size(); i++) _beta2_sorted.push_back(beta2[order[i]]);
+    
+    for(int i = 0; i < beta1.size(); i++){
+        v1.insert(v1.end(),beta1[i].begin(),beta1[i].end());
+        v2.insert(v2.end(),beta2[i].begin(),beta2[i].end());
+    }
+    v1.resize(next_pow2(v1.size()),F(0));v2.resize(next_pow2(v2.size()),F(0));
+    
+    
+    int ca = 0,cb = 0,cc = 0;
+    v3.resize(4*next_pow2(real_idx_dim[0])/N,F(0));
+    if(rank != N-1){
+        int ctr = 0;
+        for(int i = 0 ; i < next_pow2(real_idx_dim[0])/N; i++){
+            v3[ctr] = a;
+            ctr++;
+        }
+        for(int i = 0 ; i < next_pow2(real_idx_dim[1])/N; i++){
+            v3[ctr] = b;
+            ctr++;
+        }
+        for(int i = 0 ; i < next_pow2(real_idx_dim[2])/N; i++){
+            v3[ctr] = c;
+            ctr++;
+        }
+    }else{
+        int ctr = 0;
+        for(int i = 0 ; i < real_idx_dim[0] - (N-1)*next_pow2(real_idx_dim[0])/N; i++){
+            v3[ctr] = a;
+            ctr++;
+        }
+        ctr = next_pow2(real_idx_dim[0])/N;
+        for(int i = 0 ; i < real_idx_dim[1] - (N-1)*next_pow2(real_idx_dim[1])/N; i++){
+            v3[ctr] = b;
+            ctr++;
+        }
+        ctr = 2*next_pow2(real_idx_dim[1])/N;
+        
+        for(int i = 0 ; i < real_idx_dim[2] - (N-1)*next_pow2(real_idx_dim[2])/N; i++){
+            v3[ctr] = c;
+            ctr++;
+        }
+    }    
+    vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
+    
+    //for(int i = 0; i < )
+    //return make_pair(evaluate_vector(beta_evals,temp_r),betas_r);
+
        
 }
 
