@@ -120,7 +120,7 @@ void generate_R1CS_matrixes(size_t size, int type){
         vector<gate> gates;
         for(int i = 0; i < size/16; i++) gates.push_back(add_input());
         int add_ctr = 0;
-        for(int i = 0; i < size; i++){
+        for(int i = size/16; i < size; i++){
             if(rand()%2 == 0){
                 add_ctr++;
             }else{
@@ -130,7 +130,7 @@ void generate_R1CS_matrixes(size_t size, int type){
         }
         if(add_ctr != 0) gates.push_back(add_mul(gates.size(), add_ctr));
         
-        A.resize(gates.size()-size/16);B.resize(gates.size()-size/16);C.resize(gates.size()-size/16);
+        A.resize(gates.size());B.resize(gates.size());C.resize(gates.size());
         for(int i = size/16; i  < A.size(); i++){
             A[i].resize(gates[i].id_left.size());B[i].resize(1);C[i].resize(1);
             for(int j = 0; j < A[i].size(); j++){
@@ -141,7 +141,7 @@ void generate_R1CS_matrixes(size_t size, int type){
         }
         logm = (int)log2(next_pow2(gates.size()-size/16));
         logn = (int)log2(next_pow2(gates.size()));    
-        printf("%d,%d\n",logm,logn);
+        printf("%d,%d,%d\n",logm,logn, gates.size());
 
     }
     transpose_R1CS_matrixes();
@@ -153,12 +153,18 @@ void generate_R1CS_matrixes(size_t size, int type){
 void reduce_R1CS_matrixes(size_t size, vector<F> r, vector<F> &RA, vector<F> &RB, vector<F> &RC){
     vector<F> beta;
     precompute_beta(r,beta);
-    RA.resize(size*2,F(0));RB.resize(size*2,F(0));RC.resize(size*2,F(0));
+    RA.resize(1<<logn,F(0));RB.resize(1<<logn,F(0));RC.resize(1<<logn,F(0));
     printf(">OK %d,%d\n",A.size(),beta.size());
-    for(int i = 0; i < A.size()-1; i++){
-        RA[A[i][0].first] += beta[i];
-        RB[B[i][0].first] += beta[i];
-        RC[C[i][0].first] += beta[i];
+    for(int i = 0; i < A.size(); i++){
+        for(int j = 0; j < A[i].size(); j++){
+            RA[A[i][j].first] += beta[A[i][j].second];
+        }
+        for(int j = 0; j < B[i].size(); j++){
+            RB[B[i][j].first] += beta[B[i][j].second];
+        }
+        for(int j = 0; j < C[i].size(); j++){
+            RC[C[i][j].first] += beta[C[i][j].second];
+        }
     }
 }
 

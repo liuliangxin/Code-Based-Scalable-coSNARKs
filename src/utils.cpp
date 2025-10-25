@@ -1234,8 +1234,7 @@ void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector
         }
     }else{
         witness = generate_randomness(size/16);
-        vector<F> vL,vR,vO;
-        for(int i = 0; i < A.size(); i++){
+        for(int i = size/16; i < A.size(); i++){
             if(A[i].size() == 0) continue;
             F new_wire = 0;
             for(int j = 0; j < A[i].size(); j++){
@@ -1253,6 +1252,8 @@ void prepare_witness_data(size_t size, vector<F> &witness, vector<F> &vL, vector
                 exit(-1);
             }
         }
+        
+        witness.resize(next_pow2(witness.size()),F(0));
         vL.resize(next_pow2(vL.size()),F(0));
         vR.resize(next_pow2(vR.size()),F(0));
         vO.resize(next_pow2(vO.size()),F(0));

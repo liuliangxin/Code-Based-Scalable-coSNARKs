@@ -667,10 +667,25 @@ void test_mult_tree(vector<int> dims, int N){
 int main(int argc, char *argv[]){
     
 
-    vector<F> w,vl,vr,vo;
+    /*
+    vector<F> w,vl,vr,vo,ra,rb,rc;
     generate_R1CS_matrixes(1<<atoi(argv[1]), 1);
     prepare_witness_data(1<<atoi(argv[1]),w,vl,vr,vo,1);
+    vector<F> r = generate_randomness(logm);
+    reduce_R1CS_matrixes(1<<atoi(argv[1]),r,ra,rb,rc);
+    printf("%d, %d,%d\n",vl.size(),ra.size(),w.size());
+    F a = random();
+    F b = random();
+    F c = random();
+    
+    F y = a*evaluate_vector(vl,r)+b*evaluate_vector(vr,r)+c*evaluate_vector(vo,r);
+    for(int i = 0; i < rc.size(); i++){
+        y -= (a*ra[i]+b*rb[i]+c*rc[i])*w[i];
+    }
+    
+    if(y != F(0)) printf("Error\n");
     exit(-1);
+    */
     
     int K = 1<<atoi(argv[1]);
     int N = atoi(argv[2]);
