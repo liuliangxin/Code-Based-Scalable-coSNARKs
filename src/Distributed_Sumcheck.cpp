@@ -1006,32 +1006,30 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     
     int ctr = 0;
     v3.resize(next_pow2(real_idx_dim[0]+real_idx_dim[1]+real_idx_dim[2])/N,F(0));
-    printf("~~~ %d,%d,%d\n",v1.size(),v2.size(),v3.size());
     
     for(int j = 0; j < 3; j++){
         if((rank+1)*next_pow2(real_idx_dim[order[j]])/N <= real_idx_dim[order[j]]){
-            printf("OK %d,%d,%d,%d\n",rank,j,(rank+1)*next_pow2(real_idx_dim[order[j]])/N,real_idx_dim[order[j]]);
             for(int i = 0 ; i < next_pow2(real_idx_dim[order[j]])/N; i++){
                 v3[ctr] = aggr_challenges[order[j]];
                 ctr++;
             }
         }else if(rank*next_pow2(real_idx_dim[order[j]])/N < real_idx_dim[order[j]]){
             
-            printf("? OK %d,%d, %d,%d\n",rank,j,rank*next_pow2(real_idx_dim[order[j]])/N,real_idx_dim[order[j]]);
-            for(int i = 0 ; i < real_idx_dim[order[j]] - (N-1)*next_pow2(real_idx_dim[order[j]])/N; i++){
+            int offset = real_idx_dim[order[j]] - (rank)*next_pow2(real_idx_dim[order[j]])/N;
+            for(int i = 0 ; i < real_idx_dim[order[j]] - (rank)*next_pow2(real_idx_dim[order[j]])/N; i++){
                 v3[ctr] = aggr_challenges[order[j]];
                 ctr++;
             }
-            ctr = (j+1)*next_pow2(real_idx_dim[order[j]])/N;
+            for(int i = 0; i < (next_pow2(real_idx_dim[order[j]])/N) -offset; i++) ctr++;
+            //ctr = (j+1)*next_pow2(real_idx_dim[order[j]])/N;
+            
         }else{
-            printf("> OK %d,%d\n",rank,j);
             for(int i = 0 ; i < next_pow2(real_idx_dim[order[j]])/N; i++){
                 v3[ctr] = 0;
                 ctr++;
             }
         }
     }
-    return;
     /*
     if(rank != N-1){
 
