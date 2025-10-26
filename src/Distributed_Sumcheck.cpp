@@ -819,16 +819,16 @@ void compute_transcript(vector<vector<F>> &Tr, vector<sparse_eval_data> &data, v
         }
     }
     for(int j = 0; j < data.size(); j++){
-        Tr[2*j+6].resize(next_pow2(data[0].IDX2.size()),F(1));
-        Tr[2*j+1+6].resize(next_pow2(data[0].IDX2.size()),F(1));
+        Tr[2*j+6].resize(next_pow2(data[j].IDX2.size()),F(1));
+        Tr[2*j+1+6].resize(next_pow2(data[j].IDX2.size()),F(1));
         for(int i = 0; i < data[j].IDX2.size(); i++){
             Tr[2*j+6][i] = challenges[0]*beta2[j][i] +  challenges[1]*F(data[j].RD2[i]) + challenges[2]*F(data[j].IDX2[i]) + F(1);
             Tr[2*j+1+6][i] = challenges[0]*beta2[j][i] +  challenges[1]*F(data[j].WR2[i]) + challenges[2]*F(data[j].IDX2[i]) + F(1);
         }
     }
     for(int j = 0; j < data.size(); j++){
-        Tr[2*j+12].resize(next_pow2(data[0].FINAL_FR1.size()),F(1));
-        Tr[2*j+1+12].resize(next_pow2(data[0].FINAL_FR1.size()),F(1));
+        Tr[2*j+12].resize(next_pow2(data[j].FINAL_FR1.size()),F(1));
+        Tr[2*j+1+12].resize(next_pow2(data[j].FINAL_FR1.size()),F(1));
     
         for(int i = 0; i < data[j].FINAL_FR1.size(); i++){
             Tr[2*j+0+12][i] =   challenges[0]*base_beta1[i]+F(1)  +  challenges[2]*F(rank*data[j].FINAL_FR1.size() + i);
@@ -836,8 +836,8 @@ void compute_transcript(vector<vector<F>> &Tr, vector<sparse_eval_data> &data, v
         }
     }
     for(int j = 0; j < data.size(); j++){
-        Tr[2*j+18].resize(next_pow2(data[0].FINAL_FR2.size()),F(1));
-        Tr[2*j+1+18].resize(next_pow2(data[0].FINAL_FR2.size()),F(1));
+        Tr[2*j+18].resize(next_pow2(data[j].FINAL_FR2.size()),F(1));
+        Tr[2*j+1+18].resize(next_pow2(data[j].FINAL_FR2.size()),F(1));
         for(int i = 0; i < data[j].FINAL_FR2.size(); i++){
             Tr[2*j+18][i] =   challenges[2]*F(rank*data[j].FINAL_FR2.size() + i) + F(1) + challenges[0]*base_beta2[i]; 
             Tr[2*j+1+18][i] = challenges[0]*base_beta2[i] +  challenges[1]*F(data[j].FINAL_FR2[i]) + challenges[2]*F(rank*data[j].FINAL_FR2.size() + i) + F(1);
@@ -865,6 +865,7 @@ void sort_transcript(vector<vector<F>> &Tr, vector<int> &order){
     order.resize(sizes.size());
     
     for(int i = 0; i < sizes.size(); i++) order[sizes[i].second] = i;
+    
     
     
     vector<vector<F>> temp;
@@ -917,8 +918,6 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         polys.push_back(convert_to_field(data[i].IDX1));
     }
     for(int i = 0; i < data.size(); i++){
-        if(rank == 0) printf("%d\n",beta2[i].size());
-        
         polys.push_back(beta2[i]);
         polys.push_back(convert_to_field(data[i].RD2));
         polys.push_back(convert_to_field(data[i].IDX2));        
@@ -977,11 +976,10 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         if(evaluate_vector(beta,_r) != betas_eval(data[0].FINAL_FR1.size(),r11,r12,r,claim.second[2])){
             printf("ERROR\n");
         }*/
-        
         for(int i = 0; i < Tr_evals.size(); i++){
+            
             if(Tr_evals[i] != debug_evals[order[i]]){
-                printf("error %d \n",i);
-                //return;
+                printf("error %d ,%d, %d\n",i,order[i],Tr[order[i]].size());
             }
         }
         
@@ -989,7 +987,6 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         //    printf("Sparse Eval Error 1\n");
         //}
     }
-
     order.clear();
     vector<F> v1,v2,v3,ones(N,1);
     vector<vector<F>> _beta2_sorted,_beta1_sorted = beta1;
@@ -1000,13 +997,20 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     for(int i = 0; i < beta1.size(); i++){
         v1.insert(v1.end(),_beta1_sorted[i].begin(),_beta1_sorted[i].end());
         v2.insert(v2.end(),_beta2_sorted[i].begin(),_beta2_sorted[i].end());
+        vector<F> c_buff(_beta1_sorted[i].size(),aggr_challenges[order[i]]);
+        v3.insert(v3.end(),c_buff.begin(),c_buff.end());
     }
     v1.resize(next_pow2(v1.size()),F(0));v2.resize(next_pow2(v2.size()),F(0));
+    v3.resize(next_pow2(v3.size()),F(0));
     
-    int ca = 0,cb = 0,cc = 0;
+    
+    printf("~~~ %d,%d,%d\n",v1.size(),v2.size(),v3.size());
+    /*
+
     v3.resize(next_pow2(real_idx_dim[0]+real_idx_dim[1]+real_idx_dim[2])/N,F(0));
+        
     if(rank != N-1){
-    
+
         int ctr = 0;
         for(int i = 0 ; i < next_pow2(real_idx_dim[order[0]])/N; i++){
             v3[ctr] = aggr_challenges[order[0]];
@@ -1021,12 +1025,14 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
             ctr++;
         }
     }else{
-        
         int ctr = 0;
+        printf("~~~ %d,%d\n",real_idx_dim[order[0]],(N-1)*next_pow2(real_idx_dim[order[0]])/N);
+        return;
         for(int i = 0 ; i < real_idx_dim[order[0]] - (N-1)*next_pow2(real_idx_dim[order[0]])/N; i++){
             v3[ctr] = aggr_challenges[order[0]];
             ctr++;
         }
+        
         ctr = next_pow2(real_idx_dim[order[0]])/N;
         for(int i = 0 ; i < real_idx_dim[order[1]] - (N-1)*next_pow2(real_idx_dim[order[1]])/N; i++){
             v3[ctr] = aggr_challenges[order[1]];
@@ -1039,6 +1045,8 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
             ctr++;
         }
     }    
+    return;
+    */
     pt_cp.end();
     
     vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
