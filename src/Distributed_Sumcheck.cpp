@@ -624,7 +624,7 @@ void compute_R1CS_betas(vector<F> r1, vector<F> r2, vector<sparse_eval_data> &da
 
     vector<F> b; precompute_beta(r2,b);
     for(int i = 0; i < data.size(); i++){
-        beta1[i].resize(data[i].IDX1.size());
+        beta1[i].resize(data[i].IDX1.size(),F(0));
         for(int j = 0; j < data[i].IDX1.size(); j++){
             int idx1 = data[i].IDX1[j];
             int idx11 = idx1&mask1;
@@ -633,7 +633,7 @@ void compute_R1CS_betas(vector<F> r1, vector<F> r2, vector<sparse_eval_data> &da
             //ctr++;
             
         }
-        beta2[i].resize(data[i].IDX2.size());        
+        beta2[i].resize(data[i].IDX2.size(),F(0));        
         for(int j = 0; j < data[i].IDX2.size(); j++){
             int idx2 = data[i].IDX2[j];
             int idx21 = idx2&mask2;
@@ -997,25 +997,46 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     for(int i = 0; i < beta1.size(); i++){
         v1.insert(v1.end(),_beta1_sorted[i].begin(),_beta1_sorted[i].end());
         v2.insert(v2.end(),_beta2_sorted[i].begin(),_beta2_sorted[i].end());
-        vector<F> c_buff(_beta1_sorted[i].size(),aggr_challenges[order[i]]);
-        v3.insert(v3.end(),c_buff.begin(),c_buff.end());
+        //vector<F> c_buff(_beta1_sorted[i].size(),aggr_challenges[order[i]]);
+        //v3.insert(v3.end(),c_buff.begin(),c_buff.end());
     }
     v1.resize(next_pow2(v1.size()),F(0));v2.resize(next_pow2(v2.size()),F(0));
-    v3.resize(next_pow2(v3.size()),F(0));
+    //v3.resize(next_pow2(v3.size()),F(0));
     
     
-    printf("~~~ %d,%d,%d\n",v1.size(),v2.size(),v3.size());
-    /*
-
+    int ctr = 0;
     v3.resize(next_pow2(real_idx_dim[0]+real_idx_dim[1]+real_idx_dim[2])/N,F(0));
-        
+    printf("~~~ %d,%d,%d\n",v1.size(),v2.size(),v3.size());
+    
+    for(int j = 0; j < 3; j++){
+        if((rank+1)*next_pow2(real_idx_dim[order[j]])/N <= real_idx_dim[order[j]]){
+            printf("OK %d,%d,%d,%d\n",rank,j,(rank+1)*next_pow2(real_idx_dim[order[j]])/N,real_idx_dim[order[j]]);
+            for(int i = 0 ; i < next_pow2(real_idx_dim[order[j]])/N; i++){
+                v3[ctr] = aggr_challenges[order[j]];
+                ctr++;
+            }
+        }else if(rank*next_pow2(real_idx_dim[order[j]])/N < real_idx_dim[order[j]]){
+            
+            printf("? OK %d,%d, %d,%d\n",rank,j,rank*next_pow2(real_idx_dim[order[j]])/N,real_idx_dim[order[j]]);
+            for(int i = 0 ; i < real_idx_dim[order[j]] - (N-1)*next_pow2(real_idx_dim[order[j]])/N; i++){
+                v3[ctr] = aggr_challenges[order[j]];
+                ctr++;
+            }
+            ctr = (j+1)*next_pow2(real_idx_dim[order[j]])/N;
+        }else{
+            printf("> OK %d,%d\n",rank,j);
+            for(int i = 0 ; i < next_pow2(real_idx_dim[order[j]])/N; i++){
+                v3[ctr] = 0;
+                ctr++;
+            }
+        }
+    }
+    return;
+    /*
     if(rank != N-1){
 
         int ctr = 0;
-        for(int i = 0 ; i < next_pow2(real_idx_dim[order[0]])/N; i++){
-            v3[ctr] = aggr_challenges[order[0]];
-            ctr++;
-        }
+        
         for(int i = 0 ; i < next_pow2(real_idx_dim[order[1]])/N; i++){
             v3[ctr] = aggr_challenges[order[1]];
             ctr++;
@@ -1026,8 +1047,7 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         }
     }else{
         int ctr = 0;
-        printf("~~~ %d,%d\n",real_idx_dim[order[0]],(N-1)*next_pow2(real_idx_dim[order[0]])/N);
-        return;
+        
         for(int i = 0 ; i < real_idx_dim[order[0]] - (N-1)*next_pow2(real_idx_dim[order[0]])/N; i++){
             v3[ctr] = aggr_challenges[order[0]];
             ctr++;
@@ -1045,12 +1065,11 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
             ctr++;
         }
     }    
-    return;
     */
+    
     pt_cp.end();
     
     vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
-    
     //for(int i = 0; i < )
     //return make_pair(evaluate_vector(beta_evals,temp_r),betas_r);
 

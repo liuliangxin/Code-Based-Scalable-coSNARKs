@@ -779,7 +779,7 @@ int main(int argc, char *argv[]){
     //vector<int> dims = {1<<16,1<<14,1<<14};
     //test_mult_tree(dims, N);
     //generate_R1CS_matrixes(N, 1);
-    test_sparse_eval(N, M,0);
+    test_sparse_eval(N, M,1);
     
     
     //coPIOP_prove(M, N, _k, k);
