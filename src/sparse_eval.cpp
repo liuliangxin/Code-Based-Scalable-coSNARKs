@@ -535,7 +535,7 @@ void prepare_data(vector<vector<pair<int,int>>> &M, int logm, int logn, sparse_e
         for(int j = 0; j < M[i].size(); j++){
             data.RD1[ctr] = r_count[M[i][j].second];
             data.WR1[ctr] = r_count[M[i][j].second] + (1);
-            data.IDX1[ctr] = i;
+            data.IDX1[ctr] = M[i][j].second;
             ctr++;
             r_count[M[i][j].second]++;
         }

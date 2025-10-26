@@ -470,6 +470,7 @@ pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> 
     for(int i = 0; i < input.size(); i++) {
         if(i > 0 && input[i].size() > input[i-1].size()){
             printf("Input is not sorted, exiting \n");
+            if(rank == 0) for(int j = 0; j < input.size(); j++) printf("%d\n",input[j].size());
             exit(-1);
         }
         input[i].resize(next_pow2(input[i].size()),F(1));
@@ -848,16 +849,23 @@ void sort_transcript(vector<vector<F>> &Tr, vector<int> &order){
     // Create a vector of pairs to store (value, original_index)
     std::vector<std::pair<int, int>> sizes;
     for(int i = 0; i < Tr.size(); i++){
-        sizes.push_back(make_pair(Tr.size(),i));
+        sizes.push_back(make_pair(Tr[i].size(),i));
     }
     
 
     // Sort the indexed_vector based on the values (first element of the pair)
     // By default, std::sort sorts pairs based on the first element, then the second if first elements are equal.
-    std::sort(sizes.begin(), sizes.end());
-    reverse(sizes.begin(),sizes.end());
+    std::sort(sizes.begin(), sizes.end(),[](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+        return a.first > b.first; // For descending order
+    });
+
+    
+    
+    //reverse(sizes.begin(),sizes.end());
     order.resize(sizes.size());
+    
     for(int i = 0; i < sizes.size(); i++) order[sizes[i].second] = i;
+    
     
     vector<vector<F>> temp;
     for(int i = 0; i < sizes.size(); i++) temp.push_back(Tr[sizes[i].second]);
@@ -909,6 +917,8 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
         polys.push_back(convert_to_field(data[i].IDX1));
     }
     for(int i = 0; i < data.size(); i++){
+        if(rank == 0) printf("%d\n",beta2[i].size());
+        
         polys.push_back(beta2[i]);
         polys.push_back(convert_to_field(data[i].RD2));
         polys.push_back(convert_to_field(data[i].IDX2));        
