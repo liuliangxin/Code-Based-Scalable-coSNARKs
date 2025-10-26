@@ -26,6 +26,7 @@ int mul_counter= 0;
 extern timer pt;
 extern vector<vector<pair<int, int>>> A,B,C;
 extern vector<vector<pair<int, int>>> pA,pB,pC;
+extern vector<vector<pair<int,int>>> tA,tB,tC;
 extern int logm,logn;
 
 
@@ -582,21 +583,89 @@ void test_sparse_eval(int N, int M, int type){
     vector<F> Y = batch_distributed_eval(polys,b1,b2,N);
     vector<F> _RA,_RB,_RC;
     if(rank!= 0){
-        generate_R1CS_matrixes(M);
+        generate_R1CS_matrixes(M,type);
     }
     
     reduce_R1CS_matrixes(M,r1,_RA,_RB,_RC);
+    
+    //if(rank == 4){
+       /*
+        for(int i = 0; i < pA.size(); i++){
+            if(pA[i].size()){
+                for(int j = 0; j < pA[i].size(); j++){
+                    printf(" %d, %d |",pA[i][j].first,pA[i][j].second);
+                }
+                printf("\n");
+            }
+        }
+        printf("=====================\n");
+        for(int i = 0; i < pA.size(); i++){
+            if(tA[i+pC.size()*rank].size()){
+                for(int j = 0; j < tA[i+pC.size()*rank].size(); j++){
+                    printf(" %d, %d |",tA[i+pC.size()*rank][j].first,tA[i+pC.size()*rank][j].second);
+                }
+                printf("\n");
+            }
+        }
+        printf("===== %d,%d ======\n",pA.size()*N,tA.size());
+       */
+        for(int i = 0; i < pA.size(); i++){
+            if(pA[i].size() != tA[i+pA.size()*rank].size()){
+                printf("> Error pA %d\n",i);
+                return;
+            }
+            if(pA[i].size()){
+                for(int j = 0; j < pA[i].size(); j++){
+                    if(pA[i][j].first != tA[i+pA.size()*rank][j].first || pA[i][j].second != tA[i+pA.size()*rank][j].second){
+                        printf("> Error pA %d,%d\n",i,j);        
+                    }
+                }
+            }
+        }
+        for(int i = 0; i < pB.size(); i++){
+            if(pB[i].size() != tB[i+pB.size()*rank].size()){
+                printf("> Error pB %d\n",i);
+                return;
+            }
+            if(pB[i].size()){
+                for(int j = 0; j < pB[i].size(); j++){
+                    if(pB[i][j].first != tB[i+pB.size()*rank][j].first || pB[i][j].second != tB[i+pB.size()*rank][j].second){
+                        printf("> Error pB %d,%d\n",i,j);        
+                    }
+                }
+            }
+        }
+
+        for(int i = 0; i < pC.size(); i++){
+            if(pC[i].size() != tC[i+pC.size()*rank].size()){
+                printf("> Error pC %d\n",i);
+                return;
+            }
+            if(pC[i].size()){
+                for(int j = 0; j < pC[i].size(); j++){
+                    if(pC[i][j].first != tC[i+pC.size()*rank][j].first || pC[i][j].second != tC[i+pC.size()*rank][j].second){
+                        printf("> Error pC %d,%d\n",i,j);        
+                    }
+                }
+            }
+        }
+        
+        
+        
+   // }
+    
         for(int i = 0; i < RA.size(); i++){
             if(RA[i] != _RA[i + rank*pA.size()]){
                printf("Error %d,%d,%d, (%lld,%lld),(%lld,%lld)\n",rank,i,RA.size(),RA[i].real,RA[i].img,_RA[i + rank*pA.size()].real,_RA[i + rank*pA.size()].img);
             }
         }
+        
         for(int i = 0; i < RB.size(); i++){
             if(RB[i] != _RB[i + rank*pB.size()]){
                printf("Error %d,%d,%d, (%lld,%lld),(%lld,%lld)\n",rank,i,RB.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
             }
         }
-
+        
         for(int i = 0; i < RC.size(); i++){
             if(RC[i] != _RC[i + rank*pC.size()]){
                printf("Error %d,%d,%d, (%lld,%lld),(%lld,%lld)\n",rank,i,RC.size(),RA[i].real,RA[i].img,_RA[i + rank*pB.size()].real,_RA[i + rank*pB.size()].img);
@@ -611,8 +680,7 @@ void test_sparse_eval(int N, int M, int type){
         if(evaluate_vector(_RC,r2) != Y[2]){
             printf("Error 3\n");
         }
-        return;
-
+      
     MPI_Barrier(MPI_COMM_WORLD);
     pt.start();
     //_prove_sparse_eval(a*Y[0]+b*Y[1]+c*Y[2], a, b, c, beta1, beta2, index,r1,r2, N);

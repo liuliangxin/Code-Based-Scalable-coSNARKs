@@ -530,10 +530,14 @@ void _reduce_R1CS_matrixes(size_t size, vector<F> r, vector<F> &RA, vector<F> &R
         }
         if(pB[i].size()){
             //printf("> %d, %d\n",rank,pB[i][0].second);
-            RB[pB[i][0].first%RB.size()] += beta1[pB[i][0].second%((1<<logm)/N)]*beta2[pB[i][0].second/((1<<logm)/N)];
+            for(int j = 0; j < pB[i].size(); j++){
+                RB[pB[i][j].first%RB.size()] += beta1[pB[i][j].second%((1<<logm)/N)]*beta2[pB[i][j].second/((1<<logm)/N)];
+            }
         } 
         if(pC[i].size()){
-            RC[pC[i][0].first%RC.size()] += beta1[pC[i][0].second%((1<<logm)/N)]*beta2[pC[i][0].second/((1<<logm)/N)];
+            for(int j = 0; j < pC[i].size(); j++){
+                RC[pC[i][j].first%RC.size()] += beta1[pC[i][j].second%((1<<logm)/N)]*beta2[pC[i][j].second/((1<<logm)/N)];
+            }
         }
     }
 }

@@ -120,9 +120,12 @@ void generate_R1CS_matrixes(size_t size, int type){
         vector<gate> gates;
         for(int i = 0; i < size/16; i++) gates.push_back(add_input());
         int add_ctr = 0;
+        int additions = 0;
+        srand(42);
         for(int i = size/16; i < size; i++){
             if(rand()%2 == 0){
                 add_ctr++;
+                additions++;
             }else{
                 gates.push_back(add_mul(gates.size(),add_ctr));
                 add_ctr = 0;
@@ -141,8 +144,7 @@ void generate_R1CS_matrixes(size_t size, int type){
         }
         logm = (int)log2(next_pow2(gates.size()-size/16));
         logn = (int)log2(next_pow2(gates.size()));    
-        printf("%d,%d,%d\n",logm,logn, gates.size());
-
+    
     }
     transpose_R1CS_matrixes();
 }
@@ -154,7 +156,6 @@ void reduce_R1CS_matrixes(size_t size, vector<F> r, vector<F> &RA, vector<F> &RB
     vector<F> beta;
     precompute_beta(r,beta);
     RA.resize(1<<logn,F(0));RB.resize(1<<logn,F(0));RC.resize(1<<logn,F(0));
-    printf(">OK %d,%d\n",A.size(),beta.size());
     for(int i = 0; i < A.size(); i++){
         for(int j = 0; j < A[i].size(); j++){
             RA[A[i][j].first] += beta[A[i][j].second];
