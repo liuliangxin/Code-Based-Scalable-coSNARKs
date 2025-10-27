@@ -791,7 +791,7 @@ void open_index(vector<F> &index_data,vector<F> &codeword, MT &index_Com, int N,
 
 }
 
-void coPIOP_prove(size_t size, int N, int _k, int k){
+void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     double ps = 0.0;
     int logk = (int)log2(k);
     
@@ -803,7 +803,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k){
     MT CR,_CR,index_Com,Com;
     vector<MT> Com_mask;
     vector<F> codeword,row_data,codeword_R,_codeword_R,index_codeword,index_data;
-    distribute_index(N, size, index);
+    distribute_index(N, size, index,cir_type);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
     setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
     setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
