@@ -874,7 +874,7 @@ void sort_transcript(vector<vector<F>> &Tr, vector<int> &order){
 }
 
 
-void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data, 
+pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data, 
                         vector<F> r1, vector<F> r2, int N){
     
     
@@ -1069,6 +1069,9 @@ void _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector
     
     vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
     //for(int i = 0; i < )
+    F __r = hash_to_field({});
+    beta_evals2[0].second.push_back(__r);
+    return make_pair((F(1)-__r)*beta_evals2[0].first + __r*beta_evals2[1].first,beta_evals2[0].second);
     //return make_pair(evaluate_vector(beta_evals,temp_r),betas_r);
 
        

@@ -1255,7 +1255,7 @@ void compute_secret_shares(vector<F> &v, vector<vector<F>> &v_shares, int N, int
 #include "Distributed_Sumcheck.h"
 
 
-void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector<F> &w, int N, int M, int _k, int k){
+void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector<F> &w, int N, int M, int _k, int k, int cir_type){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64;
@@ -1265,7 +1265,7 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
     if(rank == 0){
         vector<F> L,R,O,W;
         vector<vector<F>> L_shares,R_shares,O_shares,W_shares;
-        prepare_witness_data(M,W,L,R,O);
+        prepare_witness_data(M,W,L,R,O,cir_type);
 
         
         

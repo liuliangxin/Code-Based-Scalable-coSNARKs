@@ -548,6 +548,8 @@ void evaluate_sparse_matrix(size_t size, int N, vector<F> r1, vector<F> r2, F y,
 
 void commit_sparse_eval_witness(vector<vector<F>> &beta1, vector<vector<F>> &beta2,vector<F> &codeword ,vector<F> &row_data, MT &Com, int k, int N){
     vector<F> data;
+
+    
     for(int i = 0; i < beta1.size(); i++) data.insert(data.end(),beta1[i].begin(),beta1[i].end());
     for(int i = 0; i < beta2.size(); i++) data.insert(data.end(),beta2[i].begin(),beta2[i].end());
     data.resize(next_pow2(data.size()),F(0));
@@ -584,7 +586,8 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
     pt_cp.end();
 
     commit_sparse_eval_witness(beta1, beta2, codeword , row_data, Com, N/2,  N);
-    pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
+    //pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
+    pair<F,vector<F>> claim = _prove_sparse_eval_opt(y, a, b, c, beta1, beta2, index,r1,r2, N);
     open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps);
 }
 
@@ -804,7 +807,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     vector<MT> Com_mask;
     vector<F> codeword,row_data,codeword_R,_codeword_R,index_codeword,index_data;
     distribute_index(N, size, index,cir_type);
-    distribute_proving_data(vL, vR, vO, witness, N, size, _k, k);
+    distribute_proving_data(vL, vR, vO, witness, N, size, _k, k,cir_type);
     setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
     setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
     dummy_setup(r_witness, mask_shares, N, 1<<logn, k, _k, 500);
@@ -849,9 +852,9 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,ps);
     
     //return;
-    
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,ps);
+    return;
     open_index(index_data,index_codeword, index_Com, N,ps);
     open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps);
     pt.end();
