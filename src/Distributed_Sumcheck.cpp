@@ -1067,11 +1067,24 @@ pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &
     
     pt_cp.end();
     
+        
     vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
     //for(int i = 0; i < )
     F __r = hash_to_field({});
-    beta_evals2[0].second.push_back(__r);
-    return make_pair((F(1)-__r)*beta_evals2[0].first + __r*beta_evals2[1].first,beta_evals2[0].second);
+    
+    r1.clear();r2.clear();
+    
+    for(int i = 0; i < beta_evals2[0].second.size() - (int)log2(N); i++){
+        r1.push_back(beta_evals2[0].second[i]);
+    }
+    for(int i = r1.size(); i< beta_evals2[0].second.size(); i++){
+        r2.push_back(beta_evals2[0].second[i]);
+    }
+    r1.push_back(__r);
+
+    r2.insert(r2.begin(),r1.begin(),r1.end());
+    
+    return make_pair((F(1)-__r)*beta_evals2[0].first + __r*beta_evals2[1].first,r2);
     //return make_pair(evaluate_vector(beta_evals,temp_r),betas_r);
 
        

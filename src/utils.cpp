@@ -1268,7 +1268,6 @@ F sequence_eval(int size, vector<F> r1, vector<F> r2){
     
     for(int i = 0; i < (int)log2(size)-r2.size(); i++) r.push_back(r1[i]);
     for(int i = 0; i < r2.size(); i++) r.push_back(r2[i]); 
-    printf("%d,%d\n",size,r.size());
     F sum = F(0);
     for(int i = 0; i < (int)log2(size); i++){
         sum += r[(int)log2(size)-1-i]*F(size/(1<<(i+1)));
