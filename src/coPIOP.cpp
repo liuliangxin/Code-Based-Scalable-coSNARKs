@@ -548,9 +548,20 @@ void evaluate_sparse_matrix(size_t size, int N, vector<F> r1, vector<F> r2, F y,
 
 void commit_sparse_eval_witness(vector<vector<F>> &beta1, vector<vector<F>> &beta2,vector<F> &codeword ,vector<F> &row_data, MT &Com, int k, int N){
     vector<F> data;
-
+    vector<vector<F>> buff;
     
-    for(int i = 0; i < beta1.size(); i++) data.insert(data.end(),beta1[i].begin(),beta1[i].end());
+    for(int i = 0; i < beta1.size(); i++){
+        buff.push_back(beta1[i]);
+    }
+    vector<int> order;
+
+    sort_transcript(buff, order);
+    
+    data = convert2vector(buff);
+    buff.clear();
+    data.resize(next_pow2(data.size()),F(0));
+    
+    //for(int i = 0; i < beta1.size(); i++) data.insert(data.end(),beta1[i].begin(),beta1[i].end());
     for(int i = 0; i < beta2.size(); i++) data.insert(data.end(),beta2[i].begin(),beta2[i].end());
     data.resize(next_pow2(data.size()),F(0));
     plaintext_commit(data, codeword,row_data,Com,k,N);

@@ -25,3 +25,5 @@ quadratic_poly aggregate_poly(quadratic_poly H, int N);
 pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> &output, int N, vector<F> &evals);
 pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data, 
                         vector<F> r1, vector<F> r2, int N);
+
+void sort_transcript(vector<vector<F>> &Tr, vector<int> &order);
