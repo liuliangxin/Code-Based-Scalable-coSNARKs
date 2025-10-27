@@ -4,8 +4,8 @@ project(ProofOfLearning)
 find_package(MPI REQUIRED)
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "-w -march=native  -mavx -lgmp -msha")
-set(CMAKE_C_FLAGS "-w -march=native -mavx -lgmp -msha")
+set(CMAKE_CXX_FLAGS "-w -march=native  -mavx -msha")
+set(CMAKE_C_FLAGS "-w -march=native -mavx -msha")
 
 
 

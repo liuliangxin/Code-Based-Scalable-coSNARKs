@@ -1,0 +1,1 @@
+mpirun --host chriscluster0,chriscluster1,chriscluster2,chriscluster3 ./pigeon 0 4 10

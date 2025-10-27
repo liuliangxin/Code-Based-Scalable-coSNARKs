@@ -50,10 +50,11 @@ void dummy_setup(vector<F> &R_shares, vector<vector<F>> &mask_shares, int N, int
 
 
     if((int)log2(M/k)-1 <= (int)log2(next_pow2(l))){
+        //printf(">>>OK\n");
         mask_shares.resize(1);
         if(rank == 0){
             vector<vector<vector<F>>> all_mask_shares(1);
-            setup(all_mask_shares[0],N,M,3*l+M/k,k,_k);
+            setup(all_mask_shares[0],N,M,2*M/k,k,_k);
             all_mask_shares[0] = transpose(all_mask_shares[0]);
             mask_shares[0] = all_mask_shares[0][0];
             for(int i = 1; i < N; i++){
@@ -62,8 +63,8 @@ void dummy_setup(vector<F> &R_shares, vector<vector<F>> &mask_shares, int N, int
                 MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
             }
         }else{
-            buff.clear();buff.resize(2*(3*l + M/k));
-            MPI_Recv(buff.data(),2*(3*l + M/k),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            buff.clear();buff.resize(2*(2*M/k));
+            MPI_Recv(buff.data(),2*(2*M/k),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
             field_vector_deserialize(buff,mask_shares[0]);
         }
         
@@ -119,6 +120,7 @@ void prepare_mask_shares(vector<vector<F>> &mask_shares, vector<vector<F>> &mask
     Com_mask.resize(mask_shares.size());
     mask_data.resize(mask_shares.size());
     
+
     for(int i = 0; i < C_mask.size(); i++){
         //C_mask_hashes[i].resize(C_mask[i].size());
         if(i != C_mask.size()-1){
@@ -130,7 +132,12 @@ void prepare_mask_shares(vector<vector<F>> &mask_shares, vector<vector<F>> &mask
             }
             
         }else{
-            C_mask[i].resize(next_pow2(M/k+3*l)/(1<<i),F(0));
+            if(C_mask.size() == 1 && (int)log2(M/k)-1 <= (int)log2(next_pow2(l))){
+                C_mask[i].resize(mask_shares[i].size(),F(0));
+            }else{
+                C_mask[i].resize(next_pow2(M/k+3*l)/(1<<i),F(0));
+            }
+
             for(int b = 0; b < mask_shares[i].size(); b++){
                 C_mask[i][b] = mask_shares[i][b];
             }
@@ -436,7 +443,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int rounds = (int)log2(row_data.size())-1;
     int masking_rounds = mask_codeword.size();
-    
     vector<F> r1,r2,beta1,beta2;
     vector<vector<F>> folded_codewords(rounds);
     vector<MT> eval_MT(rounds);

@@ -782,7 +782,7 @@ int main(int argc, char *argv[]){
     //test_sparse_eval(N, M,1);
     
     
-    coPIOP_prove(M, N, _k, k,1);
+    coPIOP_prove(M, N, _k, k,0);
 
     // ==================================================== //
     /*

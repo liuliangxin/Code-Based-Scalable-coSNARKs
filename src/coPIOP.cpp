@@ -373,8 +373,8 @@ vector<pair<F,vector<F>>> prove_phase2(
     }
     beta_shares.resize(4*beta_shares.size(),F(0));
     pt_cp.end();
+
     vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k, ps);
-    
     claim[1].first = (F(1)-claim[1].second[claim[1].second.size()-1]).inv()*i*claim[1].first;
     return claim;
 }
@@ -866,12 +866,21 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,ps);
     open_index(index_data,index_codeword, index_Com, N,ps);
-    return;
     open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps);
     pt.end();
     pt_cpu.end();
     MPI_Barrier(MPI_COMM_WORLD);
-    printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf, Vt: %lf\n", rank, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time(),vt.get_time());
+    if(rank == 0){
+        vector<double> buff(3);
+        printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf, Vt: %lf\n", rank, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time(),vt.get_time());
+        for(int i = 1; i < N; i++){
+            MPI_Recv(buff.data(), 3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf\n", i, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time());
+        }    
+    }else{
+        vector<double> buff = {pt.get_time(),pt_cpu.get_time(),pt_cp.get_time()};
+        MPI_Send(buff.data(), 3,MPI_DOUBLE,0,0,MPI_COMM_WORLD);   
+    }
     MPI_Barrier(MPI_COMM_WORLD);
     vector<double> buff = {vt.get_time(),ps,cm};
     if(rank != 0){
@@ -884,7 +893,6 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
             ps += buff[1];
             cm += buff[2];
         }
-        sleep(1);
         printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps+ps_plain,cm/1024.0);
     }
 }
