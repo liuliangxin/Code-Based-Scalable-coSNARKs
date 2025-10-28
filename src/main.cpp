@@ -752,11 +752,7 @@ int main(int argc, char *argv[]){
     exit(-1);
     */
     
-    int K = 1<<atoi(argv[1]);
-    int N = atoi(argv[2]);
-    int k = N/4;
-    int _k = N/2;
-    int M = 1ULL<<(atoi(argv[3]));
+    int benchmark = 1<<atoi(argv[1]);
     int size;
     int rank;
     
@@ -767,13 +763,14 @@ int main(int argc, char *argv[]){
     
     MPI_Comm_size(MPI_COMM_WORLD, &size); //get number of processes
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    int N = size;
+    int k = N/4;
+    int _k = N/2;
+    int M = 1ULL<<(atoi(argv[2]));
+    
     double vt = 0.0,ps = 0.0;
     vector<F> codeword,row_data;
     vector<vector<F>> data;
-    MT Com;
-    vector<vector<F>> mask_shares,mask_data,C_mask;
-    vector<F> R_shares;
-    vector<MT> Com_mask;
     
     
     //vector<int> dims = {1<<16,1<<14,1<<14};
@@ -781,9 +778,31 @@ int main(int argc, char *argv[]){
     //generate_R1CS_matrixes(N, 1);
     //test_sparse_eval(N, M,1);
     
-    
-    coPIOP_prove(M, N, _k, k,0);
+    if(benchmark == 0){
+        coPIOP_prove(M, N, _k, k,0);
+    }else if(benchmark == 1){
+        // test PCS
+        int threshold = atoi(argv[3]);
+        int rate = atoi(argv[4]);
+        
 
+        vector<F> codeword,row_data,R_shares;
+        MT C;
+        vector<vector<F>> mask_shares,mask_data,C_mask;
+        vector<F> R_shares;
+        vector<MT> Com_mask;
+        
+        int l = (int)(100.0/(log2(1-0.333*(1-(1/rate))*(1-_k/N))));
+        dummy_setup(R_shares, mask_shares, N, M, k, _k, l);
+        prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, l);
+    
+        
+        commit(codeword, row_data, R_shares, C, l, k, _k, M, N);
+        
+    }else{
+        printf("Incorrect Benchmark\n");
+    }
+    
     // ==================================================== //
     /*
     dummy_setup(R_shares, mask_shares, N, M, k, _k, 500);
