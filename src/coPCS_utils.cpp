@@ -3,7 +3,7 @@
 
 vector<vector<F>> global_poly;
 int rate = 4;
-int l = 500;
+//int l = 500;
 
 void setup(vector<vector<F>> &R_shares, int N, int M, int l, int k, int _k){
     vector<vector<F>> R(l);

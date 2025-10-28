@@ -23,12 +23,13 @@
 
 int tensor_row_size;
 int mul_counter= 0;
-extern timer pt;
+extern timer pt,pt_cp,vt;
+extern timer_cpu pt_cpu;
 extern vector<vector<pair<int, int>>> A,B,C;
 extern vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<vector<pair<int,int>>> tA,tB,tC;
 extern int logm,logn;
-
+extern int rate;
 
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
@@ -768,7 +769,7 @@ int main(int argc, char *argv[]){
     int _k = N/2;
     int M = 1ULL<<(atoi(argv[2]));
     
-    double vt = 0.0,ps = 0.0;
+    double ps = 0.0;
     vector<F> codeword,row_data;
     vector<vector<F>> data;
     
@@ -783,7 +784,7 @@ int main(int argc, char *argv[]){
     }else if(benchmark == 1){
         // test PCS
         int threshold = atoi(argv[3]);
-        int rate = atoi(argv[4]);
+        rate = atoi(argv[4]);
         
 
         vector<F> codeword,row_data,R_shares,coefficients;
@@ -792,17 +793,47 @@ int main(int argc, char *argv[]){
         vector<MT> Com_mask;
         
         int l = (int)(-100.0/(log2(1-0.34*(1-(1.0/(double)rate))*(1.0-(double)_k/(double)N))));
+        l = 500;
+        double cm = 0;
         dummy_setup(R_shares, mask_shares, N, M, k, _k, l);
         prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, l);
         secret_share_coefficients(coefficients, M, N, _k, k);
-        
-        
+        MPI_Barrier(MPI_COMM_WORLD);
+
+
+        pt.start();
         commit(codeword, row_data,coefficients, R_shares, C, l, k, _k, N);
-
         vector<F> r;
-        for(int i = 0; i < (int)log2(M); i++) r.push_back(hash_to_field({}));
+        for(int i = 0; i < (int)log2(2*M); i++) r.push_back(hash_to_field({}));
 
-        open_zk(codeword,mask_shares,row_data,mask_data,C,Com_mask,r,F(0),l,k,_k,M,N,ps,false);
+        open_zk(codeword,C_mask,row_data,mask_data,C,Com_mask,r,F(0),l,k,_k,M,N,ps,false);
+        pt.end();
+        
+        if(rank == 0){
+            vector<double> buff(3);
+            printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf, Vt: %lf\n", rank, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time(),vt.get_time());
+            for(int i = 1; i < N; i++){
+                MPI_Recv(buff.data(), 3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf\n", i, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time());
+            }    
+        }else{
+            vector<double> buff = {pt.get_time(),pt_cpu.get_time(),pt_cp.get_time()};
+            MPI_Send(buff.data(), 3,MPI_DOUBLE,0,0,MPI_COMM_WORLD);   
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+        vector<double> buff = {vt.get_time(),ps,cm};
+        if(rank != 0){
+            MPI_Send(buff.data(),3,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
+        }else{
+            double total_vt = vt.get_time();
+            for(int i = 1; i < N; i++){
+                MPI_Recv(buff.data(),3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                total_vt += buff[0];
+                ps += buff[1];
+                cm += buff[2];
+            }
+            printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps,cm/1024.0);
+        }
         
     }else{
         printf("Incorrect Benchmark\n");

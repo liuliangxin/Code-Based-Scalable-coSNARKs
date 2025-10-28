@@ -1254,7 +1254,7 @@ void compute_secret_shares(vector<F> &v, vector<vector<F>> &v_shares, int N, int
 #include "Fiat_Shamir.h"
 #include "Distributed_Sumcheck.h"
 
-void secret_share_coefficients(vector<F> w, int M, int N, int _k, int k){
+void secret_share_coefficients(vector<F> &w, int M, int N, int _k, int k){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64;

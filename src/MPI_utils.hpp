@@ -30,4 +30,4 @@ void compute_secret_shares(vector<F> &v, vector<vector<F>> &v_shares, int N, int
 vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k,int _k);
 vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int _k, int N);
 vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vector<F> r2, int N);
-void secret_share_coefficients(vector<F> w, int M, int N, int _k, int k);
+void secret_share_coefficients(vector<F> &w, int M, int N, int _k, int k);

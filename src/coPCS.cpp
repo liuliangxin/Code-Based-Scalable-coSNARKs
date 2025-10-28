@@ -446,7 +446,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     vector<F> r1,r2,beta1,beta2;
     vector<vector<F>> folded_codewords(rounds);
     vector<MT> eval_MT(rounds);
-
+    
     for(int i = 0; i < (int)log2(k); i++) r2.push_back(r[i]);
     
     for(int i = (int)log2(k); i < r.size(); i++) r1.push_back(r[i]);
@@ -468,14 +468,18 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         mul = mul*omega;
     }
 
-    vector<F> y_mask(rounds),aggr_challenges(rounds),challenges(rounds);
+    
+   vector<F> y_mask(rounds),aggr_challenges(rounds),challenges(rounds);
     
     quadratic_poly H;
     pt_cp.end();
     
     for(int i = 0; i < rounds; i++){
+        if(rank == 0){
+            printf("OK %d,%d,%d\n",i,rounds,masking_rounds);
+        }
         pt_cp.start();
-    
+
         folded_codewords[i] = codeword;
         if(i < masking_rounds){
             y_mask[i] = F_ip(mask_data[i],beta1,beta2,k,_k,N);
@@ -485,6 +489,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             y_mask[i] = 0;
             aggr_challenges[i] = 0;
         }    
+        
         if(i < masking_rounds){
             H = step1(i,aggr_challenges[i],beta1,row_data,mask_data[i]);
         }else{
@@ -492,7 +497,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             H = step1(i,F(0),beta1,row_data,dummy);
         }
         pt_cp.end();
-    
+        
         H = aggregate_quadratic_poly(H, beta2,  k,  _k,  N);
         if(verify && H.eval(0) + H.eval(1) != y + aggr_challenges[i]*y_mask[i]){
             printf("> Error in open round %d\n",i);
@@ -502,18 +507,20 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     
         challenges[i] = hash_to_field({H.a,H.b,H.c});
         y = H.eval(challenges[i]);
-
+        
         if(i < masking_rounds){
+            if(rank == 0) printf("%d,%d\n",codeword.size(),mask_codeword[i].size());
             step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,mask_codeword[i],eval_MT[i],N);
         }else{
             vector<F> dummy;
             step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,dummy,eval_MT[i],N);
         }
+        
+
         pt_cp.end();
     
     }
     // Generate opening proofs 
-    
     vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
     initial_index = query_index;
     vector<vector<vector<F>>> replies(rounds),replies_mask(masking_rounds); 
