@@ -1033,3 +1033,108 @@ events:
         
       exitCode: 0
 ...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1278 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1322 (_MPI_try_staged_settings)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1645 (_MPI_check_lang_works)"
+      - "CMakeLists.txt:4 (find_package)"
+    description: "The MPI test test_mpi for C in mode normal"
+    directories:
+      source: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe"
+      binary: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "MPI_RESULT_C_test_mpi_normal"
+      cached: true
+      stdout: |
+        Change Dir: '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_5a35e/fast
+        gmake[1]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_5a35e.dir/build.make CMakeFiles/cmTC_5a35e.dir/build
+        gmake[2]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe'
+        Building C object CMakeFiles/cmTC_5a35e.dir/test_mpi.c.o
+        /usr/bin/cc  -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi  -o CMakeFiles/cmTC_5a35e.dir/test_mpi.c.o -c /home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe/test_mpi.c
+        Linking C executable cmTC_5a35e
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_5a35e.dir/link.txt --verbose=1
+        /usr/bin/cc CMakeFiles/cmTC_5a35e.dir/test_mpi.c.o -o cmTC_5a35e  -Wl,-rpath,/usr/lib/x86_64-linux-gnu/openmpi/lib /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so 
+        gmake[2]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe'
+        gmake[1]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GUyKUe'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1278 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1322 (_MPI_try_staged_settings)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1645 (_MPI_check_lang_works)"
+      - "CMakeLists.txt:4 (find_package)"
+    description: "The MPI test test_mpi for CXX in mode normal"
+    directories:
+      source: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT"
+      binary: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "MPI_RESULT_CXX_test_mpi_normal"
+      cached: true
+      stdout: |
+        Change Dir: '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_eea77/fast
+        gmake[1]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_eea77.dir/build.make CMakeFiles/cmTC_eea77.dir/build
+        gmake[2]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT'
+        Building CXX object CMakeFiles/cmTC_eea77.dir/test_mpi.cpp.o
+        /usr/bin/c++  -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi  -o CMakeFiles/cmTC_eea77.dir/test_mpi.cpp.o -c /home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT/test_mpi.cpp
+        Linking CXX executable cmTC_eea77
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_eea77.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_eea77.dir/test_mpi.cpp.o -o cmTC_eea77  -Wl,-rpath,/usr/lib/x86_64-linux-gnu/openmpi/lib /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_cxx.so /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so 
+        gmake[2]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT'
+        gmake[1]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-GpXsnT'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1278 (try_compile)"
+      - "/usr/share/cmake-3.28/Modules/FindMPI.cmake:1672 (_MPI_try_staged_settings)"
+      - "CMakeLists.txt:4 (find_package)"
+    description: "The MPI test test_mpi for CXX in mode MPICXX"
+    directories:
+      source: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi"
+      binary: "/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "MPI_RESULT_CXX_test_mpi_MPICXX"
+      cached: true
+      stdout: |
+        Change Dir: '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_9645f/fast
+        gmake[1]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_9645f.dir/build.make CMakeFiles/cmTC_9645f.dir/build
+        gmake[2]: Entering directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi'
+        Building CXX object CMakeFiles/cmTC_9645f.dir/test_mpi.cpp.o
+        /usr/bin/c++  -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi  -o CMakeFiles/cmTC_9645f.dir/test_mpi.cpp.o -c /home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi/test_mpi.cpp
+        Linking CXX executable cmTC_9645f
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9645f.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_9645f.dir/test_mpi.cpp.o -o cmTC_9645f  -Wl,-rpath,/usr/lib/x86_64-linux-gnu/openmpi/lib /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_cxx.so /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so 
+        gmake[2]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi'
+        gmake[1]: Leaving directory '/home/chris/coSNARK_MPI/build/CMakeFiles/CMakeScratch/TryCompile-x96Ioi'
+        
+      exitCode: 0
+...

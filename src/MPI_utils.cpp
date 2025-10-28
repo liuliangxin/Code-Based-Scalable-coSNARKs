@@ -1254,6 +1254,31 @@ void compute_secret_shares(vector<F> &v, vector<vector<F>> &v_shares, int N, int
 #include "Fiat_Shamir.h"
 #include "Distributed_Sumcheck.h"
 
+void secret_share_coefficients(vector<F> w, int M, int N, int _k, int k){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    vector<u64> buff_u64;
+    vector<F> buff;
+    
+
+    if(rank == 0){
+        vector<F> poly = generate_randomness(M);
+        vector<vector<F>> poly_shares;
+        compute_secret_shares(poly,poly_shares,N,k,_k,true);
+        
+        w = poly_shares[0];
+        
+        for(int i = 1; i < N; i++){
+            field_vector_serialize(poly_shares[i],buff_u64);
+            MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        }
+    }else{
+        buff_u64.resize(2*(M)/k);
+        MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        field_vector_deserialize(buff_u64,w);           
+    }
+}
+
 
 void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector<F> &w, int N, int M, int _k, int k, int cir_type){
     int rank;

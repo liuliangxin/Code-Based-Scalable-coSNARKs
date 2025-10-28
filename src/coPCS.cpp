@@ -188,7 +188,7 @@ void encode(vector<F> &codeword, vector<F> &row_data, vector<vector<F>> &data, v
     }
     vector<F> row(shares.size());
     shares = transpose(shares);
-    printf("Shares Dim : %d,%d\n",shares.size(),shares[0].size());
+    //printf("Shares Dim : %d,%d\n",shares.size(),shares[0].size());
     vector<F> shares_v = convert2vector(shares);
     vector<u64> send_buff,recv_buff;
     
@@ -434,7 +434,7 @@ void verify_queries(int N,int M,vector<vector<u32>> query_indexes,
 void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword, 
              vector<F> &row_data, vector<vector<F>> &mask_data, 
              MT &Com, vector<MT> Mask_Com, 
-             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps){
+             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps, bool verify){
     
     
     pt_cp.start();
@@ -494,7 +494,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         pt_cp.end();
     
         H = aggregate_quadratic_poly(H, beta2,  k,  _k,  N);
-        if(H.eval(0) + H.eval(1) != y + aggr_challenges[i]*y_mask[i]){
+        if(verify && H.eval(0) + H.eval(1) != y + aggr_challenges[i]*y_mask[i]){
             printf("> Error in open round %d\n",i);
             return;
         }

@@ -23,7 +23,7 @@ void prepare_mask_shares(vector<vector<F>> &mask_shares, vector<vector<F>> &mask
 void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword, 
              vector<F> &row_data, vector<vector<F>> &mask_data, 
              MT &Com, vector<MT> Mask_Com, 
-             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps);
+             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps, bool verify=true);
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
                     vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, bool secret_shared,bool verify=true);

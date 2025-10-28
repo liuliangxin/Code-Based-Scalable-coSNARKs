@@ -13,5 +13,5 @@ C_DEFINES =
 
 C_INCLUDES = -I/home/chris/coSNARK_MPI/src -I/home/chris/coSNARK_MPI/lib -I/home/chris/coSNARK_MPI/Blake
 
-C_FLAGS = -w -march=native -mavx -lgmp -msha -O3 -DNDEBUG -std=c17 -fvisibility=hidden
+C_FLAGS = -w -march=native -mavx -msha -O3 -DNDEBUG -std=c17 -fvisibility=hidden
 

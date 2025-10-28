@@ -752,7 +752,7 @@ int main(int argc, char *argv[]){
     exit(-1);
     */
     
-    int benchmark = 1<<atoi(argv[1]);
+    int benchmark = atoi(argv[1]);
     int size;
     int rank;
     
@@ -786,18 +786,23 @@ int main(int argc, char *argv[]){
         int rate = atoi(argv[4]);
         
 
-        vector<F> codeword,row_data,R_shares;
+        vector<F> codeword,row_data,R_shares,coefficients;
         MT C;
         vector<vector<F>> mask_shares,mask_data,C_mask;
-        vector<F> R_shares;
         vector<MT> Com_mask;
         
-        int l = (int)(100.0/(log2(1-0.333*(1-(1/rate))*(1-_k/N))));
+        int l = (int)(-100.0/(log2(1-0.34*(1-(1.0/(double)rate))*(1.0-(double)_k/(double)N))));
         dummy_setup(R_shares, mask_shares, N, M, k, _k, l);
         prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, l);
-    
+        secret_share_coefficients(coefficients, M, N, _k, k);
         
-        commit(codeword, row_data, R_shares, C, l, k, _k, M, N);
+        
+        commit(codeword, row_data,coefficients, R_shares, C, l, k, _k, N);
+
+        vector<F> r;
+        for(int i = 0; i < (int)log2(M); i++) r.push_back(hash_to_field({}));
+
+        open_zk(codeword,mask_shares,row_data,mask_data,C,Com_mask,r,F(0),l,k,_k,M,N,ps,false);
         
     }else{
         printf("Incorrect Benchmark\n");

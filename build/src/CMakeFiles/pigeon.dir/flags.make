@@ -7,11 +7,11 @@ C_DEFINES =
 
 C_INCLUDES = -I/home/chris/coSNARK_MPI/src -I/home/chris/coSNARK_MPI/lib -I/home/chris/coSNARK_MPI/Blake -I/home/chris/coSNARK_MPI/src/. -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi
 
-C_FLAGS = -w -march=native -mavx -lgmp -msha -O3 -DNDEBUG
+C_FLAGS = -w -march=native -mavx -msha -O3 -DNDEBUG
 
 CXX_DEFINES = 
 
 CXX_INCLUDES = -I/home/chris/coSNARK_MPI/src -I/home/chris/coSNARK_MPI/lib -I/home/chris/coSNARK_MPI/Blake -I/home/chris/coSNARK_MPI/src/. -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi
 
-CXX_FLAGS = -w -march=native  -mavx -lgmp -msha -O3 -DNDEBUG -std=gnu++20
+CXX_FLAGS = -w -march=native  -mavx -msha -O3 -DNDEBUG -std=gnu++20
 
