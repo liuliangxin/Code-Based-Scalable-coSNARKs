@@ -475,9 +475,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
     pt_cp.end();
     
     for(int i = 0; i < rounds; i++){
-        if(rank == 0){
-            printf("OK %d,%d,%d\n",i,rounds,masking_rounds);
-        }
         pt_cp.start();
 
         folded_codewords[i] = codeword;
@@ -509,7 +506,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         y = H.eval(challenges[i]);
         
         if(i < masking_rounds){
-            if(rank == 0) printf("%d,%d\n",codeword.size(),mask_codeword[i].size());
             step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,mask_codeword[i],eval_MT[i],N);
         }else{
             vector<F> dummy;

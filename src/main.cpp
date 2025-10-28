@@ -783,6 +783,7 @@ int main(int argc, char *argv[]){
         coPIOP_prove(M, N, _k, k,0);
     }else if(benchmark == 1){
         // test PCS
+        
         int threshold = atoi(argv[3]);
         rate = atoi(argv[4]);
         
@@ -793,7 +794,6 @@ int main(int argc, char *argv[]){
         vector<MT> Com_mask;
         
         int l = (int)(-100.0/(log2(1-0.34*(1-(1.0/(double)rate))*(1.0-(double)_k/(double)N))));
-        l = 500;
         double cm = 0;
         dummy_setup(R_shares, mask_shares, N, M, k, _k, l);
         prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, l);
@@ -803,22 +803,26 @@ int main(int argc, char *argv[]){
 
         pt.start();
         commit(codeword, row_data,coefficients, R_shares, C, l, k, _k, N);
+        pt.end();
+        double commit_time = pt.get_time();
         vector<F> r;
         for(int i = 0; i < (int)log2(2*M); i++) r.push_back(hash_to_field({}));
 
+        pt.start();
         open_zk(codeword,C_mask,row_data,mask_data,C,Com_mask,r,F(0),l,k,_k,M,N,ps,false);
         pt.end();
+        double open_time = pt.get_time()-commit_time;
         
         if(rank == 0){
-            vector<double> buff(3);
+            vector<double> buff(4);
             printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf, Vt: %lf\n", rank, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time(),vt.get_time());
             for(int i = 1; i < N; i++){
-                MPI_Recv(buff.data(), 3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-                printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf\n", i, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time());
+                MPI_Recv(buff.data(), 4,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                printf("Id : %d, Commit time: %lf, Open time, %lf, Total: %lf, CPU Only Pt: %lf, Computation only: %lf\n", i, buff[0],buff[1],buff[0]+buff[1],buff[2],buff[3]);
             }    
         }else{
-            vector<double> buff = {pt.get_time(),pt_cpu.get_time(),pt_cp.get_time()};
-            MPI_Send(buff.data(), 3,MPI_DOUBLE,0,0,MPI_COMM_WORLD);   
+            vector<double> buff = {commit_time,open_time,pt_cpu.get_time(),pt_cp.get_time()};
+            MPI_Send(buff.data(), 4,MPI_DOUBLE,0,0,MPI_COMM_WORLD);   
         }
         MPI_Barrier(MPI_COMM_WORLD);
         vector<double> buff = {vt.get_time(),ps,cm};
@@ -832,7 +836,7 @@ int main(int argc, char *argv[]){
                 ps += buff[1];
                 cm += buff[2];
             }
-            printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps,cm/1024.0);
+            printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB, Queries: %d\n",total_vt,ps,cm/1024.0,l);
         }
         
     }else{
