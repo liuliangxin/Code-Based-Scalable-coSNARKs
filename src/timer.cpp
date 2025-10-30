@@ -38,3 +38,6 @@ void timer::end(){
 double timer::get_time(){
     return time;
 }
+void timer::reset(){
+    time = 0.0;
+}

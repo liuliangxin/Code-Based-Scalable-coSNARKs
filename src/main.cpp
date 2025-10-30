@@ -790,8 +790,7 @@ int main(int argc, char *argv[]){
         }
     }else if(benchmark == 1){
         // test PCS
-        int threshold = atoi(argv[3]);
-        rate = atoi(argv[4]);
+        rate = atoi(argv[3]);
         
 
         vector<F> codeword,row_data,R_shares,coefficients;
@@ -804,8 +803,9 @@ int main(int argc, char *argv[]){
         dummy_setup(R_shares, mask_shares, N, M, k, _k, l);
         prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, l);
         secret_share_coefficients(coefficients, M, N, _k, k);
-        MPI_Barrier(MPI_COMM_WORLD);
         
+        MPI_Barrier(MPI_COMM_WORLD);
+        pt_cp.reset();
         
         pt.start();
         commit(codeword, row_data,coefficients, R_shares, C, l, k, _k, N);

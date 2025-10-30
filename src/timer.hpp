@@ -26,5 +26,6 @@ public:
     ~timer();
     void start();
     void end();
+    void reset();
     double get_time();
 };

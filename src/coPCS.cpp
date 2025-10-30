@@ -9,7 +9,9 @@ extern double cm;
 void distributed_MT(vector<F> &data, MT &Com, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    pt_cp.start();
     merkle_tree::merkle_tree_prover::MT_commit_Blake(data.data(),Com.Base_MT, data.size());
+    pt_cp.end();
     if(rank != 0){
         
         MPI_Send(Com.Base_MT[Com.Base_MT.size()-1][0].arr,32,MPI_UINT8_T,0,0,MPI_COMM_WORLD);
