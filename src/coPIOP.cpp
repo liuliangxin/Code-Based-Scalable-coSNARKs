@@ -16,6 +16,7 @@ vector<vector<pair<int,int>>> tA,tB,tC;
 int logm,logn;
 bool bit_method = false;
 int index_rate = 4;
+bool data_parallel = false;
 extern double ps_plain; 
 double cm = 0.0;
 int gate_ctr = 0;
@@ -863,9 +864,11 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,ps);
     
     //return;
-    sparse_matrix_evaluation(claims2[1].first,a,b,c,
+    if(!data_parallel){
+        sparse_matrix_evaluation(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,N,ps);
-    open_index(index_data,index_codeword, index_Com, N,ps);
+        open_index(index_data,index_codeword, index_Com, N,ps);
+    }
     open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps);
     pt.end();
     pt_cpu.end();

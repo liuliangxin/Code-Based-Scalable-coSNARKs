@@ -30,6 +30,7 @@ extern vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<vector<pair<int,int>>> tA,tB,tC;
 extern int logm,logn;
 extern int rate;
+extern bool data_parallel;
 
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
@@ -780,10 +781,15 @@ int main(int argc, char *argv[]){
     //test_sparse_eval(N, M,1);
     
     if(benchmark == 0){
-        coPIOP_prove(M, N, _k, k,0);
+        int cir = atoi(argv[3]);
+        if(cir <= 1){
+            coPIOP_prove(M, N, _k, k,cir);
+        }else{
+            data_parallel = true;
+            coPIOP_prove(M, N, _k, k,1);
+        }
     }else if(benchmark == 1){
         // test PCS
-        
         int threshold = atoi(argv[3]);
         rate = atoi(argv[4]);
         
@@ -799,8 +805,8 @@ int main(int argc, char *argv[]){
         prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, M, k, _k, l);
         secret_share_coefficients(coefficients, M, N, _k, k);
         MPI_Barrier(MPI_COMM_WORLD);
-
-
+        
+        
         pt.start();
         commit(codeword, row_data,coefficients, R_shares, C, l, k, _k, N);
         pt.end();
