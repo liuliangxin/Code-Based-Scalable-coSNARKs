@@ -891,11 +891,17 @@ int main(int argc, char *argv[]){
         }else{
             pt.start();
             if(rank == 0){
+                vector<MPI_Request> req(N-1);
                 for(int i = 1; i < N; i++){
-                    MPI_Recv(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                    MPI_Irecv(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
                 }
+                for(int i = 1; i < N; i++){
+                    MPI_Wait(&req[i-1],MPI_STATUS_IGNORE);
+                }
+            
             }else{
-                MPI_Send(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+                MPI_Request req;
+                MPI_Isend(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
             }
             pt.end();
             printf("%lf\n",pt.get_time());
