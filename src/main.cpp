@@ -32,8 +32,9 @@ extern int logm,logn;
 extern int rate;
 extern bool data_parallel;
 extern int cosumcheck_offset = 0;
-extern int sumcheck_offset = 7;
-extern int PC_offset = 7;
+extern int sumcheck_offset = 10;
+extern int PC_offset = 10;
+extern int com_rounds;
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
     vector<vector<F>> data(M/k);
@@ -916,13 +917,20 @@ int main(int argc, char *argv[]){
         }
         vector<F> r = generate_randomness((int)log2(M));
         F y  = evaluate_vector(poly,r);
-        vector<F> arr(2*M/N);
-        for(int i = 0; i < 2*M/N; i++){
-            arr[i] = 2*rank*M/N + i;
+        vector<F> arr(M/N);
+        for(int i = 0; i < M/N; i++){
+            arr[i] = rank*M/N + i;
         }
         MT Com; 
         plaintext_commit(arr,codeword,row_data,Com,N/2,N);
+        vector<F> r1,r2,b1,b2;
+        for(int i = 0; i < (int)log2(N/2); i++) r2.push_back(r[i]);
+        for(int i = (int)log2(N/2); i < r.size(); i++) r1.push_back(r[i]);
+        precompute_beta(r1,b1);
+        precompute_beta(r2,b2);
         
+        open_plaintext(codeword,row_data,b1,b2,Com,y,500,N/2,N,ps,false);
+        printf(">>> Rounds: %d\n",com_rounds);
     }
     
     // ==================================================== //

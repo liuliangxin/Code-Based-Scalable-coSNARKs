@@ -10,6 +10,7 @@ vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<int> real_idx_dim;
 extern int logm,logn;
 extern int com_rounds;
+extern int sumcheck_offset;
 quadratic_poly aggregate_poly(quadratic_poly H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -77,9 +78,11 @@ cubic_poly aggregate_poly(cubic_poly H, int N, vector<F> &v){
 
 
 vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2, int N){
-	int offset = 4;
+	//int offset = 4;
     //vector<F> r = generate_randomness(int(log2(v1.size())));
-	int rounds = int(log2(v1.size()))-offset;
+	int offset = sumcheck_offset;
+    
+    int rounds = int(log2(v1.size()))-offset;
 	int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     com_rounds+=2;
@@ -188,10 +191,10 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
 	int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     com_rounds+=2;
-    
-    int offset = 4;
+    int offset = sumcheck_offset;
+    //int offset = 4;
     //vector<F> r = generate_randomness(int(log2(v1.size())));
-	int rounds = int(log2(v1.size()))-offset;
+    int rounds = int(log2(v1.size()))-offset;
 	F rand;
 	vector<F> r;
 	if(rounds > 0){
@@ -433,7 +436,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         pt_cp.end();
     
         vector<pair<F,vector<F>>> claims = _cubic_sumcheck(sum,in1[i], in2[i],beta2, beta1, N );	
-        
+    
         pt_cp.start();
     
         F new_rand = hash_to_field(claims[0].second);
