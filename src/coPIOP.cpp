@@ -836,6 +836,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     
 
     MPI_Barrier(MPI_COMM_WORLD);
+    pt_cp.reset();
     pt.start();
     pt_cpu.start();
     commit(codeword, row_data, witness, r_witness, Com, 500, k, _k, N);

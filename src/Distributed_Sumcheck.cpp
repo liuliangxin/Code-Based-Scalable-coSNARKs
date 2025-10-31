@@ -498,7 +498,7 @@ pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> 
     }
     vector<F> r = claim.second[0];
     r.insert(r.end(),claim.second[1].begin(),claim.second[1].end());
-    evals = batch_distributed_eval_opt(input, r, claim.second[2], N);
+    //evals = batch_distributed_eval_opt(input, r, claim.second[2], N);
     
     return claim;
 
@@ -977,10 +977,9 @@ pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &
             printf("ERROR\n");
         }*/
         for(int i = 0; i < Tr_evals.size(); i++){
-            
-            if(Tr_evals[i] != debug_evals[order[i]]){
-                printf("error %d ,%d, %d\n",i,order[i],Tr[order[i]].size());
-            }
+            //if(Tr_evals[i] != debug_evals[order[i]]){
+            //    printf("error %d ,%d, %d\n",i,order[i],Tr[order[i]].size());
+            //}
         }
         
         //if(evaluate_vector(Tr_evals,claims.second[1]) != claims.first){
