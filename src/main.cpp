@@ -34,6 +34,7 @@ extern bool data_parallel;
 extern int cosumcheck_offset = 0;
 extern int sumcheck_offset = 10;
 extern int PC_offset = 10;
+extern int multree_offset = 4;
 extern int com_rounds;
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){

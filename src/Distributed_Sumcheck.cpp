@@ -11,6 +11,7 @@ extern vector<int> real_idx_dim;
 extern int logm,logn;
 extern int com_rounds;
 extern int sumcheck_offset;
+extern int multree_offset;
 quadratic_poly aggregate_poly(quadratic_poly H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -307,7 +308,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     pt_cp.start();
     
     int vectors = input.size();
-	int depth = (int)log2(next_pow2(input[0].size()));
+	int depth = (int)log2(next_pow2(input[0].size()))-multree_offset;
 	int size = input[0].size();
 	for(int i = 0; i < input.size(); i++){
 		if(input[i].size() != size){
@@ -376,37 +377,53 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     com_rounds+=2;
     
     if(rank == 0){
-        vector<vector<F>> local_input(transcript[depth-1].size());
+        int ctr = 0;
+        vector<vector<F>> local_input(vectors);
         for(int i = 0; i < local_input.size(); i++){
-            local_input[i].resize(N);
-            local_input[i][0] = transcript[depth-1][i];
+            local_input[i].resize(N*(transcript[depth-1].size())/vectors);
+            for(int j = 0; j  < transcript[depth-1].size()/vectors; j++) local_input[i][j] = transcript[depth-1][ctr++];
+            
+            //local_input[i][0] = transcript[depth-1][i];
         }
         buff.resize(2*transcript[depth-1].size());
+        vector<F> _buff;
         for(int i = 1; i < N; i++){
+            ctr = 0;
             MPI_Recv(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            for(int j = 0; j < buff.size()/2; j++){
-                local_input[j][i].real = buff[2*j];
-                local_input[j][i].img = buff[2*j+1];
+            field_vector_deserialize(buff,_buff);
+            for(int j = 0; j < vectors; j++){
+                for(int k = 0; k < _buff.size()/vectors; k++){
+                    //if(j == 0) printf("%d,%d\n",i*_buff.size()/vectors + k,vectors);
+                    local_input[j][i*_buff.size()/vectors + k] = _buff[ctr++];
+                }
             }
+            //for(int j = 0; j < buff.size()/2; j++){
+            //    local_input[j][i].real = buff[2*j];
+            //    local_input[j][i].img = buff[2*j+1];
+            //}
         }
+        
         pt_cp.start();
+
         eval_claim = prove_multiplication_tree_new(local_input, output, F(0),y, {});
         buff_reply.push_back(eval_claim.first);
+        
         buff_reply.insert(buff_reply.end(),eval_claim.second.begin(),eval_claim.second.end());
         
         field_vector_serialize(buff_reply,buff);   
+
         pt_cp.end();
-                
+          
     }else{
     
         field_vector_serialize(transcript[depth-1],buff);
         cm += 8*buff.size()/1024.0;
         MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff.clear();buff.resize(2*(1 + log2(N*transcript[depth-1].size())));
+        
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     //printf("%d ?? %d\n",rank,buff.size());
-    
     MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff,buff_reply);
@@ -421,10 +438,13 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
 	F sum = eval_claim.first;//evaluate_vector(transcript[depth-1],r);
     r = eval_claim.second;
     vector<F> r1,r2;
-    for(int i = 0; i < (int)log2(N); i++){
+    for(int i = 0; i < multree_offset; i++){
+        r2.push_back(r[i]);
+    }
+    for(int i = multree_offset; i < (int)log2(N)+multree_offset; i++){
         r1.push_back(r[i]);
     }
-    for(int  i = r1.size(); i < r.size(); i++){
+    for(int  i = multree_offset+ r1.size(); i < r.size(); i++){
         r2.push_back(r[i]);
     }
     for(int i = depth-1; i >= 0; i--){
