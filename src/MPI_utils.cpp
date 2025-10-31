@@ -11,6 +11,21 @@ extern double cm;
 extern timer pt_cp,vt;
 extern int com_rounds;
 
+void myBcast(vector<u64> &data, int N){
+      int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    MPI_Request req;
+    if(rank == 0){
+        for(int i = 1; i < N; i++){
+            MPI_Isend(data.data(),data.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req);
+        }
+    }else{
+        MPI_Irecv(data.data(),data.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+    }
+}
+
+
 F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -811,7 +826,8 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
         MPI_Send(buff.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
-    MPI_Bcast(buff.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff, N);
+    //MPI_Bcast(buff.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
     y.real = buff[0];
     y.img = buff[1];
     return y;
@@ -870,7 +886,8 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
         MPI_Send(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
     if(rank == 0) cm += (N-1)*8*Y_int.size()/1024.0;
-    MPI_Bcast(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(Y_int, N);
+    //MPI_Bcast(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(Y_int,Y);
     }
@@ -925,7 +942,8 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
         MPI_Send(buff.data(),2*poly.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
-    MPI_Bcast(buff.data(),2*poly.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff, N);
+    //MPI_Bcast(buff.data(),2*poly.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     field_vector_deserialize(buff,y);
     return y;
 }
@@ -971,7 +989,8 @@ vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vect
         MPI_Send(buff.data(),2*poly.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
-    MPI_Bcast(buff.data(),2*poly.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff, N);
+    //MPI_Bcast(buff.data(),2*poly.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     field_vector_deserialize(buff,y);
     return y;
 }

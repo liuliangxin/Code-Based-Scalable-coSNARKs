@@ -34,7 +34,9 @@ quadratic_poly aggregate_poly(quadratic_poly H, int N){
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }   
     if(rank == 0)cm += (N-1)*8*buff_u64.size()/1024.0;
-    MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff_u64, N);
+    
+    //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff_u64,buff);
         H = quadratic_poly(buff[0],buff[1],buff[2]);
@@ -69,7 +71,8 @@ cubic_poly aggregate_poly(cubic_poly H, int N, vector<F> &v){
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
-    MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff_u64, N);
+    //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff_u64,buff);
         H = cubic_poly(buff[0],buff[1],buff[2],buff[3]);
@@ -175,7 +178,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
         buff_u64.clear();buff_u64.resize(2*(2+offset+(int)log2(N))); 
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
-    MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff_u64, N);
+    //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
 	if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
     }
@@ -291,7 +295,9 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
     
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
-    MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff_u64, N);
+    
+    //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
 	if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
     }
@@ -424,7 +430,9 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     //printf("%d ?? %d\n",rank,buff.size());
-    MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    myBcast(buff, N);
+    
+    //MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff,buff_reply);
         eval_claim.first = buff_reply[0];
