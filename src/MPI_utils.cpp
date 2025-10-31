@@ -261,45 +261,57 @@ vector<F> zero_check_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
                                     F b, F y, int k, int _k, int N){
     
     pt_cp.start();
-    
-    fft(final_v1,(int)log2(final_v1.size()),true);
-    fft(final_v2,(int)log2(final_v2.size()),true);
-    fft(final_v3,(int)log2(final_v3.size()),true);
-    fft(h1,(int)log2(h1.size()),true);
-    fft(h2,(int)log2(h2.size()),true);
-    
+    vector<F> omegas;
     F omega = getRootOfUnity(1+(int)log2(N));
     omega = omega.inv();
     F mul = F(1);
-    for(int i = 0; i < final_v1.size(); i++){
-        final_v1[i] = mul*final_v1[i];
-        final_v2[i] = mul*final_v2[i];
-        final_v3[i] = mul*final_v3[i];
-        h1[i] = mul*h1[i];
-        h2[i] = mul*h2[i];
+    for(int i = 0; i  < N; i++){
+        omegas.push_back(mul);
         mul = mul*omega;
     }
+    
+    //for(int i = 0; i < final_v1.size(); i++){
+        fft(final_v1,(int)log2(final_v1.size()),true);
+        fft(final_v2,(int)log2(final_v2.size()),true);
+        fft(final_v3,(int)log2(final_v3.size()),true);
+        fft(h1,(int)log2(h1.size()),true);
+        fft(h2,(int)log2(h2.size()),true);
+        
+        for(int j = 0; j < final_v1.size(); j++){
+            final_v1[j] = omegas[j]*final_v1[j];
+            final_v2[j] = omegas[j]*final_v2[j];
+            final_v3[j] = omegas[j]*final_v3[j];
+            h1[j] = omegas[j]*h1[j];
+            h2[j] = omegas[j]*h2[j];
+        }
 
-    fft(final_v1,(int)log2(final_v1.size()),false);
-    fft(final_v2,(int)log2(final_v2.size()),false);
-    fft(final_v3,(int)log2(final_v3.size()),false);
-    fft(h1,(int)log2(h1.size()),false);
-    fft(h2,(int)log2(h2.size()),false);
+        fft(final_v1,(int)log2(final_v1.size()),false);
+        fft(final_v2,(int)log2(final_v2.size()),false);
+        fft(final_v3,(int)log2(final_v3.size()),false);
+        fft(h1,(int)log2(h1.size()),false);
+        fft(h2,(int)log2(h2.size()),false);
+    //}
     
 
     vector<F> v1(k),v2(k),v3(k);
     vector<F> r1(k),r2(k);
+    int ctr = 0;
+    //for(int j = 0; j < final_v1.size(); j++){
+        for(int i = 0; i < k; i++){
+            v1[ctr] = final_v1[N*i/_k];
+            v2[ctr] = final_v2[N*i/_k];
+            v3[ctr] = final_v3[N*i/_k];
+            r1[ctr] = h1[N*i/_k];
+            r2[ctr++] = h2[N*i/_k];
+        }
+    //}
     
-    for(int i = 0; i < k; i++){
-        v1[i] = final_v1[N*i/_k];
-        v2[i] = final_v2[N*i/_k];
-        v3[i] = final_v3[N*i/_k];
-        r1[i] = h1[N*i/_k];
-        r2[i] = h2[N*i/_k];
-    }
-    for(int i = 0; i < k; i++){
-        beta2[i] = beta2[i]*beta1[0];
-    }
+    beta2.resize(v1.size());
+    //for(int j = 0; j < final_v1.size(); j++){
+        for(int i = 0; i < k; i++) beta2[i] = beta2[i]*beta1[0];
+        
+    //}
+    
     int rounds = (int)log2(k);
     vector<F> challenges(rounds);
     for(int i = 0; i < rounds; i++){
@@ -552,31 +564,48 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
 }
 
 
-vector<pair<F,vector<F>>> F_zero_check_rest(F v1, F v2, F v3, F h1, F h2, 
+vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector<F> &v3,vector<F> &h1, vector<F> &h2, 
                                             vector<F> &beta1, vector<F> &beta2, 
                                             F b, F y, int k, int _k, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
-    vector<u64> buff_u64(10);
+    vector<u64> buff_u64(10*v1.size());
     vector<F> buff,ret;
     com_rounds+=2;
     
     if(rank == 0){
-        vector<F> final_v1(N),final_v2(N),final_v3(N),final_h1(N),final_h2(N);
-        final_v1[0] = v1;final_v2[0] = v2;final_v3[0] = v3;final_h1[0] = h1;final_h2[0] = h2;
-        for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),10,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
-            final_v1[i] = buff[0];final_v2[i] = buff[1];final_v3[i] = buff[2];final_h1[i] = buff[3];final_h2[i] = buff[4];
+        vector<vector<F>> final_v1(v1.size()),final_v2(v2.size()),final_v3(v3.size()),final_h1(h1.size()),final_h2(h2.size());
+        for(int i = 0; i < final_v1.size(); i++){
+            final_v1[i].resize(N);
+            final_v2[i].resize(N);
+            final_v3[i].resize(N);
+            final_h1[i].resize(N);
+            final_h2[i].resize(N);            
+            final_v1[i][0] = v1[i];final_v2[i][0] = v2[i];final_v3[i][0] = v3[i];final_h1[i][0] = h1[i];final_h2[i][0] = h2[i];
         }
-        ret = zero_check_sumcheck_local(final_v1, final_v2, final_v3, final_h1, final_h2, beta1, beta2, b, y, k, _k, N);
+        for(int i = 1; i < N; i++){
+            MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            field_vector_deserialize(buff_u64,buff);
+            for(int j = 0; j < v1.size(); j++){
+                final_v1[j][i] = buff[j];
+                final_v2[j][i] = buff[j + v1.size()];
+                final_v3[j][i] = buff[j + 2*v1.size()];
+                final_h1[j][i] = buff[j + 3*v1.size()];
+                final_h2[j][i] = buff[j + 4*v1.size()];
+            }
+        }
+        ret = zero_check_sumcheck_local(convert2vector(final_v1), convert2vector(final_v2), convert2vector(final_v3), convert2vector(final_h1), convert2vector(final_h2), beta1, beta2, b, y, k, _k, N);
         for(int i = 1; i < N; i++){
             field_vector_serialize(ret,buff_u64);
             cm += 8*buff_u64.size()/1024.0;
             MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         }
     }else{
-        buff = {v1,v2,v3,h1,h2};
+        buff = v1;
+        buff.insert(buff.end(),v2.begin(),v2.end());
+        buff.insert(buff.end(),v3.begin(),v3.end());
+        buff.insert(buff.end(),h1.begin(),h1.end());
+        buff.insert(buff.end(),h2.begin(),h2.end());
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);

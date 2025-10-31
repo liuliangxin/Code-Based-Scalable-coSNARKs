@@ -6,7 +6,7 @@
 extern int queries;
 extern timer pt,pt_cp,vt;
 extern timer_cpu pt_cpu;
-
+extern int cosumcheck_offset;
 
 
 cubic_poly _zero_check_sumcheck_phase1(int iter, F b,vector<F> &v1,vector<F> &v2, vector<F> &v3, vector<F> &beta1, vector<F> &r1, vector<F> &r2){
@@ -61,9 +61,7 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     h1[(1<<j)-1] = R1[j+1];
     h2[(1<<j)-1] = R2[j+1];
     
-    int rounds = (int)log2(M);
-    vector<F> challenges(rounds);
-
+    
     vector<F> _r1,_r2,beta1,beta2;
     
 
@@ -91,34 +89,59 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     if(rank == 0)vt.end();
     
     
-    
-    for(int i = 0; i < rounds; i++){
-        cubic_poly H;
-        pt_cp.start();
-        H = _zero_check_sumcheck_phase1(i, b,v1,v2, v3, beta1, h1, h2);
-        pt_cp.end();
+    int rounds = (int)log2(M)-cosumcheck_offset;
+    vector<F> final_v1,final_v2,final_v3,final_h1,final_h2;
+    vector<F> challenges;
 
-        H = aggregate_cubic_poly(H,beta2,k,_k,N);
+    if(rounds>0){
+
+        challenges.resize(rounds);        
+        for(int i = 0; i < rounds; i++){
+            cubic_poly H;
+            pt_cp.start();
+            H = _zero_check_sumcheck_phase1(i, b,v1,v2, v3, beta1, h1, h2);
+            pt_cp.end();
+
+            H = aggregate_cubic_poly(H,beta2,k,_k,N);
+            
+            if(rank == 0)vt.start();
         
-        if(rank == 0)vt.start();
-    
-        if(H.eval(0) + H.eval(1) != y){
-            printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
-            //exit(-1);
+            if(H.eval(0) + H.eval(1) != y){
+                printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
+                //exit(-1);
+            }
+            pt_cp.start();
+            
+            challenges[i] = hash_to_field({H.a,H.b,H.c,H.d}); 
+            if(rank == 0) ps += 4*16/1024.0;
+            y = H.eval(challenges[i]);
+            if(rank == 0)vt.end();
+            _zero_check_sumcheck_phase2(i, challenges[i],v1,v2, v3, beta1, h1, h2);
+            pt_cp.end();
+            
         }
-        pt_cp.start();
-        
-        challenges[i] = hash_to_field({H.a,H.b,H.c,H.d}); 
-        if(rank == 0) ps += 4*16/1024.0;
-        y = H.eval(challenges[i]);
-        if(rank == 0)vt.end();
-        _zero_check_sumcheck_phase2(i, challenges[i],v1,v2, v3, beta1, h1, h2);
-        pt_cp.end();
-        
+        final_v1.resize(1<<cosumcheck_offset);
+        final_v2.resize(1<<cosumcheck_offset);
+        final_v3.resize(1<<cosumcheck_offset);
+        final_h1.resize(1<<cosumcheck_offset);
+        final_h2.resize(1<<cosumcheck_offset);
+        for(int i = 0; i < 1<<cosumcheck_offset; i++){
+            final_v1[i] = v1[i];
+            final_v2[i] = v2[i];
+            final_v3[i] = v3[i];
+            final_h1[i] = h1[i];
+            final_h2[i] = h2[i];
+        }
+
+    }else{
+        final_v1 = v1;
+        final_v2 = v2;
+        final_v3 = v3;
+        final_h1 = h1;
+        final_h2 = h2;        
     }
     
-    
-    vector<pair<F,vector<F>>> reply = F_zero_check_rest(v1[0], v2[0], v3[0], h1[0], h2[0], beta1, beta2, b, y, k, _k, N);
+    vector<pair<F,vector<F>>> reply = F_zero_check_rest(final_v1, final_v2, final_v3, final_h1, final_h2, beta1, beta2, b, y, k, _k, N);
     if(rank == 0) ps += 16*(4*(int)log2(N)+5)/1024.0;
         
     for(int i = 0; i < 4; i++){

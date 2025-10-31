@@ -13,7 +13,7 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
 quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, int _k, int N);
 cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N);
 
-vector<pair<F,vector<F>>> F_zero_check_rest(F v1, F v2, F v3, F h1, F h2, 
+vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector<F> &v3,vector<F> &h1, vector<F> &h2, 
                                             vector<F> &beta1, vector<F> &beta2, 
                                             F b, F y, int k, int _k, int N);
 quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N);

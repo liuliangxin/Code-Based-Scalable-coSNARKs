@@ -845,6 +845,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     
 
     MPI_Barrier(MPI_COMM_WORLD);
+    com_rounds = 0;
     pt_cp.reset();
     pt.start();
     pt_cpu.start();
@@ -867,22 +868,22 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     temp_pc.end();
-    if(rank == 0)printf("Phase 1: %lf\n",temp_pc.get_time());temp_pc.reset();
+    if(rank == 0)printf("Phase 1: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     temp_pc.start();
     vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, ps);
     temp_pc.end();
-    if(rank == 0)printf("Phase 2: %lf\n",temp_pc.get_time());temp_pc.reset();
+    if(rank == 0)printf("Phase 2: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     F a,b,c;
     temp_pc.start();
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c, ps);
     temp_pc.end();
-    if(rank == 0)printf("Phase 3: %lf\n",temp_pc.get_time());temp_pc.reset();
+    if(rank == 0)printf("Phase 3: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     
     
     temp_pc.start();
     aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,ps);
     temp_pc.end();
-    if(rank == 0)printf("Phase 4: %lf\n",temp_pc.get_time());temp_pc.reset();
+    if(rank == 0)printf("Phase 4: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     
     //return;
     if(!data_parallel){
@@ -901,7 +902,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     temp_pc.start();
     open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps);
     temp_pc.end();
-    if(rank == 0)printf("Phase 7: %lf\n",temp_pc.get_time());temp_pc.reset();
+    if(rank == 0)printf("Phase 7: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     pt.end();
     pt_cpu.end();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -910,7 +911,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
         printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf, Vt: %lf\n", rank, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time(),vt.get_time());
         for(int i = 1; i < N; i++){
             MPI_Recv(buff.data(), 3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf\n", i, pt.get_time(),pt_cpu.get_time(),pt_cp.get_time());
+            printf("Id : %d, Pt: %lf, CPU Only Pt: %lf, Computation only: %lf\n", i, buff[0],buff[1],buff[2]);
         }    
     }else{
         vector<double> buff = {pt.get_time(),pt_cpu.get_time(),pt_cp.get_time()};

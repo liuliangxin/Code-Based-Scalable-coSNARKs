@@ -31,7 +31,9 @@ extern vector<vector<pair<int,int>>> tA,tB,tC;
 extern int logm,logn;
 extern int rate;
 extern bool data_parallel;
-
+extern int cosumcheck_offset = 0;
+extern int sumcheck_offset = 7;
+extern int PC_offset = 7;
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
     vector<vector<F>> data(M/k);
@@ -873,7 +875,7 @@ int main(int argc, char *argv[]){
 
         }
         //printf("Incorrect Benchmark\n");
-    }else{
+    }else if(benchmark == 3){
         vector<u64> buff64(2048),recv_buff(N*2048);
         
         vector<F> buff;
@@ -907,6 +909,20 @@ int main(int argc, char *argv[]){
             printf("%lf\n",pt.get_time());
 
         }
+    }else{
+        vector<F> poly(M);
+        for(int i = 0; i < poly.size(); i++){
+            poly[i] = F(i);
+        }
+        vector<F> r = generate_randomness((int)log2(M));
+        F y  = evaluate_vector(poly,r);
+        vector<F> arr(2*M/N);
+        for(int i = 0; i < 2*M/N; i++){
+            arr[i] = 2*rank*M/N + i;
+        }
+        MT Com; 
+        plaintext_commit(arr,codeword,row_data,Com,N/2,N);
+        
     }
     
     // ==================================================== //
