@@ -845,8 +845,60 @@ int main(int argc, char *argv[]){
             printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB, Queries: %d\n",total_vt,ps,cm/1024.0,l);
         }
         
-    }else{
+    }else if(benchmark == 2){
+        vector<u64> buff64(2048);
+        vector<F> buff;
+        if(rank == 0){
+            buff = generate_randomness(1024);
+            field_vector_serialize(buff,buff64);
+        }
+        if(M == 1){
+            pt.start();
+            MPI_Bcast(buff64.data(),buff64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+            pt.end();
+            printf("%lf\n",pt.get_time());
+        }else{
+            pt.start();
+            if(rank == 0){
+                for(int i = 1; i < N; i++){
+                    MPI_Send(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+                }
+            }else{
+                MPI_Recv(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            }
+            pt.end();
+            printf("%lf\n",pt.get_time());
+
+        }
         printf("Incorrect Benchmark\n");
+    }else{
+        vector<u64> buff64(2048),recv_buff(N*2048);
+        
+        vector<F> buff;
+        buff = generate_randomness(1024);
+        field_vector_serialize(buff,buff64);
+        if(M == 1){
+            pt.start();
+            
+            MPI_Gather(buff64.data(), buff64.size(), MPI_UINT64_T,
+               recv_buff.data(), buff64.size(), MPI_UINT64_T, 0,
+               MPI_COMM_WORLD);
+
+            pt.end();
+            printf("%lf\n",pt.get_time());
+        }else{
+            pt.start();
+            if(rank == 0){
+                for(int i = 1; i < N; i++){
+                    MPI_Recv(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                }
+            }else{
+                MPI_Send(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+            }
+            pt.end();
+            printf("%lf\n",pt.get_time());
+
+        }
     }
     
     // ==================================================== //
