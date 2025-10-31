@@ -9,6 +9,7 @@
 #include "coPCS.h"
 #include "Distributed_Sumcheck.h"
 #include "timer.hpp"
+int com_rounds = 0;
 // R1CS matrixes
 vector<vector<pair<int, int>>> A,B,C;
 // Transposed R1CS matrixes
@@ -241,7 +242,7 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
     }
     vector<u64> buff_u64(2);
     pt_cp.end();
-    
+    com_rounds++;
     if(rank == 0){
         vector<F> Y(N);
         Y[0] = y;
@@ -272,6 +273,7 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
         MPI_Send(buff_u64.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
+    com_rounds++;
     MPI_Bcast(buff_u64.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
     
     pt_cp.start();
@@ -927,7 +929,9 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
             cm += buff[2];
         }
         printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps+ps_plain,cm/1024.0);
+        printf("Interaction Rounds: %d\n",com_rounds);
     }
+    
 }
 
 

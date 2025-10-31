@@ -9,11 +9,14 @@ extern double cm;
 vector<vector<pair<int, int>>> pA,pB,pC;
 extern vector<int> real_idx_dim;
 extern int logm,logn;
+extern int com_rounds;
 quadratic_poly aggregate_poly(quadratic_poly H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<F> buff; 
     vector<u64> buff_u64(6);
+    com_rounds+=2;
+    
     if(rank == 0){
         for(int i = 1; i < N; i++){
             MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
@@ -43,6 +46,7 @@ cubic_poly aggregate_poly(cubic_poly H, int N, vector<F> &v){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<F> buff; 
     vector<u64> buff_u64(8);
+    com_rounds+=2;
     if(rank == 0){
         H.a  = v[0]*H.a;
         H.b  = v[0]*H.b;
@@ -78,6 +82,7 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 	int rounds = int(log2(v1.size()))-offset;
 	int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    com_rounds+=2;
     
     F rand;
 	vector<F> r;
@@ -182,6 +187,7 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vector<F> &v3, vector<F> &v, int N){
 	int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    com_rounds+=2;
     
     int offset = 4;
     //vector<F> r = generate_randomness(int(log2(v1.size())));
@@ -364,6 +370,8 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     pair<F,vector<F>> eval_claim;
     vector<F> buff_reply;
     pt_cp.end();
+    com_rounds+=2;
+    
     if(rank == 0){
         vector<vector<F>> local_input(transcript[depth-1].size());
         for(int i = 0; i < local_input.size(); i++){
@@ -576,6 +584,8 @@ void secret_share_vector(vector<F> &v, int _k, int k, int N){
     buff_recv_u64.resize(buff_u64.size(),(0));
     pt_cp.end();
     cm += 8*buff_u64.size()/1024.0;
+    com_rounds++;
+    
     MPI_Alltoall(buff_u64.data(),buff_u64.size()/N,MPI_UINT64_T,buff_recv_u64.data(),buff_u64.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
     
     pt_cp.start();

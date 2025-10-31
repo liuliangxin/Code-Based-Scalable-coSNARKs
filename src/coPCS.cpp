@@ -5,6 +5,7 @@
 extern int rate;
 extern timer pt_cp,vt;
 extern double cm;
+extern int com_rounds;
 
 void distributed_MT(vector<F> &data, MT &Com, int N){
     int rank;
@@ -12,6 +13,7 @@ void distributed_MT(vector<F> &data, MT &Com, int N){
     pt_cp.start();
     merkle_tree::merkle_tree_prover::MT_commit_Blake(data.data(),Com.Base_MT, data.size());
     pt_cp.end();
+    com_rounds++;
     if(rank != 0){
         
         MPI_Send(Com.Base_MT[Com.Base_MT.size()-1][0].arr,32,MPI_UINT8_T,0,0,MPI_COMM_WORLD);
@@ -197,6 +199,7 @@ void encode(vector<F> &codeword, vector<F> &row_data, vector<vector<F>> &data, v
     field_vector_serialize(shares_v,send_buff);
     recv_buff.resize(send_buff.size());
     cm += 8*send_buff.size()/1024.0;        
+    com_rounds++;
     MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
 
     field_vector_deserialize(recv_buff,row);
@@ -262,6 +265,7 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     recv_buff.resize(send_buff.size());
     pt_cp.end();
     cm += 8*send_buff.size()/1024.0;        
+    com_rounds++;
     MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
     pt_cp.start();
     
@@ -549,6 +553,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
                                  challenges, aggr_challenges, Com, eval_MT, ps);
 
     // Send the final codeword to P0
+    com_rounds++;
     if(rank != 0){
         vector<u64> buff;
         field_vector_serialize(codeword,buff);
@@ -693,6 +698,8 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
 
 
     // Send the final codeword to P0
+    com_rounds++;
+    
     if(rank != 0){
         vector<u64> buff;
         field_vector_serialize(codeword,buff);
