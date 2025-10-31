@@ -859,12 +859,14 @@ int main(int argc, char *argv[]){
             printf("%lf\n",pt.get_time());
         }else{
             pt.start();
+            MPI_Request req;
             if(rank == 0){
                 for(int i = 1; i < N; i++){
-                    MPI_Send(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+                    MPI_Isend(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req);
                 }
             }else{
-                MPI_Recv(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                MPI_Irecv(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+                MPI_Wait(&req,MPI_STATUS_IGNORE);
             }
             pt.end();
             printf("%lf\n",pt.get_time());
