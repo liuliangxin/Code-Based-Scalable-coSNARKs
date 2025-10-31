@@ -870,7 +870,7 @@ int main(int argc, char *argv[]){
             printf("%lf\n",pt.get_time());
 
         }
-        printf("Incorrect Benchmark\n");
+        //printf("Incorrect Benchmark\n");
     }else{
         vector<u64> buff64(2048),recv_buff(N*2048);
         
