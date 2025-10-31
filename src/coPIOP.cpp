@@ -598,7 +598,14 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 
     commit_sparse_eval_witness(beta1, beta2, codeword , row_data, Com, N/2,  N);
     //pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
+    timer sparse_eval_timer;
+    sparse_eval_timer.start();
     pair<F,vector<F>> claim = _prove_sparse_eval_opt(y, a, b, c, beta1, beta2, index,r1,r2, N);
+    sparse_eval_timer.end();
+    
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    if(rank == 0) printf("Phase 5.1: %lf\n",sparse_eval_timer.get_time());
 
     open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps);
 }
