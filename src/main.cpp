@@ -787,6 +787,12 @@ int main(int argc, char *argv[]){
     if(benchmark == 0){
         int cir = atoi(argv[3]);
         if(cir <= 1){
+            if(argc > 4){
+                sumcheck_offset = atoi(argv[4]);
+                PC_offset = atoi(argv[5]);
+                multree_offset = atoi(argv[6]);
+            }
+
             coPIOP_prove(M, N, _k, k,cir);
         }else{
             data_parallel = true;

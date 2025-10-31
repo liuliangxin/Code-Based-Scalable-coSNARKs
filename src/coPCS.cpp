@@ -312,11 +312,14 @@ void step2(F a, F b, int rnd, vector<F> &beta, vector<F> &data, vector<F> &codew
     }
     
     RS_fold(codeword,a);
-    distributed_MT(codeword,Hashes,N);
+    merkle_tree::merkle_tree_prover::MT_commit_Blake(codeword.data(),Hashes.Base_MT, codeword.size());
+    // Distributed MT is not needed her. It will be done in the next sumcheck round to save some synch rounds
+    //distributed_MT(codeword,Hashes,N);
     for(int i = 0; i < data.size()/(1ULL<<(rnd+1)); i++){
         data[i] = data[2*i] + a*(data[2*i+1]-data[2*i]);
         beta[i] = beta[2*i] + a*(beta[2*i+1]-beta[2*i]);
-    }    
+    }
+        
 }
 
 
