@@ -66,17 +66,20 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
         f_element[1] = sum.img;
         pt_cp.end();
     
-        for(int i = 1; i < N; i++){
-            cm += 8*f_element.size()/1024.0;
-            MPI_Send(f_element.data(), 2,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }
+        //for(int i = 1; i < N; i++){
+        //    cm += 8*f_element.size()/1024.0;
+        //    MPI_Send(f_element.data(), 2,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}
 
     }else{
         f_element[0] = y.real;
         f_element[1] = y.img;
         cm += 8*f_element.size()/1024.0;
         MPI_Send(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
-        MPI_Recv(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //MPI_Recv(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    }
+    myBcast(f_element,N);
+    if(rank != 0){
         sum.real = f_element[0];
         sum.img = f_element[1];
     }
@@ -123,17 +126,20 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
         f_element[1] = sum.img;
         pt_cp.end();
     
-        for(int i = 1; i < N; i++){
-            cm += 8*f_element.size()/1024.0;
-            MPI_Send(f_element.data(), 2,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }
+        //for(int i = 1; i < N; i++){
+        //    cm += 8*f_element.size()/1024.0;
+        //    MPI_Send(f_element.data(), 2,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}
 
     }else{
         f_element[0] = y.real;
         f_element[1] = y.img;
         cm += 8*f_element.size()/1024.0;
         MPI_Send(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
-        MPI_Recv(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //MPI_Recv(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    }
+    myBcast(f_element,N);
+    if(rank != 0){
         sum.real = f_element[0];
         sum.img = f_element[1];
     }
@@ -186,18 +192,21 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
         field_vector_serialize(coef,coef_u);
         pt_cp.end();
     
-        for(int i = 1; i < N; i++){
-            cm += 8*coef_u.size()/1024.0;
-            MPI_Send(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }        
+        //for(int i = 1; i < N; i++){
+        //    cm += 8*coef_u.size()/1024.0;
+        //    MPI_Send(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}        
     }else{
         cm += 8*coef_u.size()/1024.0;
         MPI_Send(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
-        MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //a = coef[0];b = coef[1];c = coef[2]; 
+    }
+    myBcast(coef_u,N);
+    if(rank != 0){
         field_vector_deserialize(coef_u,coef);
         a = coef[0];b = coef[1];c = coef[2]; 
-    }
-
+    } 
     H = quadratic_poly(a,b,c);
     return H;
 }
@@ -249,20 +258,19 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
         
         field_vector_serialize(coef,coef_u);
         pt_cp.end();
-        for(int i = 1; i < N; i++){
-            cm += 8*coef_u.size()/1024.0;
-            MPI_Send(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }        
+        //for(int i = 1; i < N; i++){
+            //cm += 8*coef_u.size()/1024.0;
+            //MPI_Send(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}        
     }else{
         cm += 8*coef_u.size()/1024.0;
         MPI_Send(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
-        MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-        pt_cp.start();
-    
+        //MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    }
+    myBcast(coef_u,N);
+    if(rank != 0){
         field_vector_deserialize(coef_u,coef);
         a = coef[0];b = coef[1];c = coef[2]; 
-        pt_cp.end();
-    
     }
 
     H = quadratic_poly(a,b,c);
@@ -610,11 +618,11 @@ vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector
             }
         }
         ret = zero_check_sumcheck_local(convert2vector(final_v1), convert2vector(final_v2), convert2vector(final_v3), convert2vector(final_h1), convert2vector(final_h2), beta1, beta2, b, y, k, _k, N);
-        for(int i = 1; i < N; i++){
-            field_vector_serialize(ret,buff_u64);
-            cm += 8*buff_u64.size()/1024.0;
-            MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }
+        //for(int i = 1; i < N; i++){
+        field_vector_serialize(ret,buff_u64);
+            //cm += 8*buff_u64.size()/1024.0;
+            //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}
     }else{
         buff = v1;
         buff.insert(buff.end(),v2.begin(),v2.end());
@@ -625,7 +633,10 @@ vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector
         cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(6+(int)log2(k)));
-        MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    }
+    myBcast(buff_u64,N);
+    if(rank != 0){
         field_vector_deserialize(buff_u64,ret);        
     }
     vector<F> r;
@@ -650,18 +661,22 @@ vector<pair<F,vector<F>>> F_batch_sumcheck_rest(F v1, F v2, F v3, F v4, F h1, F 
             final_v1[i] = buff[0];final_v2[i] = buff[1];final_v3[i] = buff[2];final_v4[i] = buff[3];final_h1[i] = buff[4];final_h2[i] = buff[5];
         }
         ret = batch_sumcheck_local(final_v1, final_v2, final_v3, final_v4, final_h1, final_h2, b, y, k, _k, N);
-        for(int i = 1; i < N; i++){
-            field_vector_serialize(ret,buff_u64);
-            cm += 8*buff_u64.size()/1024.0;
-            MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }
+        field_vector_serialize(ret,buff_u64);
+            
+        //for(int i = 1; i < N; i++){
+        //    cm += 8*buff_u64.size()/1024.0;
+        //    MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}
     }else{
         buff = {v1,v2,v3,v4,h1,h2};
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(6+(int)log2(k)));
-        MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    }
+    myBcast(buff_u64,N);
+    if(rank != 0){
         field_vector_deserialize(buff_u64,ret);        
     }
     vector<F> r;
@@ -686,19 +701,23 @@ vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int 
             final_v1[i] = buff[0];final_v2[i] = buff[1];
         }
         ret = quadratic_sumcheck_local(final_v1, final_v2, y, k, _k, N);
-        for(int i = 1; i < N; i++){
-            field_vector_serialize(ret,buff_u64);
-            cm += 8*buff_u64.size()/1024.0;
-            MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }
+        //for(int i = 1; i < N; i++){
+        field_vector_serialize(ret,buff_u64);
+            //cm += 8*buff_u64.size()/1024.0;
+            //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}
     }else{
         buff = {v1,v2};
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
         MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(2+(int)log2(k)));
-        MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-        field_vector_deserialize(buff_u64,ret);        
+        //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //field_vector_deserialize(buff_u64,ret);        
+    }
+    myBcast(buff_u64,N);
+    if(rank != 0){
+        field_vector_deserialize(buff_u64,ret);                
     }
     vector<F> r;
     for(int i = 2; i < ret.size(); i++) r.push_back(ret[i]); 
@@ -774,19 +793,24 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
         field_vector_serialize(coef,coef_u);
         pt_cp.end();
     
-        for(int i = 1; i < N; i++){
-            cm += 8*coef_u.size()/1024.0;
-            MPI_Send(coef_u.data(),8,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
-        }       
+        //for(int i = 1; i < N; i++){
+            //cm += 8*coef_u.size()/1024.0;
+            //MPI_Send(coef_u.data(),8,MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        //}       
          
     }else{
         cm += 8*coef_u.size()/1024.0;
         MPI_Send(coef_u.data(),8,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
-        MPI_Recv(coef_u.data(),8,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //MPI_Recv(coef_u.data(),8,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //field_vector_deserialize(coef_u,coef);
+        //a = coef[0];b = coef[1];c = coef[2];d = coef[3]; 
+    }
+    myBcast(coef_u,N);
+    if(rank != 0){
         field_vector_deserialize(coef_u,coef);
         a = coef[0];b = coef[1];c = coef[2];d = coef[3]; 
-    }
 
+    }
     return cubic_poly(a,b,c,d);
 }
 

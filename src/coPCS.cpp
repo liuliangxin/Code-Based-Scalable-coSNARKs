@@ -702,6 +702,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<F> &v1, vector<F> &v2,vector<F> &old_v2, vector<vector<u32>> &query_index,
                          F y, int l, int k, int N, double &ps, bool secret_shared, bool verify){
     
+    pt_cp.start();
     int rounds = (int)log2(row_data[0].size())-1;
     vector<vector<vector<F>>> folded_codewords(rounds);
     vector<vector<MT>> eval_MT(rounds);
@@ -712,7 +713,6 @@ void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector
         for(int j = 0; j < codeword.size(); j++){
             folded_codewords[i].push_back(codeword[j]);
         }
-        pt_cp.start();
         
         vector<F> dummy;
         vector<F> _a(N),_b(N),_c(N);
@@ -769,8 +769,8 @@ void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector
         for(int j = 0; j < row_data[0].size()/(1ULL<<(i+1)); j++){
             v1[j] = v1[2*j] + challenges[i]*(v1[2*j+1]-v1[2*j]);
         }
-        pt_cp.end();
     }
+    pt_cp.end();
     vector<vector<u32>> initial_query_index = query_index;
     vector<vector<vector<F>>> replies(rounds); 
     for(int i = 0; i < rounds; i++){
