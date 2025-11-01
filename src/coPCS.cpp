@@ -702,6 +702,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<F> &v1, vector<F> &v2,vector<F> &old_v2, vector<vector<u32>> &query_index,
                          F y, int l, int k, int N, double &ps, bool secret_shared, bool verify){
     
+    printf(">>>> %lf\n",pt_cp.get_time());
     pt_cp.start();
     int rounds = (int)log2(row_data[0].size())-1;
     vector<vector<vector<F>>> folded_codewords(rounds);
@@ -771,6 +772,8 @@ void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector
         }
     }
     pt_cp.end();
+    printf(">>>> %lf\n",pt_cp.get_time());
+    
     vector<vector<u32>> initial_query_index = query_index;
     vector<vector<vector<F>>> replies(rounds); 
     for(int i = 0; i < rounds; i++){

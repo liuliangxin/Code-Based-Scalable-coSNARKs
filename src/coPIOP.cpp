@@ -606,12 +606,14 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
     if(rank == 0) printf("      Phase 5.0 (Commit): %lf\n",sparse_eval_timer.get_time());
 
     //pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
+    sparse_eval_timer.reset();
     sparse_eval_timer.start();
     pair<F,vector<F>> claim = _prove_sparse_eval_opt(y, a, b, c, beta1, beta2, index,r1,r2, N);
     sparse_eval_timer.end();
     
     if(rank == 0) printf("      Phase 5.1 (Sumcheck): %lf\n",sparse_eval_timer.get_time());
 
+    sparse_eval_timer.reset();
     sparse_eval_timer.start();
     open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps);
     sparse_eval_timer.end();
@@ -726,6 +728,7 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     r1.clear();r2.clear();
     for(int i = 0; i < logk; i++) r2.push_back(claims[0].second[i]);
     for(int i = logk; i < claims[0].second.size(); i++) r1.push_back(claims[0].second[i]);
+    aggr_timer.reset();
     aggr_timer.start();
     v1.clear();v2.clear();precompute_beta(r1,v1);precompute_beta(r2,v2);
     
