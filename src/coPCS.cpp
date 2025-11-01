@@ -925,6 +925,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     
     int rounds = (int)log2(row_data.size())-1-PC_offset;
     if(rounds > 0){
+        if(rank == 0) printf("Rounds: %d, Size: %d",rounds,row_data.size()*N);
         vector<vector<F>> folded_codewords(rounds);
         vector<MT> eval_MT(rounds);
         vector<F> challenges(rounds);
@@ -983,6 +984,8 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         verify_queries(N,folded_codewords[0].size()/4,  initial_index, replies, {},
                                     challenges, {}, Com, eval_MT, ps,verify);
     }else{
+        if(rank == 0) printf("NO ROUNDS, Size: %d",rounds,row_data.size()*N);
+
         rounds = 0;
     }
     
