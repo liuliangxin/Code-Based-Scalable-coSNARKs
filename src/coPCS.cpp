@@ -860,24 +860,30 @@ void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector
 }
 
 void recv_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<vector<u32>> &query_index, int codeword_size, int size, int l, int N){
-    vector<u64> buff64(2*(codeword_size+size)+l+1); 
+    vector<vector<u64>> buff64(N-1);
+    for(int i = 0; i < N-1;i++) buff64[i].resize(2*(codeword_size+size)+l+1); 
     vector<u64> code_buff(2*codeword_size),row_buff(2*size);
+    printf("Data Recv: %ld\n",N*buff64.size());
+    vector<MPI_Request> stat(N-1);
     for(int i = 1; i < N; i++){
-        MPI_Recv(buff64.data(),buff64.size(),MPI_UINT64_T, i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        MPI_Irecv(buff64[i-1].data(),buff64[i-1].size(),MPI_UINT64_T, i,0,MPI_COMM_WORLD,&stat[i-1]);
+    }
+    for(int i = 1; i < N; i++){
+        MPI_Wait(&stat[i-1],MPI_STATUS_IGNORE);
         //field_vector_deserialize(buff64,buff);
         //codeword[i];
         //row_data[i];
         int ctr = 0;
-        for(int j = 0; j < 2*codeword_size; j++) code_buff[j] = buff64[ctr++];
-        for(int j = 0; j < 2*size; j++) {row_buff[j] = buff64[ctr++];}
+        for(int j = 0; j < 2*codeword_size; j++) code_buff[j] = buff64[i-1][ctr++];
+        for(int j = 0; j < 2*size; j++) {row_buff[j] = buff64[i-1][ctr++];}
         
         
         field_vector_deserialize(code_buff,codeword[i]);
         field_vector_deserialize(row_buff,row_data[i]);
          
-        int queries = buff64[ctr++];
+        int queries = buff64[i-1][ctr++];
         //printf("> %d\n",queries);
-        for(int j = 0; j < queries; j++) query_index.push_back({(u32)i,(u32)buff64[ctr++]});
+        for(int j = 0; j < queries; j++) query_index.push_back({(u32)i,(u32)buff64[i-1][ctr++]});
         
     }
 }
@@ -885,6 +891,7 @@ void recv_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vect
 void send_PC_data(vector<F> &codeword, vector<F> &row_data, int size, vector<vector<u32>> query_index, int l){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    MPI_Request stat;
     vector<F> data(size);
     for(int i = 0; i < data.size(); i++){
         data[i] = row_data[i];
@@ -902,7 +909,8 @@ void send_PC_data(vector<F> &codeword, vector<F> &row_data, int size, vector<vec
             buff_64[ctr++] = query_index[i][1];
         }
         
-        MPI_Send(buff_64.data(),buff_64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Isend(buff_64.data(),buff_64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&stat);
+        MPI_Wait(&stat, MPI_STATUS_IGNORE);
     }
     
 }
