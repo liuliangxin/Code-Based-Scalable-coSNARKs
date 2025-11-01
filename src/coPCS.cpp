@@ -689,7 +689,7 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         if(temp != y){
             printf("ERROR\n");
         }else{
-            printf("PC Verification Success\n");
+            //printf("PC Verification Success\n");
         }
         vt.end();
         
@@ -849,7 +849,7 @@ void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector
             if(temp != y && verify){
                 printf("ERROR, PC verification failed (%lld,%lld),(%lld,%lld)\n",temp.real,temp.img,y.real,y.img);
             }else{
-                printf("PC Verification Success\n");
+                //printf("PC Verification Success\n");
             }
             vt.end();
             
@@ -924,14 +924,15 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     
     
     int rounds = (int)log2(row_data.size())-1-PC_offset;
+    pt_cp.end();
+        
     if(rounds > 0){
-        if(rank == 0) printf("Rounds: %d, Size: %d",rounds,row_data.size()*N);
+        //if(rank == 0) printf("Rounds: %d, Size: %d\n",rounds,row_data.size()*N);
         vector<vector<F>> folded_codewords(rounds);
         vector<MT> eval_MT(rounds);
         vector<F> challenges(rounds);
         
         quadratic_poly H;
-        pt_cp.end();
         
         for(int i = 0; i < rounds; i++){
             folded_codewords[i] = codeword;
@@ -984,7 +985,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         verify_queries(N,folded_codewords[0].size()/4,  initial_index, replies, {},
                                     challenges, {}, Com, eval_MT, ps,verify);
     }else{
-        if(rank == 0) printf("NO ROUNDS, Size: %d",rounds,row_data.size()*N);
+        //if(rank == 0) printf("NO ROUNDS, Size: %d\n",row_data.size()*N);
 
         rounds = 0;
     }
@@ -1075,7 +1076,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
             if(temp != y && verify){
                 printf("ERROR, PC verification failed (%lld,%lld),(%lld,%lld)\n",temp.real,temp.img,y.real,y.img);
             }else{
-                printf("PC Verification Success\n");
+                //printf("PC Verification Success\n");
             }
             vt.end();
             

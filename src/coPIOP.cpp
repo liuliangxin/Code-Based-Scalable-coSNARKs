@@ -580,6 +580,8 @@ void open_sparse_eval(vector<F> &codeword, vector<F> &row_data, vector<F> r, MT 
 }
 
 void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vector<sparse_eval_data> &index, int N, double &ps){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
 
     vector<vector<F>> beta1(3),beta2(3);
     r1.pop_back();r2.pop_back();
@@ -593,23 +595,28 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
     }
     pt_cp.start();
 
+    timer sparse_eval_timer;
+    sparse_eval_timer.start();
     compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N);
     vector<F> codeword,row_data;
     MT Com;
     pt_cp.end();
-
     commit_sparse_eval_witness(beta1, beta2, codeword , row_data, Com, N/2,  N);
+    sparse_eval_timer.end();
+    if(rank == 0) printf("      Phase 5.0 (Commit): %lf\n",sparse_eval_timer.get_time());
+
     //pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
-    timer sparse_eval_timer;
     sparse_eval_timer.start();
     pair<F,vector<F>> claim = _prove_sparse_eval_opt(y, a, b, c, beta1, beta2, index,r1,r2, N);
     sparse_eval_timer.end();
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     
-    if(rank == 0) printf("Phase 5.1: %lf\n",sparse_eval_timer.get_time());
+    if(rank == 0) printf("      Phase 5.1 (Sumcheck): %lf\n",sparse_eval_timer.get_time());
 
+    sparse_eval_timer.start();
     open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps);
+    sparse_eval_timer.end();
+    if(rank == 0) printf("      Phase 5.2 (Open): %lf\n",sparse_eval_timer.get_time());
+    
 }
 
 void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair<F,vector<F>>> claims2,
@@ -617,10 +624,12 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     
     
     
+    timer aggr_timer;
     pt_cp.start();
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     // Evaluate claims of _R, then apply the sumcheck to aggregate partial claims into one
+    aggr_timer.start();
     int logk = (int)log2(k);
     vector<vector<F>> vectors(10);
     vectors[0].resize(4);vectors[1].resize(4);vectors[2].resize(4);
@@ -673,8 +682,10 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     betas[1] = betas[0];betas[2] = betas[0];
     betas[7] = betas[0];betas[8] = betas[0];
     betas[9] = betas[0];
+    pt_cp.end();
     
     vector<F> evals = batch_ip(vectors, betas, N, k,_k);    
+    pt_cp.start();
     vector<F> _c(7);
     for(int i = 0; i < 7; i++) _c[i] = hash_to_field({});
     F _b = hash_to_field({});
@@ -682,66 +693,6 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
         R[i] += _b*_R[i];
     }
     
-    
-    /*
-    vector<u64> R_int(2*R.size());
-    vector<vector<F>> Masked_R_shares,Masked_R;
-    if(rank == 0){
-        Masked_R_shares.resize(R.size());Masked_R.resize(R.size());
-        for(int i = 0; i < Masked_R_shares.size(); i++){
-            Masked_R_shares[i].resize(N);
-            Masked_R[i].resize(k);
-            Masked_R_shares[i][0] = R[i];
-        }
-        for(int i = 1; i < N; i++){
-            MPI_Recv(R_int.data(),R_int.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(R_int,R);
-            for(int j = 0; j < R.size(); j++) Masked_R_shares[j][i] = R[j];
-        }
-        for(int i = 0; i < Masked_R_shares.size(); i++){
-            fft(Masked_R_shares[i],(int)log2( Masked_R_shares[i].size()),true);
-            F omega = getRootOfUnity(1+(int)log2(N));
-            omega = omega.inv();
-            F mul = F(1);
-            for(int j = 0; j < Masked_R_shares[i].size(); j++){
-                Masked_R_shares[i][j] = mul*Masked_R_shares[i][j];
-                mul = omega*mul;
-            }
-            fft(Masked_R_shares[i],(int)log2(Masked_R_shares[i].size()),false);
-            for(int j = 0; j < k; j++) Masked_R[i][j] = Masked_R_shares[i][N*j/_k];
-        }
-
-    }else{
-        field_vector_serialize(R,R_int);
-        MPI_Send(R_int.data(), R_int.size(), MPI_UINT64_T, 0,0, MPI_COMM_WORLD);
-    }
-    if(rank == 0){
-        if(claims2[2].first != a*evals[7]+b*evals[8] + c*evals[9]){
-            printf("ERROR\n");
-        }
-        F sum = _c[0]*evals[7]+_c[1]*evals[8]+_c[2]*evals[9] + _c[3]*claims2[4].first +_c[4]*claims2[5].first  + _c[5]*claims1[4].first + _c[6]*claims1[5].first;
-        for(int i = 0; i < 7; i++) sum += _b*_c[i]*evals[i];
-
-        vector<F> v1,v2;
-        v1 = convert2vector((Masked_R));
-        
-        
-        int ctr = 0;
-        v2.resize(v1.size(),F(0));        
-        for(int i = 0; i < betas.size()-3; i++){
-            for(int n = 0; n < betas[i][0].size(); n++){
-                for(int j = 0; j < betas[i][1].size(); j++){
-                    v2[ctr] = _c[i]*betas[i][0][n]*betas[i][1][j];
-                    ctr++;
-                }
-            }
-        }
-        
-        v1.resize(next_pow2(v1.size()),F(0));
-        v2.resize(next_pow2(v2.size()),F(0));
-
-    }
-    */
    if(rank == 0){
         if(claims2[2].first != a*evals[7]+b*evals[8] + c*evals[9]){
             printf("ERROR\n");
@@ -766,14 +717,16 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
     }
     v1.resize(next_pow2(v1.size()),F(0));
     v2.resize(next_pow2(v1.size()),F(0));
+        
     pt_cp.end();
-   
     vector<pair<F,vector<F>>> claims = _quadratic_cosumcheck(sum,v1,v2,N,_k,k,ps);
     pt_cp.start();
-   
+    aggr_timer.end();
+    if(rank == 0) printf("      Phase 4.0 (sumcheck): %lf\n",aggr_timer.get_time());
     r1.clear();r2.clear();
     for(int i = 0; i < logk; i++) r2.push_back(claims[0].second[i]);
     for(int i = logk; i < claims[0].second.size(); i++) r1.push_back(claims[0].second[i]);
+    aggr_timer.start();
     v1.clear();v2.clear();precompute_beta(r1,v1);precompute_beta(r2,v2);
     
     R.resize(next_pow2(R.size()),0);
@@ -781,8 +734,10 @@ void aggregate_random_evaluations(vector<pair<F,vector<F>>> claims1, vector<pair
         codeword[i] += _b*_codeword[i];
     }
     pt_cp.end();
-    
     open_plaintext(codeword,R,v1,v2,CR,claims[0].first,500,k,N,ps,true);
+    aggr_timer.end();
+    if(rank == 0) printf("      Phase 4.1 (open): %lf\n",aggr_timer.get_time());
+    
 }
 
 
@@ -896,7 +851,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
         temp_pc.start();
         open_index(index_data,index_codeword, index_Com, N,ps);
         temp_pc.end();
-        if(rank == 0)printf("Phase 6: %lf\n",temp_pc.get_time());temp_pc.reset();
+        if(rank == 0)printf("Phase 6 (Open Index): %lf\n",temp_pc.get_time());temp_pc.reset();
     
     }
     temp_pc.start();

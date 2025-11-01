@@ -95,6 +95,7 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
 	vector<F> r;
     if(rounds > 0){
         for(int i = 0; i < rounds; i++){
+            
             pt_cp.start();
     
             quadratic_poly poly = quadratic_poly(F_ZERO,F_ZERO,F_ZERO);
@@ -925,7 +926,7 @@ pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &
     vector<int> order;
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
-    pt_cp.start();
+    //pt_cp.start();
     vector<F> challenges(3);
     clock_t t1 = clock();
     for(int i = 0; i < 3; i++) challenges[i] = hash_to_field({0}); 

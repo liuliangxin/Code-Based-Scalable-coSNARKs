@@ -20,6 +20,7 @@ class timer
 {
 private:
     double time;
+    int ctr = 0;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_startTime;
 public:
     timer();

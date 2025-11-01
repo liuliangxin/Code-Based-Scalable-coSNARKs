@@ -788,8 +788,8 @@ int main(int argc, char *argv[]){
         int cir = atoi(argv[3]);
         if(cir <= 1){
             if(argc > 4){
-                sumcheck_offset = atoi(argv[4]);
-                PC_offset = atoi(argv[5]);
+                sumcheck_offset = atoi(argv[4]) - (int)log2(N);
+                PC_offset = atoi(argv[5])- (int)log2(N);
                 multree_offset = atoi(argv[6]);
             }
 

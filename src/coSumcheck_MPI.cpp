@@ -199,7 +199,6 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
         pt_cp.end();
         H = aggregate_quadratic_poly(H,k,_k,N);
         if(rank == 0)vt.start();
-    
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
             exit(-1);
