@@ -1006,9 +1006,11 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
             all_codewords[0] = codeword;
             all_row_data[0].resize(row_data.size()/(1<<(rounds)));
             for(int i = 0; i  < row_data.size()/(1<<(rounds)); i++) all_row_data[0][i] = row_data[i];
-            
+            timer rec_timer;
+            rec_timer.start();
             recv_PC_data(all_codewords,all_row_data,query_index,codeword.size(),row_data.size()/(1<<(rounds)),l,N);
-            
+            rec_timer.end();
+            printf("Recv Time: %lf\n",rec_timer.get_time());
             
             //all_queries.insert(all_queries.begin(),query_index);
             local_open(all_codewords,all_row_data,v1,v2,old_v2,query_index,y,l,k,N,ps,secret_shared,verify);
