@@ -258,14 +258,22 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
     vector<F> reply;
     if(rank == 0){
         int idx = final_v1.size(); 
-        buff_u64.resize(6*final_v1.size());    
+        
+        vector<vector<u64>> recv_buff(N-1);
+        for(int i = 0; i < N-1; i++)recv_buff[i].resize(6*final_v1.size());
+        //buff_u64.resize(6*final_v1.size());    
         final_v1.resize(final_v1.size()*N,F(0));
         final_v2.resize(final_v2.size()*N,F(0));
         final_v3.resize(final_v3.size()*N,F(0));
-        
+        vector<MPI_Request> req(N-1);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
+            MPI_Irecv(recv_buff[i-1].data(),recv_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            
+        }
+        for(int i = 1; i < N; i++){
+            //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Wait(&req[i-1],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_buff[i-1],buff);
             for(int j = 0; j < (1<<offset); j++){
                 final_v1[idx] = buff[j];
                 final_v2[idx] = buff[j+ (buff.size()/3)];
@@ -291,9 +299,10 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
         buff.insert(buff.end(),final_v3.begin(),final_v3.end());
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
         buff_u64.clear();buff_u64.resize(2*(3+offset+(int)log2(N))); 
-    
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
     myBcast(buff_u64, N);

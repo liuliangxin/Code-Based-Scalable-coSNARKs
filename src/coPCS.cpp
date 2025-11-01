@@ -702,7 +702,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
 void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<F> &v1, vector<F> &v2,vector<F> &old_v2, vector<vector<u32>> &query_index,
                          F y, int l, int k, int N, double &ps, bool secret_shared, bool verify){
     
-    printf(">>>> %lf\n",pt_cp.get_time());
     pt_cp.start();
     int rounds = (int)log2(row_data[0].size())-1;
     vector<vector<vector<F>>> folded_codewords(rounds);
@@ -772,7 +771,6 @@ void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector
         }
     }
     pt_cp.end();
-    printf(">>>> %lf\n",pt_cp.get_time());
     
     vector<vector<u32>> initial_query_index = query_index;
     vector<vector<vector<F>>> replies(rounds); 
@@ -863,7 +861,6 @@ void recv_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vect
     vector<vector<u64>> buff64(N-1);
     for(int i = 0; i < N-1;i++) buff64[i].resize(2*(codeword_size+size)+l+1); 
     vector<u64> code_buff(2*codeword_size),row_buff(2*size);
-    printf("Data Recv: %ld\n",N*buff64.size());
     vector<MPI_Request> stat(N-1);
     for(int i = 1; i < N; i++){
         MPI_Irecv(buff64[i-1].data(),buff64[i-1].size(),MPI_UINT64_T, i,0,MPI_COMM_WORLD,&stat[i-1]);
@@ -1014,11 +1011,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
             all_codewords[0] = codeword;
             all_row_data[0].resize(row_data.size()/(1<<(rounds)));
             for(int i = 0; i  < row_data.size()/(1<<(rounds)); i++) all_row_data[0][i] = row_data[i];
-            timer rec_timer;
-            rec_timer.start();
             recv_PC_data(all_codewords,all_row_data,query_index,codeword.size(),row_data.size()/(1<<(rounds)),l,N);
-            rec_timer.end();
-            printf("Recv Time: %lf\n",rec_timer.get_time());
             
             //all_queries.insert(all_queries.begin(),query_index);
             local_open(all_codewords,all_row_data,v1,v2,old_v2,query_index,y,l,k,N,ps,secret_shared,verify);

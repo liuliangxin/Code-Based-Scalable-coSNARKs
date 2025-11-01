@@ -897,13 +897,31 @@ int main(int argc, char *argv[]){
                MPI_COMM_WORLD);
 
             pt.end();
-            printf("%lf\n",pt.get_time());
-        }else{
+             if(rank == 0) printf("%lf\n",pt.get_time());
+        }else if(M == 2){
             pt.start();
             if(rank == 0){
                 vector<MPI_Request> req(N-1);
                 for(int i = 1; i < N; i++){
-                    MPI_Irecv(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+                    MPI_Recv(buff64.data(),buff64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                }
+            
+            }else{
+                MPI_Request req;
+                MPI_Send(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+            }
+            pt.end();
+            if(rank == 0) printf("%lf\n",pt.get_time());
+        }
+        else{
+            pt.start();
+            if(rank == 0){
+                vector<vector<u64>> _buff(N-1);
+                for(int i = 1; i < N; i++){_buff[i-1].resize(buff64.size());}
+                
+                vector<MPI_Request> req(N-1);
+                for(int i = 1; i < N; i++){
+                    MPI_Irecv(_buff[i-1].data(),_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
                 }
                 for(int i = 1; i < N; i++){
                     MPI_Wait(&req[i-1],MPI_STATUS_IGNORE);
@@ -912,9 +930,10 @@ int main(int argc, char *argv[]){
             }else{
                 MPI_Request req;
                 MPI_Isend(buff64.data(),buff64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+                MPI_Wait(&req,MPI_STATUS_IGNORE);
             }
             pt.end();
-            printf("%lf\n",pt.get_time());
+            if(rank == 0)printf("%lf\n",pt.get_time());
 
         }
     }else{
