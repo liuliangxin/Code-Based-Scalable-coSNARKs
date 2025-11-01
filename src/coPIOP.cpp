@@ -608,10 +608,11 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
     //pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
     sparse_eval_timer.reset();
     sparse_eval_timer.start();
+    int gkr_rounds = com_rounds;
     pair<F,vector<F>> claim = _prove_sparse_eval_opt(y, a, b, c, beta1, beta2, index,r1,r2, N);
     sparse_eval_timer.end();
     
-    if(rank == 0) printf("      Phase 5.1 (Sumcheck): %lf\n",sparse_eval_timer.get_time());
+    if(rank == 0) printf("      Phase 5.1 (Sumcheck): %lf, Rounds: %d\n",sparse_eval_timer.get_time(),com_rounds-gkr_rounds);
 
     sparse_eval_timer.reset();
     sparse_eval_timer.start();

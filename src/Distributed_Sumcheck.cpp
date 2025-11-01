@@ -322,7 +322,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
 pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &output, F y, vector<F> r, int N){
 
     pt_cp.start();
-    
+    timer smch_timer;
+    smch_timer.start();
     int vectors = input.size();
 	int depth = (int)log2(next_pow2(input[0].size()))-multree_offset;
 	int size = input[0].size();
@@ -441,7 +442,8 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     //printf("%d ?? %d\n",rank,buff.size());
     myBcast(buff, N);
-    
+    smch_timer.end();
+    if(rank == 0) printf("          Step 1: %lf\n",smch_timer.get_time());
     //MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff,buff_reply);
@@ -467,6 +469,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     }
     for(int i = depth-1; i >= 0; i--){
         pt_cp.start();
+        smch_timer.start();
     
     	vector<F>  beta1,beta2;
 		precompute_beta(r2,beta2);
@@ -474,6 +477,8 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         pt_cp.end();
     
         vector<pair<F,vector<F>>> claims = _cubic_sumcheck(sum,in1[i], in2[i],beta2, beta1, N );	
+        smch_timer.end();
+        if(rank == 0) printf("          Round %d: %lf\n",i,smch_timer.get_time());
     
         pt_cp.start();
     
