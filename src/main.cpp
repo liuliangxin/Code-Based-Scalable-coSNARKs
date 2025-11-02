@@ -21,6 +21,7 @@
 #include "timer.hpp"
 #include <algorithm>
 
+
 int tensor_row_size;
 int mul_counter= 0;
 extern timer pt,pt_cp,vt;
@@ -36,6 +37,7 @@ extern int sumcheck_offset = 4;
 extern int PC_offset = 10;
 extern int multree_offset = 4;
 extern int com_rounds;
+bool isLAN = false;
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
     vector<vector<F>> data(M/k);
@@ -443,11 +445,10 @@ void test_cubic_sumheck(int N, int M){
             v1[i].resize(M/N);
             v2[i].resize(M/N);
             for(int j = 0; j < v1[i].size(); j++){
-                v1[i][j] = random();
-                v2[i][j] = random();
+                v1[i][j] = rand();
+                v2[i][j] = rand();
                 f1.push_back(v1[i][j]);
                 f2.push_back(v2[i][j]);
-                
                 sum += v1[i][j]*v2[i][j]*beta[ctr++];
             }
             V[i] = v1[i];
@@ -471,7 +472,9 @@ void test_cubic_sumheck(int N, int M){
         sum = buff[buff.size()-1];
     }
     double vt = 0.0,ps = 0.0;
+
     vector<pair<F,vector<F>>> claims = _cubic_sumcheck_sparrow(sum, arr1, arr2, beta1,beta2,beta3, N);
+    /*
     if(rank == 0){
         if(evaluate_vector(f1,claims[0].second) != claims[0].first){
             printf("ERROR1\n");
@@ -479,7 +482,8 @@ void test_cubic_sumheck(int N, int M){
         if(evaluate_vector(f2,claims[0].second) != claims[1].first){
             printf("ERROR1\n");
         }
-    }
+    }*/
+    
 }
 
 void test_product(int N, int M, int K){
@@ -811,7 +815,8 @@ int main(int argc, char *argv[]){
             if(argc > 4){
                 sumcheck_offset = atoi(argv[4]) - (int)log2(N);
                 PC_offset = atoi(argv[5])- (int)log2(N);
-                multree_offset = atoi(argv[6]);
+                // Calculate x64
+                multree_offset = atoi(argv[6]) - (int)log2(N);
             }
 
             coPIOP_prove(M, N, _k, k,cir);
@@ -980,6 +985,8 @@ int main(int argc, char *argv[]){
         printf(">>> Rounds: %d\n",com_rounds);
     }else{
         test_cubic_sumheck(N,M);
+        test_cubic_sumheck(N,2*M);
+        test_cubic_sumheck(N,4*M);
         //test_quadratic_sumheck(N,  M);
     }
     

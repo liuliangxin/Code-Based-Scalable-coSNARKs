@@ -1093,6 +1093,88 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
     
 }
 
+
+void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
+                    vector<vector<F>> &v1, vector<vector<F>> &v2, MT &Com, vector<F> y, vector<int> l, vector<int> k, int N, double &ps, vector<bool> secret_shared, vector<bool> verify){
+    
+    pt_cp.start();
+    int batch_size = codeword.size();
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
+    vector<vector<F>> old_v2 = v2;
+    for(int i = 0; i < codeword.size(); i++){
+        if(!secret_shared[i] && k[i] != N){
+            fft(v2[i],(int)log2(v2[i].size()),true);
+            vector<F> _v2(2*v2[i].size(),F(0));
+            
+            for(int j = 0; j < k[j]; j++){
+                _v2[j*N/k[i]] = v2[i][j];
+            }
+            v2[i] = _v2;
+        }
+    
+    }
+    
+    vector<vector<vector<u32>>> initial_index, query_index;
+    
+    vector<int> rounds;
+    for(int i = 0; i < row_data.size(); i++){
+        rounds.push_back((int)log2(row_data[i].size())-1-PC_offset);
+    }
+    pt_cp.end();
+    
+    vector<vector<vector<F>>> folded_codewords(rounds.size());
+    vector<vector<MT>> eval_MT(rounds.size());
+    int max_rounds = 0;
+    for(int i = 0; i < folded_codewords.size(); i++){
+        if(rounds[i] > 0){
+            folded_codewords[i].resize(rounds[i]);
+            eval_MT[i].resize(rounds[i]);
+        }
+        if(rounds[i] > max_rounds){
+            max_rounds = rounds[i];
+        }
+
+    }
+    vector<F> challenges(max_rounds);
+        
+    vector<quadratic_poly> H(rounds.size());
+        
+    for(int i = 0; i < max_rounds; i++){
+        for(int j = 0; j < batch_size; j++){
+            if(rounds[j] < i) folded_codewords[j][i] = codeword[j]; 
+            pt_cp.start();            
+            vector<F> dummy;
+            if(rounds[j] < i) H[j] = step1(i,F(0),v1[j],row_data[j],dummy);
+            //printf("(%lld,%lld),(%lld,%lld),(%lld,%lld)\n",H.a.real,H.a.img,H.b.real,H.b.img,H.c.real,H.c.img);
+            pt_cp.end();
+        
+        }
+        batch_aggregate();
+            if(!secret_shared){
+                H.a = v2[rank]*H.a;
+                H.b = v2[rank]*H.b;
+                H.c = v2[rank]*H.c;
+                H = aggregate_poly(H, N);
+            }
+            else H = aggregate_quadratic_poly(H,v2,k,2*k,N);
+            //H = aggregate_quadratic_poly(H, v2,  k,  _k,  N);
+            pt_cp.start();
+            if(H.eval(0) + H.eval(1) != y && verify){
+                printf("Error in open round %d\n",i);
+                //return;
+            }
+            challenges[i] = hash_to_field({H.a,H.b,H.c});
+            y = H.eval(challenges[i]);
+            step2(challenges[i], F(0), i, v1, row_data,codeword,dummy,eval_MT[i],N);
+            pt_cp.end();
+        
+        }
+
+
+}
+
 //void open_index(vector<F> &row_data, vector<F> &codeword, MT &index_Com, int rate){
 //    int 
 //}

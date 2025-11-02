@@ -146,6 +146,67 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
     return sum;
 }
 
+quadratic_poly _batch_aggregate(vector<quadratic_poly> polys,vector<F> v2, bool secret_shared){
+    quadratic_poly H;
+    if(!secret_shared){
+        F a= F(0),b= F(0),c = F(0);
+        for(int i = 0; i < polys.size(); i++){
+            a += v2[i]*polys[i].a;
+            b += v2[i]*polys[i].b;
+            c += v2[i]*polys[i].c;
+        }
+        H = quadratic_poly(a,b,c);
+    }else{
+        
+    }
+}   
+
+vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F>> v2, vector<bool> secret_shared, vector<int> rounds, int round, int N){
+    vector<F> poly;
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
+    for(int i = 0; i < H.size(); i++){
+        if(rounds[i] > round){
+            poly.push_back(H[i].a);
+            poly.push_back(H[i].b);
+            poly.push_back(H[i].c);
+        } 
+    }
+    vector<u64> coef_u;
+    field_vector_serialize(poly,coef_u);
+    com_rounds +=2;
+    if(rank == 0){
+        vector<MPI_Request> req(N-1);
+        vector<vector<u64>> recv_data(N-1); 
+        vector<vector<F>> polys(N);
+        polys[0] = poly; 
+        for(int i = 0; i < N-1; i++){
+            recv_data[i].resize(coef_u.size());
+            MPI_Irecv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i+1,0,MPI_COMM_WORLD,&req[i]);
+        }
+        for(int i = 0; i < N-1; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],polys[i+1]); 
+        }
+        vector<vector<quadratic_poly>> P(rounds.size());
+        vector<quadratic_poly> final_P;
+        int ctr = 0;
+        for(int i = 0; i < rounds.size(); i++){
+            if(rounds[i] > round && !secret_shared[i]){
+                P[i].resize(N);
+                for(int j = 0; j < N; j++) P[i][j] = quadratic_poly(polys[j][3*ctr],polys[j][3*ctr+1],polys[j][3*ctr+2]);
+                ctr++;
+            }
+            _batch_aggregate();
+        }
+        
+    }else{
+
+    }
+
+}
+
 quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
