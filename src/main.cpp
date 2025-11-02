@@ -984,9 +984,30 @@ int main(int argc, char *argv[]){
         open_plaintext(codeword,row_data,b1,b2,Com,y,500,N/2,N,ps,false);
         printf(">>> Rounds: %d\n",com_rounds);
     }else{
-        test_cubic_sumheck(N,M);
-        test_cubic_sumheck(N,2*M);
-        test_cubic_sumheck(N,4*M);
+        vector<vector<F>> r1(3),r2(3);
+        vector<F> arr1(M/N,1);
+        vector<F> arr2(M/N,2);
+        vector<F> arr3(M/N,3);
+        vector<vector<F>> codeword(3);
+        vector<vector<F>> row_data(3);
+        vector<MT> Com(3);
+        
+        
+        plaintext_commit(arr1,codeword[0],row_data[0],Com[0],N/2,N);
+        plaintext_commit(arr2,codeword[1],row_data[1],Com[1],N/2,N);
+        plaintext_commit(arr3,codeword[2],row_data[2],Com[2],N/2,N);
+        r1[0] = generate_randomness((int)log2(M) - (int)log2(N/2));
+        r2[0] = generate_randomness((int)log2(N/2));
+        r1[1] = generate_randomness((int)log2(M) - (int)log2(N/2));
+        r2[1] = generate_randomness((int)log2(N/2));
+        r1[2] = generate_randomness((int)log2(M) - (int)log2(N/2));
+        r2[2] = generate_randomness((int)log2(N/2));
+        vector<vector<F>> v1(3),v2(3);
+        for(int i = 0; i < v1.size(); i++) precompute_beta(r1[i],v1[i]);
+        for(int i = 0; i < v2.size(); i++) precompute_beta(r2[i],v2[i]);
+        //r11 = generate_randomness();
+        
+        
         //test_quadratic_sumheck(N,  M);
     }
     
