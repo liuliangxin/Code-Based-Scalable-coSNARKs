@@ -1142,35 +1142,37 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
     vector<quadratic_poly> H(rounds.size());
         
     for(int i = 0; i < max_rounds; i++){
+         vector<F> dummy;
         for(int j = 0; j < batch_size; j++){
-            if(rounds[j] < i) folded_codewords[j][i] = codeword[j]; 
+            if(rounds[j] > i) folded_codewords[j][i] = codeword[j]; 
             pt_cp.start();            
-            vector<F> dummy;
-            if(rounds[j] < i) H[j] = step1(i,F(0),v1[j],row_data[j],dummy);
+            if(rounds[j] > i) H[j] = step1(i,F(0),v1[j],row_data[j],dummy);
             //printf("(%lld,%lld),(%lld,%lld),(%lld,%lld)\n",H.a.real,H.a.img,H.b.real,H.b.img,H.c.real,H.c.img);
             pt_cp.end();
         
         }
-        batch_aggregate();
-            if(!secret_shared){
-                H.a = v2[rank]*H.a;
-                H.b = v2[rank]*H.b;
-                H.c = v2[rank]*H.c;
-                H = aggregate_poly(H, N);
+        H = batch_aggregate(H, v2, secret_shared, rounds,k, i, N);
+
+        pt_cp.start();
+        for(int j = 0; j < batch_size; j++){
+            if(rounds[j] > i){
+                if(H[j].eval(0) + H[j].eval(1) != y[j] && verify[j]){
+                    printf("Error in open round %d\n",i);
+                    //return;
+                }
             }
-            else H = aggregate_quadratic_poly(H,v2,k,2*k,N);
-            //H = aggregate_quadratic_poly(H, v2,  k,  _k,  N);
-            pt_cp.start();
-            if(H.eval(0) + H.eval(1) != y && verify){
-                printf("Error in open round %d\n",i);
-                //return;
-            }
-            challenges[i] = hash_to_field({H.a,H.b,H.c});
-            y = H.eval(challenges[i]);
-            step2(challenges[i], F(0), i, v1, row_data,codeword,dummy,eval_MT[i],N);
-            pt_cp.end();
-        
+            
         }
+        challenges[i] = hash_to_field({});
+        for(int j = 0; j < batch_size; j++){
+            if(rounds[j] > i) y[j] = H[j].eval(challenges[i]);    
+        }
+
+        for(int j = 0; j < batch_size; j++){
+            if(rounds[j] > i) step2(challenges[i], F(0), i, v1[j], row_data[j],codeword[j],dummy,eval_MT[i][j],N);
+        }        
+        pt_cp.end();
+    }
 
 
 }

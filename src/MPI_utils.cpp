@@ -146,10 +146,10 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
     return sum;
 }
 
-quadratic_poly _batch_aggregate(vector<quadratic_poly> polys,vector<F> v2, bool secret_shared){
+quadratic_poly _batch_aggregate(vector<quadratic_poly> polys,vector<F> v2, int k, bool secret_shared){
     quadratic_poly H;
+    F a= F(0),b= F(0),c = F(0);
     if(!secret_shared){
-        F a= F(0),b= F(0),c = F(0);
         for(int i = 0; i < polys.size(); i++){
             a += v2[i]*polys[i].a;
             b += v2[i]*polys[i].b;
@@ -157,11 +157,42 @@ quadratic_poly _batch_aggregate(vector<quadratic_poly> polys,vector<F> v2, bool 
         }
         H = quadratic_poly(a,b,c);
     }else{
+        int N = polys.size();
+        vector<F> _a(N),_b(N),_c(N);
+        for(int i = 0; i < N; i++){
+            _a[i] = polys[i].a;_b[i] = polys[i].b;_c[i] = polys[i].c; 
+        }
+        pt_cp.start();
+    
+        fft(_a,(int)log2(_a.size()),true);
+        fft(_b,(int)log2(_a.size()),true);
+        fft(_c,(int)log2(_a.size()),true);
+        F omega = getRootOfUnity(1+(int)log2(N)).inv();
+        F mul = F(1);
+        for(int i = 0; i < _a.size(); i++){
+            _a[i] = mul*_a[i];
+            _b[i] = mul*_b[i];
+            _c[i] = mul*_c[i];
+            mul = mul*omega;
+        }
         
+        fft(_a,(int)log2(_a.size()),false);
+        fft(_b,(int)log2(_a.size()),false);
+        fft(_c,(int)log2(_a.size()),false);
+        
+        for(int j = 0; j < v2.size(); j++){
+            a += v2[j]*_a[N*j/k];
+            b += v2[j]*_b[N*j/k];
+            c += v2[j]*_c[N*j/k];
+        }
+        H = quadratic_poly(a,b,c);
+        pt_cp.end();
+            
+
     }
 }   
 
-vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F>> v2, vector<bool> secret_shared, vector<int> rounds, int round, int N){
+vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F>> v2, vector<bool> secret_shared, vector<int> rounds,vector<int> k, int round, int N){
     vector<F> poly;
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -176,6 +207,8 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
     vector<u64> coef_u;
     field_vector_serialize(poly,coef_u);
     com_rounds +=2;
+    vector<quadratic_poly> final_P(rounds.size());
+        
     if(rank == 0){
         vector<MPI_Request> req(N-1);
         vector<vector<u64>> recv_data(N-1); 
@@ -190,7 +223,6 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
             field_vector_deserialize(recv_data[i],polys[i+1]); 
         }
         vector<vector<quadratic_poly>> P(rounds.size());
-        vector<quadratic_poly> final_P;
         int ctr = 0;
         for(int i = 0; i < rounds.size(); i++){
             if(rounds[i] > round && !secret_shared[i]){
@@ -198,12 +230,35 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
                 for(int j = 0; j < N; j++) P[i][j] = quadratic_poly(polys[j][3*ctr],polys[j][3*ctr+1],polys[j][3*ctr+2]);
                 ctr++;
             }
-            _batch_aggregate();
+            if(P[i].size() != 0){
+                final_P[i] = (_batch_aggregate(P[i],v2[i],2*k[i],secret_shared[i]));
+            }
         }
+        poly.clear();
+        for(int i = 0; i < final_P.size(); i++){
+            poly.push_back(final_P[i].a);
+            poly.push_back(final_P[i].b);
+            poly.push_back(final_P[i].c);
+        }
+        field_vector_serialize(poly,coef_u);
         
     }else{
-
+        MPI_Request req;
+        MPI_Isend(coef_u.data(),coef_u.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
     }
+    myBcast(coef_u,N);
+    if(rank != 0){
+        field_vector_deserialize(coef_u,poly);
+        int ctr = 0;
+        for(int i = 0; i < rounds.size(); i++){
+            if(rounds[i] > round && !secret_shared[i]){
+                final_P[i] = quadratic_poly(poly[3*ctr],poly[3*ctr+1],poly[3*ctr+2]);
+            }
+            ctr++;
+        }
+    }
+    return final_P;
 
 }
 
