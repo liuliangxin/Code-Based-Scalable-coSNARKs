@@ -32,4 +32,4 @@ void commit_randomness(vector<F> R, vector<F> _R, vector<F> &codeword, vector<F>
 void distributed_MT(vector<F> &data, MT &Com, int N);
 void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vector<F> &R_shares, MT &Com, int l, int k, int _k, int N);
 void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
-                    vector<vector<F>> &v1, vector<vector<F>> &v2, MT &Com, vector<F> y, vector<int> l, vector<int> k, int N, double &ps, vector<bool> secret_shared, vector<bool> verify);
+                    vector<vector<F>> &v1, vector<vector<F>> &v2, vector<MT> &Com , vector<F> y, vector<int> l, vector<int> k, int N, double &ps, vector<bool> secret_shared, vector<bool> verify);

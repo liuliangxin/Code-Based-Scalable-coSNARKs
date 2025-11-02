@@ -190,6 +190,7 @@ quadratic_poly _batch_aggregate(vector<quadratic_poly> polys,vector<F> v2, int k
             
 
     }
+    return H;
 }   
 
 vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F>> v2, vector<bool> secret_shared, vector<int> rounds,vector<int> k, int round, int N){
@@ -225,9 +226,12 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
         vector<vector<quadratic_poly>> P(rounds.size());
         int ctr = 0;
         for(int i = 0; i < rounds.size(); i++){
+            
             if(rounds[i] > round && !secret_shared[i]){
                 P[i].resize(N);
-                for(int j = 0; j < N; j++) P[i][j] = quadratic_poly(polys[j][3*ctr],polys[j][3*ctr+1],polys[j][3*ctr+2]);
+                for(int j = 0; j < N; j++) {
+                    P[i][j] = quadratic_poly(polys[j][3*ctr],polys[j][3*ctr+1],polys[j][3*ctr+2]);
+                }
                 ctr++;
             }
             if(P[i].size() != 0){
@@ -236,9 +240,12 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
         }
         poly.clear();
         for(int i = 0; i < final_P.size(); i++){
-            poly.push_back(final_P[i].a);
-            poly.push_back(final_P[i].b);
-            poly.push_back(final_P[i].c);
+            if(P[i].size() != 0){
+                poly.push_back(final_P[i].a);
+                poly.push_back(final_P[i].b);
+                poly.push_back(final_P[i].c);
+
+            }
         }
         field_vector_serialize(poly,coef_u);
         

@@ -1006,7 +1006,7 @@ int main(int argc, char *argv[]){
         for(int i = 0; i < v1.size(); i++) precompute_beta(r1[i],v1[i]);
         for(int i = 0; i < v2.size(); i++) precompute_beta(r2[i],v2[i]);
         //r11 = generate_randomness();
-        
+        batch_open(codeword, row_data, v1, v2, Com, {1,2,3}, {500,500,500}, {N/2,N/2,N/2},  N, ps, {false,false,false}, {true,true,true});
         
         //test_quadratic_sumheck(N,  M);
     }

@@ -912,6 +912,45 @@ void send_PC_data(vector<F> &codeword, vector<F> &row_data, int size, vector<vec
     
 }
 
+void send_batch_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<int> size, vector<vector<vector<u32>>> query_index, int l){
+    int rank;
+    int batch_size = codeword.size();
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    MPI_Request stat;
+    vector<vector<F>> data(batch_size);
+    for(int j = 0; j < batch_size; j++){
+        data[j].resize(size[j]);
+        for(int i = 0; i < size[j]; i++){
+            data[j][i] = row_data[j][i];
+        }
+    }
+    
+    if(rank != 0){
+        vector<F> buff;
+        vector<u64> buff_64;
+        buff = convert2vector(codeword);
+        for(int i = 0; i < data.size(); i++){
+            buff.insert(buff.end(),data[i].begin(),data[i].end());
+        }
+        int ctr = 2*buff.size();
+        field_vector_serialize(buff,buff_64);
+        buff_64.resize(buff_64.size()+batch_size*l+1,0);
+        for(int j = 0; j < ; j++){
+        
+        }
+
+        buff_64[ctr++] = query_index.size();
+        for(int i = 0; i < query_index.size(); i++){
+            buff_64[ctr++] = query_index[i][1];
+        }
+        
+        MPI_Isend(buff_64.data(),buff_64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&stat);
+        MPI_Wait(&stat, MPI_STATUS_IGNORE);
+    }
+    
+}
+
+
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
                     vector<F> &v1, vector<F> &v2, MT &Com, F y, int l, int k, int N, double &ps, bool secret_shared, bool verify){
 
@@ -1095,7 +1134,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
 
 
 void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
-                    vector<vector<F>> &v1, vector<vector<F>> &v2, MT &Com, vector<F> y, vector<int> l, vector<int> k, int N, double &ps, vector<bool> secret_shared, vector<bool> verify){
+                    vector<vector<F>> &v1, vector<vector<F>> &v2, vector<MT> &Com, vector<F> y, vector<int> l, vector<int> k, int N, double &ps, vector<bool> secret_shared, vector<bool> verify){
     
     pt_cp.start();
     int batch_size = codeword.size();
@@ -1116,14 +1155,14 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
     
     }
     
-    vector<vector<vector<u32>>> initial_index, query_index;
+    vector<vector<vector<u32>>> initial_index(batch_size), query_index(batch_size);
     
     vector<int> rounds;
     for(int i = 0; i < row_data.size(); i++){
         rounds.push_back((int)log2(row_data[i].size())-1-PC_offset);
     }
     pt_cp.end();
-    
+    if(!rank)printf("OK1\n");
     vector<vector<vector<F>>> folded_codewords(rounds.size());
     vector<vector<MT>> eval_MT(rounds.size());
     int max_rounds = 0;
@@ -1140,9 +1179,10 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
     vector<F> challenges(max_rounds);
         
     vector<quadratic_poly> H(rounds.size());
-        
+    
     for(int i = 0; i < max_rounds; i++){
-         vector<F> dummy;
+       
+        vector<F> dummy;
         for(int j = 0; j < batch_size; j++){
             if(rounds[j] > i) folded_codewords[j][i] = codeword[j]; 
             pt_cp.start();            
@@ -1152,7 +1192,7 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         
         }
         H = batch_aggregate(H, v2, secret_shared, rounds,k, i, N);
-
+ 
         pt_cp.start();
         for(int j = 0; j < batch_size; j++){
             if(rounds[j] > i){
@@ -1163,16 +1203,66 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
             }
             
         }
+        
         challenges[i] = hash_to_field({});
         for(int j = 0; j < batch_size; j++){
             if(rounds[j] > i) y[j] = H[j].eval(challenges[i]);    
         }
-
+        
         for(int j = 0; j < batch_size; j++){
-            if(rounds[j] > i) step2(challenges[i], F(0), i, v1[j], row_data[j],codeword[j],dummy,eval_MT[i][j],N);
+            if(rounds[j] > i) step2(challenges[i], F(0), i, v1[j], row_data[j],codeword[j],dummy,eval_MT[j][i],N);
         }        
+        if(i == max_rounds-1) return;
+        
         pt_cp.end();
+        
     }
+    
+    for(int i = 0;  i < batch_size; i++){
+        query_index[i] = get_indexes(l[i],N,folded_codewords[i].size(),rank);    
+        initial_index[i] = query_index[i];
+        
+    }
+    vector<vector<vector<vector<F>>>> replies(batch_size);
+    for(int i = 0; i < replies.size(); i++){
+        replies[i].resize(rounds[i]);
+    } 
+    for(int h = 0; h < batch_size; h++){
+        for(int i = 0; i < rounds[h]; i++){
+            for(int j = 0; j < query_index[h].size(); j++){
+                if(query_index[h][j][1] < folded_codewords[h][i].size()/2){
+                    replies[h][i].push_back({folded_codewords[h][i][query_index[h][j][1]],folded_codewords[h][i][query_index[h][j][1] + folded_codewords[h][i].size()/2]});
+                }else{
+                    replies[h][i].push_back({folded_codewords[h][i][query_index[h][j][1]- folded_codewords[h][i].size()/2],folded_codewords[h][i][query_index[h][j][1]]});
+                }
+            }
+            for(int j = 0; j < query_index[h].size(); j++){
+                if(query_index[h][j][1] >= folded_codewords[h][i].size()/2){
+                    query_index[h][j][1] -= folded_codewords[h][i].size()/2;
+                }
+            }
+        }
+        verify_queries(N,folded_codewords[h][0].size()/4,  initial_index[h], replies[h], {},
+                                    challenges, {}, Com[h], eval_MT[h], ps,verify[h]);
+    }
+        
+    if(PC_offset){
+        if(rank != 0){
+            send_PC_data(codeword,row_data,row_data.size()/(1<<(rounds)),query_index,l);
+            
+        } 
+        else{
+            vector<vector<F>> all_codewords(N),all_row_data(N);
+            //vector<vector<u32>> all_queries;
+            all_codewords[0] = codeword;
+            all_row_data[0].resize(row_data.size()/(1<<(rounds)));
+            for(int i = 0; i  < row_data.size()/(1<<(rounds)); i++) all_row_data[0][i] = row_data[i];
+            recv_PC_data(all_codewords,all_row_data,query_index,codeword.size(),row_data.size()/(1<<(rounds)),l,N);
+            
+            //all_queries.insert(all_queries.begin(),query_index);
+            local_open(all_codewords,all_row_data,v1,v2,old_v2,query_index,y,l,k,N,ps,secret_shared,verify);
+        }
+    }    
 
 
 }
