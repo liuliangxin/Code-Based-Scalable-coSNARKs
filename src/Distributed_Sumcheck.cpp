@@ -12,6 +12,40 @@ extern int logm,logn;
 extern int com_rounds;
 extern int sumcheck_offset;
 extern int multree_offset;
+
+vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    vector<F> buff; 
+    vector<u64> buff_u64(2*H.size());
+    com_rounds+=2;
+    
+    if(rank == 0){
+        for(int i = 1; i < N; i++){
+            MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            field_vector_deserialize(buff_u64,buff);
+            for(int j = 0; j < H.size(); j++){
+                H[j] += buff[j];
+            }
+        }
+        buff = H;
+        field_vector_serialize(buff,buff_u64);
+    }else{
+        buff = H;
+        field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
+        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+    }   
+    if(rank == 0)cm += (N-1)*8*buff_u64.size()/1024.0;
+    myBcast(buff_u64, N);
+    
+    //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+    if(rank != 0){
+        field_vector_deserialize(buff_u64,buff);
+    }
+    return buff;
+}
+
 quadratic_poly aggregate_poly(quadratic_poly H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -189,6 +223,538 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
     }
   
     return {make_pair(reply[0] ,r),make_pair(reply[1] ,r)};
+}
+
+vector<F> _sparrow_quadratic_sumcheck_step1(vector<F> &v1, vector<F> &v2, int poly_degree, int size, vector<F> beta = {}){
+    vector<F> poly(poly_degree*(poly_degree+1)/2,F(0));
+    	int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    int ctr = 0;
+		
+    for(int i = 0; i < v1.size()/size; i++){
+        vector<F> temp_v1(poly_degree),temp_v2(poly_degree),temp_v3(poly_degree);
+        for(int l = 0; l < poly_degree; l++){
+			temp_v1[l] = v1[poly_degree*i + l];
+			temp_v2[l] = v2[poly_degree*i + l];
+        }
+		int idx = 0;
+        for(int l = 0; l < poly_degree; l++){
+			for(int h = l+1; h < poly_degree; h++){
+				if(beta.size()) poly[idx] += beta[ctr]*(temp_v1[l]*temp_v2[h] + temp_v1[h]*temp_v2[l]);
+                else poly[idx] += temp_v1[l]*temp_v2[h] + temp_v1[h]*temp_v2[l];
+                idx++;
+            }
+		}
+                    
+        for(int l = 0; l < poly_degree; l++){
+            if(beta.size()) poly[idx] += beta[ctr]*temp_v1[l]*temp_v2[l];
+            else poly[idx] += temp_v1[l]*temp_v2[l];
+            idx++;
+        }
+        if(beta.size() && !(i%(v1.size()/(size*beta.size())))) ctr++;
+        
+    }
+    return poly;
+}
+
+F _sparrow_quadratic_sumcheck_step2(vector<F> &v1, vector<F> &v2, F rand, int poly_degree, int size){
+    vector<F> L = compute_lagrange_coeff(getRootOfUnity((int)log2(poly_degree)),rand,poly_degree);
+    int i = 0;
+    F sum = F(0);
+    for(i = 0; i < v1.size()/((size)); i++){
+        F sum1 = F(0),sum2 = F(0);
+        for(int l = 0; l < poly_degree; l++){
+            sum1 += L[l]*v1[poly_degree*i + l];
+			sum2 += L[l]*v2[poly_degree*i + l];
+		}
+        v1[i] = sum1;
+        v2[i] = sum2;
+        sum += v1[i]*v2[i];
+    }
+    return sum;
+
+}
+
+vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> &v2, vector<F> &beta1, vector<F> &beta2, vector<F> &beta3, int N){
+	int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    com_rounds+=2;
+    int offset = sumcheck_offset;
+    vector<int> degrees;
+    //int offset = 4;
+    //vector<F> r = generate_randomness(int(log2(v1.size())));
+    int rounds = int(log2(v1.size()))-offset;
+    if(rounds%4 != 0) degrees.push_back(rounds - 4*((int)rounds/4));
+    vector<F> original_v1 = v1,original_v2 = v2;   
+    for(int i = 0; i < rounds/4; i++){
+        degrees.push_back(4);
+    }
+    
+    F rand;
+	vector<F> r;
+    vector<F> Lambdas(1,1);    
+    
+    for(int i = 0; i < v1.size(); i++) v1[i] = beta1[i%beta1.size()]*v1[i];
+    
+
+	if(rounds > 0){
+        int s = 1;
+        vector<F> challenges;
+        for(int i = 0; i < degrees.size(); i++){
+            s *= (1<<degrees[i]);
+        
+            pt_cp.start();
+
+            vector<F> poly = _sparrow_quadratic_sumcheck_step1(v1, v2, 1<<degrees[i], s, beta2);
+            for(int j = 0; j < poly.size(); j++){
+                poly[j] = beta3[rank]*poly[j];
+            }
+            pt_cp.end();
+    
+            poly = aggregate_quadratic_poly_sparrow(poly,N);
+            pt_cp.start();
+        
+            if(rank == 0)vt.start();
+        
+            if(sparrow_V_check(poly,1<<degrees[i]) != y){
+                printf("Error in distributed sumcheck round %d\n",i);
+                exit(-1);
+            }
+            rand = hash_to_field(poly);
+            challenges.push_back(rand);
+            if(rank == 0)ps_plain += 16*4/1024.0;
+            
+            y = evaluate_poly_extended(poly, {}, rand, degrees[i]);
+            if(rank == 0)vt.end();
+            //r.push_back(rand);        
+            F sum = _sparrow_quadratic_sumcheck_step2(v1,v2,rand,1<<degrees[i],s);
+            pt_cp.end();
+    
+        } 
+        if(rank == 0){
+            for(int i = 0; i < challenges.size(); i++){
+                vector<F> L = compute_lagrange_coeff(getRootOfUnity(degrees[i]),challenges[i],1<<degrees[i]);
+                vector<F> buff = Lambdas;
+                Lambdas.resize(Lambdas.size()*L.size());
+                for(int j = 0; j < L.size(); j++){
+                    for(int k = 0; k < buff.size(); k++){
+                        Lambdas[j*buff.size() + k] = buff[k]*L[j];
+                    }
+                }
+            }
+            if(Lambdas.size() != s){
+                printf("Error\n");
+            }
+
+        }
+    }else{
+        offset = int(log2(v1.size()));
+    }
+    vector<F> final_v1(1<<(offset)),final_v2(1<<(offset)),buff;
+    vector<u64> buff_u64;
+    for(int i = 0; i  <final_v1.size(); i++){
+        final_v1[i] = v1[i];
+        final_v2[i] = v2[i];
+    }
+    
+    vector<F> reply;
+    if(rank == 0){
+        int idx = final_v1.size(); 
+        
+        vector<vector<u64>> recv_buff(N-1);
+        for(int i = 0; i < N-1; i++)recv_buff[i].resize(4*final_v1.size());
+        //buff_u64.resize(6*final_v1.size());    
+        final_v1.resize(final_v1.size()*N,F(0));
+        final_v2.resize(final_v2.size()*N,F(0));
+        vector<MPI_Request> req(N-1);
+        for(int i = 1; i < N; i++){
+            MPI_Irecv(recv_buff[i-1].data(),recv_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            
+        }
+        for(int i = 1; i < N; i++){
+            //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Wait(&req[i-1],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_buff[i-1],buff);
+            for(int j = 0; j < (1<<offset); j++){
+                final_v1[idx] = buff[j];
+                final_v2[idx] = buff[j+ (buff.size()/2)];
+                idx++;
+            }   
+        }
+        pt_cp.start();
+        printf("%d,%d\n",final_v1.size(),beta2.size());
+        vector<F> B(beta2.size()*beta3.size());
+        for(int i = 0; i < beta3.size(); i++){
+            for(int j = 0; j < beta2.size(); j++){
+                B[i*beta2.size() + j] = beta3[i]*beta2[j];
+            }
+        }
+        vector<pair<F,vector<F>>> res = cubic_sumcheck(y,final_v1,final_v2,B,F(0));
+        ps_plain += 16*(2+4*(int)log2(N))/1024.0;
+        
+        reply.push_back(res[0].first);
+        reply.push_back(res[1].first);
+        reply.insert(reply.end(),res[0].second.begin(),res[0].second.end());
+        field_vector_serialize(reply,buff_u64);
+        pt_cp.end();
+
+    }else{
+        buff = final_v1; 
+        buff.insert(buff.end(),final_v2.begin(),final_v2.end());
+        field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+        buff_u64.clear();buff_u64.resize(2*(2+offset+(int)log2(N))); 
+    }
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
+    myBcast(buff_u64, N);
+    //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+	if(rank != 0){
+        field_vector_deserialize(buff_u64,reply);
+    }
+    F y1_claim = reply[0];
+    F y2_claim = reply[1];
+    
+    for(int i = 2; i < reply.size(); i++){
+        r.push_back(reply[i]);
+    }
+    vector<F> r_last = r;
+    vector<F> r1,r2;
+    for(int i = 0; i < offset; i++) r1.push_back(r[i]);
+    for(int i = (offset); i < r.size(); i++) r2.push_back(r[i]);
+    vector<F> beta; precompute_beta(r1,beta);
+    
+    //for(int i = 0; i < beta.size(); i++){
+    //    beta[i] = _beta(rank,r2)*beta[i];
+   // }
+    vector<F> aggr_v1(v1.size()/(1<<offset),F(0)),aggr_v2(v1.size()/(1<<offset),F(0));
+    for(int j = 0; j < beta.size(); j++){
+        for(int i = 0; i < aggr_v1.size(); i++){
+            aggr_v1[i] += original_v1[aggr_v1.size()*j + i]*beta[j];
+            aggr_v2[i] += original_v2[aggr_v2.size()*j + i]*beta[j];
+        } 
+    }
+  
+    if(rank == 0){
+        int idx = aggr_v1.size(); 
+        
+        
+        
+        vector<vector<u64>> recv_buff(N-1);
+        for(int i = 0; i < N-1; i++)recv_buff[i].resize(4*aggr_v1.size());
+        //buff_u64.resize(6*final_v1.size());    
+        aggr_v1.resize(aggr_v1.size()*N,F(0));
+        aggr_v2.resize(aggr_v2.size()*N,F(0));
+        vector<MPI_Request> req(N-1);
+        for(int i = 1; i < N; i++){
+            MPI_Irecv(recv_buff[i-1].data(),recv_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            
+        }
+        for(int i = 1; i < N; i++){
+            //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Wait(&req[i-1],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_buff[i-1],buff);
+            for(int j = 0; j < aggr_v1.size()/N; j++){
+                aggr_v1[idx] = buff[j];
+                aggr_v2[idx] = buff[j+ (buff.size()/2)];
+                idx++;
+            }   
+        }
+        pt_cp.start();
+        vector<F> extended_lambdas,extended_beta;
+        for(int i =0 ; i < N; i++){
+            extended_lambdas.insert(extended_lambdas.end(),Lambdas.begin(),Lambdas.end());
+            extended_beta.insert(extended_beta.end(),beta1.begin(),beta1.end());
+        }
+        for(int j = 0; j < N; j++){
+            for(int i = 0; i < Lambdas.size(); i++){
+                extended_lambdas[Lambdas.size()*j+i] = _beta(j,r2)*extended_lambdas[Lambdas.size()*j+i];
+            }
+        }
+        
+        F a = F::_random();
+
+        vector<pair<F,vector<F>>> res = batch_cubic_sumcheck(aggr_v1,extended_beta,aggr_v2,extended_lambdas,y1_claim+a*y2_claim,a);
+        
+        ps_plain += 16*(3+4*(int)log2(N))/1024.0;
+        reply.clear();
+        reply.push_back(res[0].first);
+
+        reply.push_back(res[2].first);
+        reply.insert(reply.end(),res[0].second.begin(),res[0].second.end());
+        field_vector_serialize(reply,buff_u64);
+        pt_cp.end();
+    
+    }else{
+        buff = aggr_v1; 
+        buff.insert(buff.end(),aggr_v2.begin(),aggr_v2.end());
+        field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+        buff_u64.clear();buff_u64.resize(2*(2+(int)log2(N*aggr_v1.size()))); 
+        //printf(">> %d\n",buff_u64.size());
+    }
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
+    myBcast(buff_u64, N);
+    if(rank != 0){
+        field_vector_deserialize(buff_u64,reply);
+    }
+    
+    r.clear();
+    for(int i = 2; i < reply.size()-(int)log2(N); i++) r.push_back(reply[i]);
+    
+    r.insert(r.end(),r1.begin(),r1.end());
+    for(int i = reply.size()-(int)log2(N); i < reply.size(); i++) r.push_back(reply[i]);
+    
+    return {make_pair(reply[0] ,r),make_pair(reply[1] ,r) };
+}
+
+vector<pair<F,vector<F>>> _quadratic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> &v2, int N){
+	int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    com_rounds+=2;
+    int offset = sumcheck_offset;
+    vector<int> degrees;
+    //int offset = 4;
+    //vector<F> r = generate_randomness(int(log2(v1.size())));
+    int rounds = int(log2(v1.size()))-offset;
+    if(rounds%4 != 0) degrees.push_back(rounds - 4*((int)rounds/4));
+    vector<F> original_v1 = v1,original_v2 = v2;   
+    for(int i = 0; i < rounds/4; i++){
+        degrees.push_back(4);
+    }
+    
+    F rand;
+	vector<F> r;
+    vector<F> Lambdas(1,1);    
+    
+        
+	if(rounds > 0){
+        int s = 1;
+        vector<F> challenges;
+        for(int i = 0; i < degrees.size(); i++){
+            s *= (1<<degrees[i]);
+        
+            pt_cp.start();
+
+            vector<F> poly = _sparrow_quadratic_sumcheck_step1(v1, v2, 1<<degrees[i], s);
+            
+            pt_cp.end();
+    
+            poly = aggregate_quadratic_poly_sparrow(poly,N);
+            pt_cp.start();
+        
+            if(rank == 0)vt.start();
+        
+            if(sparrow_V_check(poly,1<<degrees[i]) != y){
+                printf("Error in distributed sumcheck round %d\n",i);
+                exit(-1);
+            }
+            rand = hash_to_field(poly);
+            challenges.push_back(rand);
+            if(rank == 0)ps_plain += 16*4/1024.0;
+            
+            y = evaluate_poly_extended(poly, {}, rand, degrees[i]);
+            if(rank == 0)vt.end();
+            //r.push_back(rand);        
+            F sum = _sparrow_quadratic_sumcheck_step2(v1,v2,rand,1<<degrees[i],s);
+            pt_cp.end();
+    
+        } 
+        if(rank == 0){
+            for(int i = 0; i < challenges.size(); i++){
+                vector<F> L = compute_lagrange_coeff(getRootOfUnity(degrees[i]),challenges[i],1<<degrees[i]);
+                vector<F> buff = Lambdas;
+                Lambdas.resize(Lambdas.size()*L.size());
+                for(int j = 0; j < L.size(); j++){
+                    for(int k = 0; k < buff.size(); k++){
+                        Lambdas[j*buff.size() + k] = buff[k]*L[j];
+                    }
+                }
+            }
+            if(Lambdas.size() != s){
+                printf("Error\n");
+            }
+
+        }
+    }else{
+        offset = int(log2(v1.size()));
+    }
+    
+    vector<F> final_v1(1<<(offset)),final_v2(1<<(offset)),buff;
+    vector<u64> buff_u64;
+    for(int i = 0; i  <final_v1.size(); i++){
+        final_v1[i] = v1[i];
+        final_v2[i] = v2[i];
+    }
+    
+    vector<F> reply;
+    if(rank == 0){
+        int idx = final_v1.size(); 
+        
+        vector<vector<u64>> recv_buff(N-1);
+        for(int i = 0; i < N-1; i++)recv_buff[i].resize(4*final_v1.size());
+        //buff_u64.resize(6*final_v1.size());    
+        final_v1.resize(final_v1.size()*N,F(0));
+        final_v2.resize(final_v2.size()*N,F(0));
+        vector<MPI_Request> req(N-1);
+        for(int i = 1; i < N; i++){
+            MPI_Irecv(recv_buff[i-1].data(),recv_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            
+        }
+        for(int i = 1; i < N; i++){
+            //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Wait(&req[i-1],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_buff[i-1],buff);
+            for(int j = 0; j < (1<<offset); j++){
+                final_v1[idx] = buff[j];
+                final_v2[idx] = buff[j+ (buff.size()/2)];
+                idx++;
+            }   
+        }
+        pt_cp.start();
+    
+        vector<pair<F,vector<F>>> res = quadratic_sumcheck(y,final_v1,final_v2,F(0));
+        ps_plain += 16*(2+4*(int)log2(N))/1024.0;
+        
+        reply.push_back(res[0].first);
+        reply.push_back(res[1].first);
+        reply.insert(reply.end(),res[0].second.begin(),res[0].second.end());
+        field_vector_serialize(reply,buff_u64);
+        pt_cp.end();
+
+    }else{
+        buff = final_v1; 
+        buff.insert(buff.end(),final_v2.begin(),final_v2.end());
+        field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+        buff_u64.clear();buff_u64.resize(2*(2+offset+(int)log2(N))); 
+    }
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
+    myBcast(buff_u64, N);
+    
+    //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
+	if(rank != 0){
+        field_vector_deserialize(buff_u64,reply);
+    }
+    F y1_claim = reply[0];
+    F y2_claim = reply[1];
+    
+    for(int i = 2; i < reply.size(); i++){
+        r.push_back(reply[i]);
+    }
+    vector<F> r_last = r;
+    vector<F> r1,r2;
+    for(int i = 0; i < offset; i++) r1.push_back(r[i]);
+    for(int i = (offset); i < r.size(); i++) r2.push_back(r[i]);
+    vector<F> beta; precompute_beta(r1,beta);
+    
+    //for(int i = 0; i < beta.size(); i++){
+    //    beta[i] = _beta(rank,r2)*beta[i];
+   // }
+    vector<F> aggr_v1(v1.size()/(1<<offset),F(0)),aggr_v2(v1.size()/(1<<offset),F(0));
+    for(int j = 0; j < beta.size(); j++){
+        for(int i = 0; i < aggr_v1.size(); i++){
+            aggr_v1[i] += original_v1[aggr_v1.size()*j + i]*beta[j];
+            aggr_v2[i] += original_v2[aggr_v2.size()*j + i]*beta[j];
+        } 
+    }
+    if(rank == 0){
+        F sum = F(0),sum2 = F(0);
+        printf("%d,%d\n",aggr_v1.size(),Lambdas.size());
+        for(int i = 0; i < Lambdas.size(); i++){
+            sum += aggr_v1[i]*Lambdas[i];
+        }
+        for(int i = 0; i < beta.size(); i++){
+            sum2 += beta[i]*v1[i];
+        }
+        if(sum != sum2){
+            printf("ERROR\n");
+        }
+
+    }
+
+    if(rank == 0){
+        int idx = aggr_v1.size(); 
+        
+        vector<vector<u64>> recv_buff(N-1);
+        for(int i = 0; i < N-1; i++)recv_buff[i].resize(4*aggr_v1.size());
+        //buff_u64.resize(6*final_v1.size());    
+        aggr_v1.resize(aggr_v1.size()*N,F(0));
+        aggr_v2.resize(aggr_v2.size()*N,F(0));
+        vector<MPI_Request> req(N-1);
+        for(int i = 1; i < N; i++){
+            MPI_Irecv(recv_buff[i-1].data(),recv_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            
+        }
+        for(int i = 1; i < N; i++){
+            //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Wait(&req[i-1],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_buff[i-1],buff);
+            for(int j = 0; j < aggr_v1.size()/N; j++){
+                aggr_v1[idx] = buff[j];
+                aggr_v2[idx] = buff[j+ (buff.size()/2)];
+                idx++;
+            }   
+        }
+        pt_cp.start();
+        vector<F> extended_lambdas;
+        for(int i =0 ; i < N; i++){
+            extended_lambdas.insert(extended_lambdas.end(),Lambdas.begin(),Lambdas.end());
+        }
+        for(int j = 0; j < N; j++){
+            for(int i = 0; i < Lambdas.size(); i++){
+                extended_lambdas[Lambdas.size()*j+i] = _beta(j,r2)*extended_lambdas[Lambdas.size()*j+i];
+            }
+        }
+        
+        F a = F::_random();
+        vector<F> aggr_v(aggr_v1.size());
+        for(int i = 0; i < aggr_v.size(); i++){
+            aggr_v[i] = aggr_v1[i] + a*aggr_v2[i]; 
+        }
+        vector<pair<F,vector<F>>> res = quadratic_sumcheck(y1_claim+a*y2_claim,extended_lambdas,aggr_v,F(0));
+        
+        ps_plain += 16*(3+4*(int)log2(N))/1024.0;
+        reply.clear();
+        reply.push_back(evaluate_vector(aggr_v1,res[0].second));
+
+        reply.push_back(evaluate_vector(aggr_v2,res[0].second));
+        reply.insert(reply.end(),res[0].second.begin(),res[0].second.end());
+        field_vector_serialize(reply,buff_u64);
+        pt_cp.end();
+    
+    }else{
+        buff = aggr_v1; 
+        buff.insert(buff.end(),aggr_v2.begin(),aggr_v2.end());
+        field_vector_serialize(buff,buff_u64);
+        cm += 8*buff_u64.size()/1024.0;
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+        buff_u64.clear();buff_u64.resize(2*(2+(int)log2(N*aggr_v1.size()))); 
+        //printf(">> %d\n",buff_u64.size());
+    }
+    if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
+    myBcast(buff_u64, N);
+    if(rank != 0){
+        field_vector_deserialize(buff_u64,reply);
+    }
+    
+    r.clear();
+    for(int i = 2; i < reply.size()-(int)log2(N); i++) r.push_back(reply[i]);
+    
+    r.insert(r.end(),r1.begin(),r1.end());
+    for(int i = reply.size()-(int)log2(N); i < reply.size(); i++) r.push_back(reply[i]);
+    
+    return {make_pair(reply[0] ,r),make_pair(reply[1] ,r) };
 }
 
 

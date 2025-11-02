@@ -88,3 +88,5 @@ vector<vector<F>> F_batch_quad_sumcheck_rest_functionality(F y, F b, vector<vect
 
 F sequence_eval(int size, vector<F> r1, vector<F> r2);
 F betas_eval(int size, vector<F> r11, vector<F> r12, vector<F> r21, vector<F> r22);
+F sparrow_V_check(vector<F> poly, int degree);
+F evaluate_poly_extended(vector<F> poly, vector<F> poly_sum, F r, int c);

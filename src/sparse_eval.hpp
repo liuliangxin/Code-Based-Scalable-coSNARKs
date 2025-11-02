@@ -62,3 +62,4 @@ vector<pair<F,vector<F>>> cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vect
 vector<pair<F,vector<F>>> zerocheck_sumcheck(F y, vector<F> &v1, vector<F> &v2, vector<F> &v3, vector<F> &v4,F previous_r, double &vt, double &ps);
 vector<pair<F,vector<F>>> quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,F previous_r);
 pair<F,vector<F>> prove_multiplication_tree_new(vector<vector<F>> &input, vector<F> &output, F previous_r, F y, vector<F> r);
+vector<pair<F,vector<F>>> batch_cubic_sumcheck(vector<F> &v1,vector<F> &v2, vector<F> &v3, vector<F> &v4, F y, F a);

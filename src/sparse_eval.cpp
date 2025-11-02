@@ -8,6 +8,37 @@
 #include "timer.hpp"
 vector<int> real_idx_dim;
 extern timer vt;
+
+
+vector<pair<F,vector<F>>> batch_cubic_sumcheck(vector<F> &v1,vector<F> &v2, vector<F> &v3, vector<F> &v4, F y, F a){
+    int rounds = (int)log2(v1.size());
+    vector<F> r;
+    for(int i = 0; i < rounds; i++){
+        int L = 1ULL<<(rounds-1-i);
+        quadratic_poly l1,l2;
+        cubic_poly p = cubic_poly(0,0,0,0);
+        for(int j = 0; j  < L; j++){
+            l1 = linear_poly(v1[2*j+1]-v1[2*j],v1[2*j])*linear_poly(v2[2*j+1]-v2[2*j],v2[2*j]);
+            l1.b = l1.b + a*(v3[2*j+1]-v3[2*j]);
+            l1.c = l1.c + a*(v3[2*j]);
+            p = p + l1*linear_poly(v4[2*j+1]-v4[2*j],v4[2*j]);
+        }
+        if(p.eval(0) + p.eval(1) != y){
+            printf("Error in round %d of batch sumckeck\n",i);
+            exit(-1);   
+        }
+        F rand = F::_random();
+        r.push_back(rand);
+        y = p.eval(rand);
+        for(int j = 0; j < L; j++){
+            v1[j] = rand*(v1[2*j+1]-v1[2*j]) + v1[2*j];
+            v2[j] = rand*(v2[2*j+1]-v2[2*j]) + v2[2*j];
+            v3[j] = rand*(v3[2*j+1]-v3[2*j]) + v3[2*j];
+            v4[j] = rand*(v4[2*j+1]-v4[2*j]) + v4[2*j];
+        }
+    }
+    return {make_pair(v1[0],r),make_pair(v2[0],r),make_pair(v3[0],r),make_pair(v4[0],r)};
+}
 pair<F,vector<F>> batch_sumcheck(F y, vector<F> &beta,vector<vector<short>> &_bits, vector<F> r, vector<F> neg_r){
     r.resize(next_pow2(r.size()),F(1));
 

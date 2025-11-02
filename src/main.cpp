@@ -32,7 +32,7 @@ extern int logm,logn;
 extern int rate;
 extern bool data_parallel;
 extern int cosumcheck_offset = 0;
-extern int sumcheck_offset = 10;
+extern int sumcheck_offset = 4;
 extern int PC_offset = 10;
 extern int multree_offset = 4;
 extern int com_rounds;
@@ -406,7 +406,8 @@ void test_quadratic_sumheck(int N, int M){
         sum = buff[buff.size()-1];
     }
     double vt = 0.0,ps = 0.0;
-    vector<pair<F,vector<F>>> claims = _quadratic_sumcheck(sum, arr1, arr2, N);
+    vector<pair<F,vector<F>>> claims = _quadratic_sumcheck_sparrow(sum, arr1, arr2, N);
+    //vector<pair<F,vector<F>>> claims = _quadratic_sumcheck(sum, arr1, arr2, N);
     if(rank == 0){
         if(evaluate_vector(f1,claims[0].second) != claims[0].first){
             printf("ERROR1\n");
@@ -421,48 +422,64 @@ void test_quadratic_sumheck(int N, int M){
 void test_cubic_sumheck(int N, int M){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
+    vector<F> r1,r2,r3;
+    for(int i = 0; i < (int)log2(M/N)-sumcheck_offset; i++) r1.push_back(hash_to_field({}));
+    for(int i = (int)log2(M/N)-sumcheck_offset; i < (int)log2(M/N); i++) r2.push_back(hash_to_field({}));
+    for(int i = (int)log2(M/N); i < (int)log2(M); i++) r3.push_back(hash_to_field({}));
+    vector<F> beta1,beta2,beta3;
+    precompute_beta(r1,beta1);precompute_beta(r2,beta2);precompute_beta(r3,beta3);
+    vector<F> f1,f2;
+        
     F sum = 0;
     vector<F> arr1,arr2,arr3;
     if(rank == 0){
         vector<vector<F>> V(N);
-        vector<vector<F>> v1(N),v2(N),v3(N);
+        vector<vector<F>> v1(N),v2(N);
+        vector<F> r = r1;r.insert(r.end(),r2.begin(),r2.end());r.insert(r.end(),r3.begin(),r3.end());
+        vector<F> beta;precompute_beta(r,beta);
+        int ctr = 0;
         for(int i = 0; i < N; i++){
             v1[i].resize(M/N);
             v2[i].resize(M/N);
-            v3[i].resize(M/N);
             for(int j = 0; j < v1[i].size(); j++){
                 v1[i][j] = random();
                 v2[i][j] = random();
-                v3[i][j] = random();
-                sum += v1[i][j]*v2[i][j]*v3[i][j];
+                f1.push_back(v1[i][j]);
+                f2.push_back(v2[i][j]);
+                
+                sum += v1[i][j]*v2[i][j]*beta[ctr++];
             }
             V[i] = v1[i];
             V[i].insert(V[i].end(),v2[i].begin(),v2[i].end());
-            V[i].insert(V[i].end(),v3[i].begin(),v3[i].end());
         }
         for(int i = 0; i < N; i++){
             V[i].push_back(sum);
         }
         arr1 = v1[0];
         arr2 = v2[0];
-        arr3 = v3[0];
         distribute_data(V);
     }else{
         vector<F> buff;
-        get_data(buff,3*M/N+1);
+        get_data(buff,2*M/N+1);
         arr1.resize(M/N);
         arr2.resize(M/N);
-        arr3.resize(M/N);
         for(int i = 0; i < M/N; i++){
             arr1[i] = buff[i];
             arr2[i] = buff[i+M/N];
-            arr3[i] = buff[i+2*M/N];
         }
         sum = buff[buff.size()-1];
     }
     double vt = 0.0,ps = 0.0;
-    //_cubic_sumcheck(sum, arr1, arr2, arr3, N, vt, ps);
-    
+    vector<pair<F,vector<F>>> claims = _cubic_sumcheck_sparrow(sum, arr1, arr2, beta1,beta2,beta3, N);
+    if(rank == 0){
+        if(evaluate_vector(f1,claims[0].second) != claims[0].first){
+            printf("ERROR1\n");
+        }
+        if(evaluate_vector(f2,claims[0].second) != claims[1].first){
+            printf("ERROR1\n");
+        }
+    }
 }
 
 void test_product(int N, int M, int K){
@@ -769,6 +786,10 @@ int main(int argc, char *argv[]){
     
     MPI_Comm_size(MPI_COMM_WORLD, &size); //get number of processes
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
+    
+    
+    
     int N = size;
     int k = N/4;
     int _k = N/2;
@@ -936,7 +957,7 @@ int main(int argc, char *argv[]){
             if(rank == 0)printf("%lf\n",pt.get_time());
 
         }
-    }else{
+    }else if(benchmark == 4){
         vector<F> poly(M);
         for(int i = 0; i < poly.size(); i++){
             poly[i] = F(i);
@@ -957,6 +978,9 @@ int main(int argc, char *argv[]){
         
         open_plaintext(codeword,row_data,b1,b2,Com,y,500,N/2,N,ps,false);
         printf(">>> Rounds: %d\n",com_rounds);
+    }else{
+        test_cubic_sumheck(N,M);
+        //test_quadratic_sumheck(N,  M);
     }
     
     // ==================================================== //
