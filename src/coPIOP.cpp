@@ -1013,8 +1013,11 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
     vector<vector<F>> batch_row_data(3),batch_codewords(3);
     vector<MT> batch_MT(3);
     vector<pair<F,vector<F>>> claims(3);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     
     vector<F> codeword,row_data,codeword_R,_codeword_R,index_codeword,index_data;
+    timer setup_time;setup_time.start();
     distribute_index(N, size, index,cir_type);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k,cir_type);
     setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
@@ -1030,7 +1033,8 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
         return;
     }
     init_dummy_index_commitment(index,batch_row_data[2],batch_codewords[2],batch_MT[2],index_rate,N);
-    
+    setup_time.end();
+    if(rank == 0) printf("Setup time: %lf\n",setup_time.get_time()); 
     MPI_Barrier(MPI_COMM_WORLD);
     com_rounds = 0;
     pt_cp.reset();
@@ -1053,8 +1057,6 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
         R3[i] = R[i+12+2*(logn -logk + 2)];
         R4[i] = R[i+12+2*(logn -logk + 2)+logm-logk+2];
     }
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     temp_pc.end();
     temp_rounds = com_rounds;
     if(rank == 0)printf("Phase 1: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();

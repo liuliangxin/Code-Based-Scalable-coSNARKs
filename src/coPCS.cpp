@@ -883,7 +883,13 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             //aggr_challenges[i] = F(0);
         }else{
             
-            if(rounds-i-PC_offset <= 0) break;
+            if(rounds-i-PC_offset <= 0) {
+                rounds = i;
+                eval_MT.resize(rounds);
+                challenges.resize(rounds);
+                aggr_challenges.resize(rounds);
+                break;
+            }
             
             y_mask[i] = 0;
             aggr_challenges[i] = 0;
@@ -916,9 +922,11 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
         }
         pt_cp.end();
     }
-    if(PC_offset == 0){
+    
+
+    //if(PC_offset == 0){
         // Generate opening proofs 
-        vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
+        vector<vector<u32>> initial_index, query_index = get_indexes(l,N,folded_codewords[0].size(),rank);
         initial_index = query_index;
         vector<vector<vector<F>>> replies(rounds),replies_mask(masking_rounds); 
         for(int i = 0; i < rounds; i++){
@@ -943,11 +951,34 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
                 }
             }
         }
-        
+
         verify_queries(N,folded_codewords[0].size()/4,  initial_index, replies, replies_mask,
                                     challenges, aggr_challenges, Com, eval_MT, ps);
 
         // Send the final codeword to P0
+        
+    if(PC_offset>0){
+        com_rounds += 1;
+        //vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
+        
+        if(rank != 0){
+            send_PC_data(codeword,row_data,row_data.size()/(1<<(rounds)),query_index,l);
+            
+        } 
+        else{
+            vector<vector<F>> all_codewords(N),all_row_data(N);
+            //vector<vector<u32>> all_queries;
+            all_codewords[0] = codeword;
+            all_row_data[0].resize(row_data.size()/(1<<(rounds)));
+            for(int i = 0; i  < row_data.size()/(1<<(rounds)); i++) all_row_data[0][i] = row_data[i];
+            recv_PC_data(all_codewords,all_row_data,query_index,codeword.size(),row_data.size()/(1<<(rounds)),l,N);
+            
+            //all_queries.insert(all_queries.begin(),query_index);
+            vector<F> beta2_old;
+            //local_open(all_codewords,all_row_data,beta1,beta2,beta2_old,query_index,y,l,k,N,ps,true,verify);
+        }
+
+    }else{
         com_rounds++;
         if(rank != 0){
             vector<u64> buff;
@@ -1010,26 +1041,6 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             vt.end();
             
         }
-    }else{
-        vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
-        
-        if(rank != 0){
-            send_PC_data(codeword,row_data,row_data.size()/(1<<(rounds)),query_index,l);
-            
-        } 
-        else{
-            vector<vector<F>> all_codewords(N),all_row_data(N);
-            //vector<vector<u32>> all_queries;
-            all_codewords[0] = codeword;
-            all_row_data[0].resize(row_data.size()/(1<<(rounds)));
-            for(int i = 0; i  < row_data.size()/(1<<(rounds)); i++) all_row_data[0][i] = row_data[i];
-            recv_PC_data(all_codewords,all_row_data,query_index,codeword.size(),row_data.size()/(1<<(rounds)),l,N);
-            
-            //all_queries.insert(all_queries.begin(),query_index);
-            vector<F> beta2_old;
-            local_open(all_codewords,all_row_data,beta1,beta2,beta2_old,query_index,y,l,k,N,ps,true,verify);
-        }
-
     }
     
 
@@ -1097,7 +1108,7 @@ void open_plaintext(vector<F> &codeword, vector<F> &row_data,
         }
 
 
-        query_index = get_indexes(l,N,2*2*(1<<rounds),rank);
+        query_index = get_indexes(l,N,folded_codewords[0].size(),rank);
         initial_index = query_index;
         vector<vector<vector<F>>> replies(rounds); 
         for(int i = 0; i < rounds; i++){
