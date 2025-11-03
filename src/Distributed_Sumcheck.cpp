@@ -18,13 +18,20 @@ vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<F> buff; 
-    vector<u64> buff_u64(2*H.size());
+    vector<u64> buff_u64(2*H.size()),send_buff(2*H.size());
     com_rounds+=2;
     
     if(rank == 0){
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N-1);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
+            recv_data[i].resize(2*H.size());
+            MPI_Irecv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            //MPI_Recv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        }
+        for(int i = 0; i < N-1; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i+1],buff);
             for(int j = 0; j < H.size(); j++){
                 H[j] += buff[j];
             }
@@ -33,9 +40,11 @@ vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
         field_vector_serialize(buff,buff_u64);
     }else{
         buff = H;
-        field_vector_serialize(buff,buff_u64);
-        cm += 8*buff_u64.size()/1024.0;
-        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        field_vector_serialize(buff,send_buff);
+        cm += 8*send_buff.size()/1024.0;
+        MPI_Request req;
+        MPI_Isend(send_buff.data(),send_buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
     }   
     if(rank == 0)cm += (N-1)*8*buff_u64.size()/1024.0;
     myBcast(buff_u64, N);
