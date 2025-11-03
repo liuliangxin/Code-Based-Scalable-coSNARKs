@@ -36,3 +36,4 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type=0);
 
 void prove_R1CS_standard(size_t size);
 void compute_beta_shares(vector<F> &shares, vector<F> r, int k, int N, int _k);
+void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type=0);

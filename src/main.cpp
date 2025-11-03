@@ -818,8 +818,8 @@ int main(int argc, char *argv[]){
                 // Calculate x64
                 multree_offset = atoi(argv[6]) - (int)log2(N);
             }
-
-            coPIOP_prove(M, N, _k, k,cir);
+            if(isLAN) coPIOP_prove(M, N, _k, k,cir);
+            else coPIOP_prove_batch(M, N, _k, k,cir);
         }else{
             data_parallel = true;
             coPIOP_prove(M, N, _k, k,1);

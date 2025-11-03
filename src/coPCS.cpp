@@ -1211,7 +1211,7 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
             fft(v2[i],(int)log2(v2[i].size()),true);
             vector<F> _v2(2*v2[i].size(),F(0));
             
-            for(int j = 0; j < k[j]; j++){
+            for(int j = 0; j < k[i]; j++){
                 _v2[j*N/k[i]] = v2[i][j];
             }
             v2[i] = _v2;
@@ -1226,7 +1226,7 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         rounds.push_back((int)log2(row_data[i].size())-1-PC_offset);
     }
     pt_cp.end();
-    if(!rank)printf("OK1\n");
+    
     vector<vector<vector<F>>> folded_codewords(rounds.size());
     vector<vector<MT>> eval_MT(rounds.size());
     int max_rounds = 0;
@@ -1234,6 +1234,10 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         if(rounds[i] > 0){
             folded_codewords[i].resize(rounds[i]);
             eval_MT[i].resize(rounds[i]);
+        }else{
+            rounds[i] = 0;
+            folded_codewords[i].resize(1);
+            folded_codewords[i][0] = codeword[i];
         }
         if(rounds[i] > max_rounds){
             max_rounds = rounds[i];
@@ -1244,8 +1248,9 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         
     vector<quadratic_poly> H(rounds.size());
     
+    
+    
     for(int i = 0; i < max_rounds; i++){
-       
         vector<F> dummy;
         for(int j = 0; j < batch_size; j++){
             if(rounds[j] > i) folded_codewords[j][i] = codeword[j]; 
@@ -1256,14 +1261,16 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         
         }
         H = batch_aggregate(H, v2, secret_shared, rounds,k, i, N);
- 
+        //printf("%d (%lld,%lld),(%lld,%lld),(%lld,%lld)\n",i,H[1].a.real,H[1].a.img,H[1].b.real,H[1].b.img,H[1].c.real,H[1].c.img);
         pt_cp.start();
         for(int j = 0; j < batch_size; j++){
             if(rounds[j] > i){
                 if(H[j].eval(0) + H[j].eval(1) != y[j] && verify[j]){
-                    printf("Error in open round %d\n",i);
-                    //return;
+                    printf("Error in open round %d,%d, (%lld,%lld)\n",i,rank,(H[j].eval(0) + H[j].eval(1)).real,(H[j].eval(0) + H[j].eval(1)).img);
+                    //exit(-1);
                 }
+                //if(rank == 1 && verify[j]) printf("%d (%lld,%lld)\n",i,(H[j].eval(0) + H[j].eval(1)).real,(H[j].eval(0) + H[j].eval(1)).img);
+
             }
             
         }
@@ -1283,8 +1290,7 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
     
     for(int i = 0;  i < batch_size; i++){
         query_index[i] = get_indexes(l[i],N,folded_codewords[i].size(),rank);    
-        initial_index[i] = query_index[i];
-        
+        initial_index[i] = query_index[i];   
     }
     vector<vector<vector<vector<F>>>> replies(batch_size);
     for(int i = 0; i < replies.size(); i++){
@@ -1305,10 +1311,10 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
                 }
             }
         }
-        verify_queries(N,folded_codewords[h][0].size()/4,  initial_index[h], replies[h], {},
+        if(rounds[h]) verify_queries(N,folded_codewords[h][0].size()/4,  initial_index[h], replies[h], {},
                                     challenges, {}, Com[h], eval_MT[h], ps,verify[h]);
+   
     }
-    
     if(PC_offset){
         vector<int> row_data_size(batch_size),codeword_size(batch_size);
         
@@ -1322,8 +1328,7 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         } 
 
         if(rank != 0){
-            send_batch_PC_data(codeword,row_data,row_data_size,query_index,l);
-            
+            send_batch_PC_data(codeword,row_data,row_data_size,query_index,l);  
         } 
         else{
             vector<vector<vector<F>>> all_codewords,all_row_data;

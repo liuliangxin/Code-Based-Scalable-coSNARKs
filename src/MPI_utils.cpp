@@ -226,8 +226,7 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
         vector<vector<quadratic_poly>> P(rounds.size());
         int ctr = 0;
         for(int i = 0; i < rounds.size(); i++){
-            
-            if(rounds[i] > round && !secret_shared[i]){
+            if(rounds[i] > round){
                 P[i].resize(N);
                 for(int j = 0; j < N; j++) {
                     P[i][j] = quadratic_poly(polys[j][3*ctr],polys[j][3*ctr+1],polys[j][3*ctr+2]);
@@ -247,6 +246,7 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
 
             }
         }
+        //printf("%d, (%lld),%lld\n",round,final_P[1].a.real,poly[0].real);
         field_vector_serialize(poly,coef_u);
         
     }else{
@@ -259,11 +259,13 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
         field_vector_deserialize(coef_u,poly);
         int ctr = 0;
         for(int i = 0; i < rounds.size(); i++){
-            if(rounds[i] > round && !secret_shared[i]){
+            if(rounds[i] > round){
                 final_P[i] = quadratic_poly(poly[3*ctr],poly[3*ctr+1],poly[3*ctr+2]);
+                ctr++;
             }
-            ctr++;
         }
+        //printf("%d, (%lld)\n",round,final_P[1].a.real);
+        
     }
     return final_P;
 

@@ -858,8 +858,10 @@ void batch_open_PIOP(vector<pair<F,vector<F>>> claims, vector<vector<F>> &row_da
     for(int i = 0; i < logk; i++) r2.push_back(claims[0].second[i]);
     for(int i = logk; i < claims[0].second.size(); i++) r1.push_back(claims[0].second[i]);
     precompute_beta(r1,v1[0]);precompute_beta(r2,v2[0]);r1.clear();r2.clear();
+    
 
-    for(int i = 0; i < logk; i++) r2.push_back(claims[1].second[i]);
+    printf("%d,%d\n",claims[0].second.size(),claims[1].second.size());
+    for(int i = 0; i < (int)log2(N/2); i++) r2.push_back(claims[1].second[i]);
     for(int i = r2.size(); i < claims[1].second.size() ; i++) r1.push_back(claims[1].second[i]);    
     precompute_beta(r1,v1[1]);precompute_beta(r2,v2[1]);r1.clear();r2.clear();
 
@@ -868,7 +870,12 @@ void batch_open_PIOP(vector<pair<F,vector<F>>> claims, vector<vector<F>> &row_da
     precompute_beta(r1,v1[2]);precompute_beta(r2,v2[2]);
 
     pt_cp.end();
-    batch_open(codeword,row_data,v1,v2,Com,{claims[0].first,claims[1].first,claims[2].first},{500,500,100},{N/2,N/2,N},N,ps,{true,false,false},{true,true,false});
+    
+    //open_plaintext(codeword[1],row_data[1],v1[1],v2[1],Com[1],claims[1].first,500,N/2,N,ps,false);
+    
+
+    
+    batch_open(codeword,row_data,v1,v2,Com,{claims[0].first,claims[1].first,F(1)},{500,500,100},{k,N/2,N},N,ps,{true,false,false},{true,true,false});
 }
 
 
