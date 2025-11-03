@@ -986,8 +986,8 @@ int main(int argc, char *argv[]){
     }else{
         vector<vector<F>> r1(3),r2(3);
         vector<F> arr1(M/N,1);
-        vector<F> arr2(M/N,2);
-        vector<F> arr3(M/N,3);
+        vector<F> arr2(M/(2*N),2);
+        vector<F> arr3(M/(4*N),3);
         vector<vector<F>> codeword(3);
         vector<vector<F>> row_data(3);
         vector<MT> Com(3);
@@ -998,9 +998,9 @@ int main(int argc, char *argv[]){
         plaintext_commit(arr3,codeword[2],row_data[2],Com[2],N/2,N);
         r1[0] = generate_randomness((int)log2(M) - (int)log2(N/2));
         r2[0] = generate_randomness((int)log2(N/2));
-        r1[1] = generate_randomness((int)log2(M) - (int)log2(N/2));
+        r1[1] = generate_randomness((int)log2(M/2) - (int)log2(N/2));
         r2[1] = generate_randomness((int)log2(N/2));
-        r1[2] = generate_randomness((int)log2(M) - (int)log2(N/2));
+        r1[2] = generate_randomness((int)log2(M/4) - (int)log2(N/2));
         r2[2] = generate_randomness((int)log2(N/2));
         vector<vector<F>> v1(3),v2(3);
         for(int i = 0; i < v1.size(); i++) precompute_beta(r1[i],v1[i]);

@@ -857,6 +857,67 @@ void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector
         
 }
 
+
+void recv_batch_PC_data(vector<vector<vector<F>>> &codeword, vector<vector<vector<F>>> &row_data, vector<vector<vector<u32>>> &query_index, vector<int> codeword_size, vector<int> size, vector<int> l, int N){
+    vector<vector<u64>> buff64(N-1);
+    int batch_size = codeword_size.size();
+    int codewords_len = 0, row_len = 0,l_len = 0;
+    for(int i = 0; i < batch_size; i++){
+        codewords_len += codeword_size[i];
+        row_len += size[i];
+        l_len += l[i];
+    }
+    for(int i = 0; i < N-1;i++) buff64[i].resize(2*(codewords_len+row_len)+l_len+batch_size); 
+    
+    codeword.clear();
+    row_data.clear();
+    codeword.resize(batch_size);
+    row_data.resize(batch_size);
+    for(int i = 0; i < codeword.size(); i++){
+        codeword[i].resize(N);
+        row_data[i].resize(N);
+    }
+    
+    vector<vector<u64>> code_buff(batch_size),row_buff(batch_size);
+    for(int i = 0; i < batch_size; i++){
+        code_buff[i].resize(2*codeword_size[i]);
+        row_buff[i].resize(2*size[i]);
+    }
+    vector<MPI_Request> stat(N-1);
+    
+    for(int i = 1; i < N; i++){
+        MPI_Irecv(buff64[i-1].data(),buff64[i-1].size(),MPI_UINT64_T, i,0,MPI_COMM_WORLD,&stat[i-1]);
+    }
+    for(int i = 1; i < N; i++){
+        MPI_Wait(&stat[i-1],MPI_STATUS_IGNORE);
+        //field_vector_deserialize(buff64,buff);
+        //codeword[i];
+        //row_data[i];
+        int ctr = 0;
+        for(int h = 0; h < batch_size; h++){
+            for(int j = 0; j < 2*codeword_size[h]; j++) code_buff[h][j] = buff64[i-1][ctr++];
+            field_vector_deserialize(code_buff[h],codeword[h][i]);
+        }
+        for(int h = 0; h < batch_size; h++){
+            for(int j = 0; j < 2*size[h]; j++) row_buff[h][j] = buff64[i-1][ctr++];
+            
+            field_vector_deserialize(code_buff[h],codeword[h][i]);
+            
+        }
+        //for(int j = 0; j < 2*size; j++) {row_buff[j] = buff64[i-1][ctr++];}
+        
+        
+        //field_vector_deserialize(row_buff,row_data[i]);
+        for(int h = 0; h < batch_size; h++){
+            int queries = buff64[i-1][ctr++];
+
+            for(int j = 0; j < queries; j++) query_index[h].push_back({(u32)i,(u32)buff64[i-1][ctr++]});
+            ctr +=( l[h] - queries);
+        }
+        
+    }
+}
+
 void recv_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<vector<u32>> &query_index, int codeword_size, int size, int l, int N){
     vector<vector<u64>> buff64(N-1);
     for(int i = 0; i < N-1;i++) buff64[i].resize(2*(codeword_size+size)+l+1); 
@@ -912,7 +973,7 @@ void send_PC_data(vector<F> &codeword, vector<F> &row_data, int size, vector<vec
     
 }
 
-void send_batch_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<int> size, vector<vector<vector<u32>>> query_index, int l){
+void send_batch_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<int> size, vector<vector<vector<u32>>> query_index, vector<int> l){
     int rank;
     int batch_size = codeword.size();
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -934,15 +995,18 @@ void send_batch_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data
         }
         int ctr = 2*buff.size();
         field_vector_serialize(buff,buff_64);
-        buff_64.resize(buff_64.size()+batch_size*l+1,0);
-        for(int j = 0; j < ; j++){
+        int num_l = 0;
+        for(int i = 0; i < l.size(); i++) num_l += l[i];
+        buff_64.resize(buff_64.size()+batch_size + num_l,0);
+        for(int j = 0; j < batch_size; j++){
+            
+            buff_64[ctr++] = query_index[j].size();
+            for(int i = 0; i < query_index[j].size(); i++){
+                buff_64[ctr++] = query_index[j][i][1];
+            }    
+            ctr+= (l[j]-query_index[j].size());
+        }
         
-        }
-
-        buff_64[ctr++] = query_index.size();
-        for(int i = 0; i < query_index.size(); i++){
-            buff_64[ctr++] = query_index[i][1];
-        }
         
         MPI_Isend(buff_64.data(),buff_64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&stat);
         MPI_Wait(&stat, MPI_STATUS_IGNORE);
@@ -1212,7 +1276,6 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         for(int j = 0; j < batch_size; j++){
             if(rounds[j] > i) step2(challenges[i], F(0), i, v1[j], row_data[j],codeword[j],dummy,eval_MT[j][i],N);
         }        
-        if(i == max_rounds-1) return;
         
         pt_cp.end();
         
@@ -1245,26 +1308,44 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
         verify_queries(N,folded_codewords[h][0].size()/4,  initial_index[h], replies[h], {},
                                     challenges, {}, Com[h], eval_MT[h], ps,verify[h]);
     }
-        
+    
     if(PC_offset){
+        vector<int> row_data_size(batch_size),codeword_size(batch_size);
+        
+        for(int i = 0; i < batch_size; i++){
+            if(rounds[i] > 0){
+                row_data_size[i] = row_data[i].size()/(1<<(rounds[i]));                            
+            }else{
+                row_data_size[i] = row_data[i].size();
+            }
+            codeword_size[i] = codeword[i].size();
+        } 
+
         if(rank != 0){
-            send_PC_data(codeword,row_data,row_data.size()/(1<<(rounds)),query_index,l);
+            send_batch_PC_data(codeword,row_data,row_data_size,query_index,l);
             
         } 
         else{
-            vector<vector<F>> all_codewords(N),all_row_data(N);
+            vector<vector<vector<F>>> all_codewords,all_row_data;
             //vector<vector<u32>> all_queries;
-            all_codewords[0] = codeword;
-            all_row_data[0].resize(row_data.size()/(1<<(rounds)));
-            for(int i = 0; i  < row_data.size()/(1<<(rounds)); i++) all_row_data[0][i] = row_data[i];
-            recv_PC_data(all_codewords,all_row_data,query_index,codeword.size(),row_data.size()/(1<<(rounds)),l,N);
+            //all_codewords[0] = codeword;
+            //all_row_data[0].resize(row_data.size()/(1<<(rounds)));
+            recv_batch_PC_data(all_codewords,all_row_data,query_index,codeword_size,row_data_size,l,N);
+            for(int i = 0; i < batch_size; i++){
+                all_codewords[i][0] = codeword[i];
+                all_row_data[i][0].resize(row_data_size[i]);
+                for(int j = 0; j  < row_data_size[i]; j++){
+                    all_row_data[i][0][j] = row_data[i][j];
+            
+                }
+            }
             
             //all_queries.insert(all_queries.begin(),query_index);
-            local_open(all_codewords,all_row_data,v1,v2,old_v2,query_index,y,l,k,N,ps,secret_shared,verify);
+            for(int i = 0; i < batch_size; i++) local_open(all_codewords[i],all_row_data[i],v1[i],v2[i],old_v2[i],query_index[i],y[i],l[i],k[i],N,ps,secret_shared[i],verify[i]);
+          
         }
     }    
-
-
+ 
 }
 
 //void open_index(vector<F> &row_data, vector<F> &codeword, MT &index_Com, int rate){
