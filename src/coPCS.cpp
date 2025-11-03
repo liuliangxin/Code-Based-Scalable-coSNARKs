@@ -901,7 +901,7 @@ void recv_batch_PC_data(vector<vector<vector<F>>> &codeword, vector<vector<vecto
         for(int h = 0; h < batch_size; h++){
             for(int j = 0; j < 2*size[h]; j++) row_buff[h][j] = buff64[i-1][ctr++];
             
-            field_vector_deserialize(code_buff[h],codeword[h][i]);
+            field_vector_deserialize(row_buff[h],row_data[h][i]);
             
         }
         //for(int j = 0; j < 2*size; j++) {row_buff[j] = buff64[i-1][ctr++];}
@@ -924,6 +924,7 @@ void recv_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vect
     vector<u64> code_buff(2*codeword_size),row_buff(2*size);
     vector<MPI_Request> stat(N-1);
     for(int i = 1; i < N; i++){
+        
         MPI_Irecv(buff64[i-1].data(),buff64[i-1].size(),MPI_UINT64_T, i,0,MPI_COMM_WORLD,&stat[i-1]);
     }
     for(int i = 1; i < N; i++){
@@ -1006,7 +1007,6 @@ void send_batch_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data
             }    
             ctr+= (l[j]-query_index[j].size());
         }
-        
         
         MPI_Isend(buff_64.data(),buff_64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&stat);
         MPI_Wait(&stat, MPI_STATUS_IGNORE);
@@ -1344,11 +1344,13 @@ void batch_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data,
             
                 }
             }
-            
             //all_queries.insert(all_queries.begin(),query_index);
-            for(int i = 0; i < batch_size; i++) local_open(all_codewords[i],all_row_data[i],v1[i],v2[i],old_v2[i],query_index[i],y[i],l[i],k[i],N,ps,secret_shared[i],verify[i]);
-          
+            for(int i = 0; i < batch_size; i++){ 
+                local_open(all_codewords[i],all_row_data[i],v1[i],v2[i],old_v2[i],query_index[i],y[i],l[i],k[i],N,ps,secret_shared[i],verify[i]);
+            }
         }
+        //open_plaintext(codeword[0],row_data[0],v1[0],v2[0],Com[0],y[0],l[0],k[0],N,ps,secret_shared[0],verify[0]);
+           
     }    
  
 }

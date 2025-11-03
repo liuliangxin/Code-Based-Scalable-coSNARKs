@@ -860,7 +860,6 @@ void batch_open_PIOP(vector<pair<F,vector<F>>> claims, vector<vector<F>> &row_da
     precompute_beta(r1,v1[0]);precompute_beta(r2,v2[0]);r1.clear();r2.clear();
     
 
-    printf("%d,%d\n",claims[0].second.size(),claims[1].second.size());
     for(int i = 0; i < (int)log2(N/2); i++) r2.push_back(claims[1].second[i]);
     for(int i = r2.size(); i < claims[1].second.size() ; i++) r1.push_back(claims[1].second[i]);    
     precompute_beta(r1,v1[1]);precompute_beta(r2,v2[1]);r1.clear();r2.clear();
