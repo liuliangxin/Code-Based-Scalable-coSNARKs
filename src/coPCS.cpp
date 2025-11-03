@@ -514,191 +514,6 @@ void verify_queries_local(int N,int M,vector<vector<u32>> query_indexes,
 
 }
 
-
-
-void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword, 
-             vector<F> &row_data, vector<vector<F>> &mask_data, 
-             MT &Com, vector<MT> Mask_Com, 
-             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps, bool verify){
-    
-    
-    pt_cp.start();
-    
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
-    int rounds = (int)log2(row_data.size())-1;
-    int masking_rounds = mask_codeword.size();
-    vector<F> r1,r2,beta1,beta2;
-    vector<vector<F>> folded_codewords(rounds);
-    vector<MT> eval_MT(rounds);
-    
-    for(int i = 0; i < (int)log2(k); i++) r2.push_back(r[i]);
-    
-    for(int i = (int)log2(k); i < r.size(); i++) r1.push_back(r[i]);
-    
-    
-    precompute_beta(r1,beta1);precompute_beta(r2,beta2);
-    fft(row_data,(int)log2(row_data.size()),true);
-    F omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(row_data.size())).inv();
-    F mul = F(1);
-    for(int j = 0; j < row_data.size(); j++){
-        row_data[j] = mul*row_data[j];
-        mul = mul*omega;
-    }
-    fft(beta1,(int)log2(beta1.size()),false);
-    omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(row_data.size()));
-    mul = F(1);
-    for(int j = 0; j < row_data.size(); j++){
-        beta1[j] = mul*beta1[j];
-        mul = mul*omega;
-    }
-
-    
-   vector<F> y_mask(rounds),aggr_challenges(rounds),challenges(rounds);
-    
-    quadratic_poly H;
-    pt_cp.end();
-    
-    for(int i = 0; i < rounds; i++){
-
-        folded_codewords[i] = codeword;
-        if(i < masking_rounds){
-            y_mask[i] = F_ip(mask_data[i],beta1,beta2,k,_k,N);
-            aggr_challenges[i] = hash_to_field({y_mask[i]});
-            //aggr_challenges[i] = F(0);
-        }else{
-            y_mask[i] = 0;
-            aggr_challenges[i] = 0;
-        }    
-        pt_cp.start();
-        
-        if(i < masking_rounds){
-            H = step1(i,aggr_challenges[i],beta1,row_data,mask_data[i]);
-        }else{
-            vector<F> dummy;
-            H = step1(i,F(0),beta1,row_data,dummy);
-        }
-        pt_cp.end();
-        
-        H = aggregate_quadratic_poly(H, beta2,  k,  _k,  N);
-        if(verify && H.eval(0) + H.eval(1) != y + aggr_challenges[i]*y_mask[i]){
-            printf("> Error in open round %d\n",i);
-            return;
-        }
-        pt_cp.start();
-    
-        challenges[i] = hash_to_field({H.a,H.b,H.c});
-        y = H.eval(challenges[i]);
-        
-        if(i < masking_rounds){
-            step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,mask_codeword[i],eval_MT[i],N);
-        }else{
-            vector<F> dummy;
-            step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,dummy,eval_MT[i],N);
-        }
-        
-
-        pt_cp.end();
-    
-    }
-    // Generate opening proofs 
-    vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
-    initial_index = query_index;
-    vector<vector<vector<F>>> replies(rounds),replies_mask(masking_rounds); 
-    for(int i = 0; i < rounds; i++){
-        for(int j = 0; j < query_index.size(); j++){
-            if(query_index[j][1] < folded_codewords[i].size()/2){
-                replies[i].push_back({folded_codewords[i][query_index[j][1]],folded_codewords[i][query_index[j][1] + folded_codewords[i].size()/2]});
-                
-                if(i < masking_rounds){
-                    replies_mask[i].push_back({mask_codeword[i][query_index[j][1]],mask_codeword[i][query_index[j][1] + mask_codeword[i].size()/2]});
-                }
-            }else{
-                replies[i].push_back({folded_codewords[i][query_index[j][1]- folded_codewords[i].size()/2],folded_codewords[i][query_index[j][1]]});
-                
-                if(i < masking_rounds){
-                    replies_mask[i].push_back({mask_codeword[i][query_index[j][1]- mask_codeword[i].size()/2],mask_codeword[i][query_index[j][1]]});
-                }
-            }
-        }
-        for(int j = 0; j < query_index.size(); j++){
-            if(query_index[j][1] >= folded_codewords[i].size()/2){
-                query_index[j][1] -= folded_codewords[i].size()/2;
-            }
-        }
-    }
-    
-    verify_queries(N,folded_codewords[0].size()/4,  initial_index, replies, replies_mask,
-                                 challenges, aggr_challenges, Com, eval_MT, ps);
-
-    // Send the final codeword to P0
-    com_rounds++;
-    if(rank != 0){
-        vector<u64> buff;
-        field_vector_serialize(codeword,buff);
-        cm += 8*buff.size()/1024.0;
-        MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
-    }else{
-        vt.start();
-        
-        vector<vector<F>> final_codeword(N);
-        final_codeword[0] = codeword;
-        vector<u64> buff(2*codeword.size());
-        for(int i = 1; i < N; i++){
-            MPI_Recv(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff,codeword);
-            final_codeword[i] = codeword;
-        }
-        ps += final_codeword.size()*final_codeword[0].size()*16/1024.0;
-        vector<vector<F>> _final_codeword(N);
-        for(int i = 0; i < N; i++){
-            _final_codeword[i].resize(final_codeword[i].size()/rate,0);
-            fft(final_codeword[i],(int)log2(final_codeword[i].size()),true);            
-            for(int j = 0; j < _final_codeword[i].size(); j++){
-                //printf("%d,%d\n",final_codeword[i].size(),2*rate*j );
-                _final_codeword[i][j] = final_codeword[i][j ];
-            }
-        }
-        
-        F temp = 0;
-        
-        vector<vector<F>> message(_final_codeword[0].size());
-        for(int i = 0; i < message.size(); i++){
-            message[i].resize(N);
-            for(int j = 0; j < message[i].size(); j++){
-                message[i][j] = _final_codeword[j][i];
-            }
-            fft(message[i],(int)log2(N),true);
-            
-            F omega = getRootOfUnity(1+(int)log2(N)).inv();
-            F mul = F(1);
-            for(int j = 0; j < message[i].size(); j++){
-                message[i][j] = mul*message[i][j];
-                mul = mul*omega;
-            }
-            fft(message[i],(int)log2(N),false);
-            vector<F> buff = message[i];
-            message[i].resize(k);
-            for(int j = 0; j < k; j++) message[i][j] = buff[N*j/_k];
-        }
-        for(int i = 0; i < k; i++){
-            for(int j = 0; j < message.size(); j++){
-                temp += beta2[i]*beta1[j]*message[j][i];
-            }
-        }
-        if(temp != y){
-            printf("ERROR\n");
-        }else{
-            //printf("PC Verification Success\n");
-        }
-        vt.end();
-        
-    }
-
-
-}
-
-
 void local_open(vector<vector<F>> &codeword, vector<vector<F>> &row_data, vector<F> &v1, vector<F> &v2,vector<F> &old_v2, vector<vector<u32>> &query_index,
                          F y, int l, int k, int N, double &ps, bool secret_shared, bool verify){
     
@@ -1013,6 +828,213 @@ void send_batch_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data
     }
     
 }
+
+
+
+void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword, 
+             vector<F> &row_data, vector<vector<F>> &mask_data, 
+             MT &Com, vector<MT> Mask_Com, 
+             vector<F> r, F y, int l, int k, int _k, int M, int N, double &ps, bool verify){
+    
+    
+    pt_cp.start();
+    
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    int rounds = (int)log2(row_data.size())-1;
+    int masking_rounds = mask_codeword.size();
+    vector<F> r1,r2,beta1,beta2;
+    vector<vector<F>> folded_codewords(rounds);
+    vector<MT> eval_MT(rounds);
+    
+    for(int i = 0; i < (int)log2(k); i++) r2.push_back(r[i]);
+    
+    for(int i = (int)log2(k); i < r.size(); i++) r1.push_back(r[i]);
+    
+    
+    precompute_beta(r1,beta1);precompute_beta(r2,beta2);
+    fft(row_data,(int)log2(row_data.size()),true);
+    F omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(row_data.size())).inv();
+    F mul = F(1);
+    for(int j = 0; j < row_data.size(); j++){
+        row_data[j] = mul*row_data[j];
+        mul = mul*omega;
+    }
+    fft(beta1,(int)log2(beta1.size()),false);
+    omega = getRootOfUnity(1+(int)log2(rate)+(int)log2(row_data.size()));
+    mul = F(1);
+    for(int j = 0; j < row_data.size(); j++){
+        beta1[j] = mul*beta1[j];
+        mul = mul*omega;
+    }
+
+    
+   vector<F> y_mask(rounds),aggr_challenges(rounds),challenges(rounds);
+    
+    quadratic_poly H;
+    pt_cp.end();
+    
+    for(int i = 0; i < rounds; i++){
+
+        folded_codewords[i] = codeword;
+        if(i < masking_rounds){
+            y_mask[i] = F_ip(mask_data[i],beta1,beta2,k,_k,N);
+            aggr_challenges[i] = hash_to_field({y_mask[i]});
+            //aggr_challenges[i] = F(0);
+        }else{
+            
+            if(rounds-i-PC_offset <= 0) break;
+            
+            y_mask[i] = 0;
+            aggr_challenges[i] = 0;
+        }    
+        pt_cp.start();
+        
+        if(i < masking_rounds){
+            H = step1(i,aggr_challenges[i],beta1,row_data,mask_data[i]);
+        }else{
+            vector<F> dummy;
+            H = step1(i,F(0),beta1,row_data,dummy);
+        }
+        pt_cp.end();
+        
+        H = aggregate_quadratic_poly(H, beta2,  k,  _k,  N);
+        if(verify && H.eval(0) + H.eval(1) != y + aggr_challenges[i]*y_mask[i]){
+            printf("> Error in open round %d\n",i);
+            return;
+        }
+        pt_cp.start();
+    
+        challenges[i] = hash_to_field({H.a,H.b,H.c});
+        y = H.eval(challenges[i]);
+        
+        if(i < masking_rounds){
+            step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,mask_codeword[i],eval_MT[i],N);
+        }else{
+            vector<F> dummy;
+            step2(challenges[i], aggr_challenges[i], i, beta1, row_data,codeword,dummy,eval_MT[i],N);
+        }
+        pt_cp.end();
+    }
+    if(PC_offset == 0){
+        // Generate opening proofs 
+        vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
+        initial_index = query_index;
+        vector<vector<vector<F>>> replies(rounds),replies_mask(masking_rounds); 
+        for(int i = 0; i < rounds; i++){
+            for(int j = 0; j < query_index.size(); j++){
+                if(query_index[j][1] < folded_codewords[i].size()/2){
+                    replies[i].push_back({folded_codewords[i][query_index[j][1]],folded_codewords[i][query_index[j][1] + folded_codewords[i].size()/2]});
+                    
+                    if(i < masking_rounds){
+                        replies_mask[i].push_back({mask_codeword[i][query_index[j][1]],mask_codeword[i][query_index[j][1] + mask_codeword[i].size()/2]});
+                    }
+                }else{
+                    replies[i].push_back({folded_codewords[i][query_index[j][1]- folded_codewords[i].size()/2],folded_codewords[i][query_index[j][1]]});
+                    
+                    if(i < masking_rounds){
+                        replies_mask[i].push_back({mask_codeword[i][query_index[j][1]- mask_codeword[i].size()/2],mask_codeword[i][query_index[j][1]]});
+                    }
+                }
+            }
+            for(int j = 0; j < query_index.size(); j++){
+                if(query_index[j][1] >= folded_codewords[i].size()/2){
+                    query_index[j][1] -= folded_codewords[i].size()/2;
+                }
+            }
+        }
+        
+        verify_queries(N,folded_codewords[0].size()/4,  initial_index, replies, replies_mask,
+                                    challenges, aggr_challenges, Com, eval_MT, ps);
+
+        // Send the final codeword to P0
+        com_rounds++;
+        if(rank != 0){
+            vector<u64> buff;
+            field_vector_serialize(codeword,buff);
+            cm += 8*buff.size()/1024.0;
+            MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        }else{
+            vt.start();
+            
+            vector<vector<F>> final_codeword(N);
+            final_codeword[0] = codeword;
+            vector<u64> buff(2*codeword.size());
+            for(int i = 1; i < N; i++){
+                MPI_Recv(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                field_vector_deserialize(buff,codeword);
+                final_codeword[i] = codeword;
+            }
+            ps += final_codeword.size()*final_codeword[0].size()*16/1024.0;
+            vector<vector<F>> _final_codeword(N);
+            for(int i = 0; i < N; i++){
+                _final_codeword[i].resize(final_codeword[i].size()/rate,0);
+                fft(final_codeword[i],(int)log2(final_codeword[i].size()),true);            
+                for(int j = 0; j < _final_codeword[i].size(); j++){
+                    //printf("%d,%d\n",final_codeword[i].size(),2*rate*j );
+                    _final_codeword[i][j] = final_codeword[i][j ];
+                }
+            }
+            
+            F temp = 0;
+            
+            vector<vector<F>> message(_final_codeword[0].size());
+            for(int i = 0; i < message.size(); i++){
+                message[i].resize(N);
+                for(int j = 0; j < message[i].size(); j++){
+                    message[i][j] = _final_codeword[j][i];
+                }
+                fft(message[i],(int)log2(N),true);
+                
+                F omega = getRootOfUnity(1+(int)log2(N)).inv();
+                F mul = F(1);
+                for(int j = 0; j < message[i].size(); j++){
+                    message[i][j] = mul*message[i][j];
+                    mul = mul*omega;
+                }
+                fft(message[i],(int)log2(N),false);
+                vector<F> buff = message[i];
+                message[i].resize(k);
+                for(int j = 0; j < k; j++) message[i][j] = buff[N*j/_k];
+            }
+            for(int i = 0; i < k; i++){
+                for(int j = 0; j < message.size(); j++){
+                    temp += beta2[i]*beta1[j]*message[j][i];
+                }
+            }
+            if(temp != y){
+                printf("ERROR\n");
+            }else{
+                //printf("PC Verification Success\n");
+            }
+            vt.end();
+            
+        }
+    }else{
+        vector<vector<u32>> initial_index, query_index = get_indexes(l,N,2*rate*(1<<rounds),rank);
+        
+        if(rank != 0){
+            send_PC_data(codeword,row_data,row_data.size()/(1<<(rounds)),query_index,l);
+            
+        } 
+        else{
+            vector<vector<F>> all_codewords(N),all_row_data(N);
+            //vector<vector<u32>> all_queries;
+            all_codewords[0] = codeword;
+            all_row_data[0].resize(row_data.size()/(1<<(rounds)));
+            for(int i = 0; i  < row_data.size()/(1<<(rounds)); i++) all_row_data[0][i] = row_data[i];
+            recv_PC_data(all_codewords,all_row_data,query_index,codeword.size(),row_data.size()/(1<<(rounds)),l,N);
+            
+            //all_queries.insert(all_queries.begin(),query_index);
+            vector<F> beta2_old;
+            local_open(all_codewords,all_row_data,beta1,beta2,beta2_old,query_index,y,l,k,N,ps,true,verify);
+        }
+
+    }
+    
+
+}
+
 
 
 void open_plaintext(vector<F> &codeword, vector<F> &row_data,
