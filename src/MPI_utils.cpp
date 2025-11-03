@@ -1148,27 +1148,34 @@ void send_index(vector<vector<int>> &Data,vector<int> dim , int N){
     vector<int> buff;
     vector<int> dim_buff = dim;
     dim_buff.insert(dim_buff.end(),real_idx_dim.begin(),real_idx_dim.end());
-    
+    vector<MPI_Request> req1(N-1),req2(N-1);
     for(int i = 1; i < N; i++){
-        MPI_Send(dim_buff.data(),dim_buff.size(),MPI_INT,i,0,MPI_COMM_WORLD);
-        MPI_Send(Data[i].data(),Data[i].size(),MPI_INT,i,0,MPI_COMM_WORLD);
+        MPI_Isend(dim_buff.data(),dim_buff.size(),MPI_INT,i,0,MPI_COMM_WORLD,&req1[i-1]);
+        MPI_Isend(Data[i].data(),Data[i].size(),MPI_INT,i,1,MPI_COMM_WORLD,&req2[i-1]);
+    }
+    for(int i = 1; i < N; i++){
+        MPI_Wait(&req1[i-1],MPI_STATUS_IGNORE);
+        MPI_Wait(&req2[i-1],MPI_STATUS_IGNORE);
     }
 }
 
-void send_matrix_dims(vector<int> dim1, vector<int> dim2, vector<int> dim3, int idx){
+void send_matrix_dims(vector<int> dim1, vector<int> dim2, vector<int> dim3, int idx, vector<MPI_Request> &req){
     vector<int> buff = {(int)dim1.size(),(int)dim2.size(),(int)dim3.size()};
-    MPI_Send(buff.data(),3,MPI_INT,idx,0,MPI_COMM_WORLD);
-    buff = dim1;buff.insert(buff.end(),dim2.begin(),dim2.end());
-    buff.insert(buff.end(),dim3.begin(),dim3.end());
-    MPI_Send(buff.data(),buff.size(),MPI_INT,idx,0,MPI_COMM_WORLD);
+    MPI_Isend(buff.data(),3,MPI_INT,idx,0,MPI_COMM_WORLD,&req[0]);
+    vector<int> buff2 = dim1;buff2.insert(buff2.end(),dim2.begin(),dim2.end());
+    buff2.insert(buff2.end(),dim3.begin(),dim3.end());
+    MPI_Isend(buff2.data(),buff2.size(),MPI_INT,idx,0,MPI_COMM_WORLD,&req[1]);
 }
 
 void receive_matrix_dims(vector<int> &dim1, vector<int> &dim2, vector<int> &dim3){
+    MPI_Request req1,req2;
     vector<int> buff(3);
-    MPI_Recv(buff.data(),3,MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    MPI_Irecv(buff.data(),3,MPI_INT,0,0,MPI_COMM_WORLD,&req1);
+    MPI_Wait(&req1,MPI_STATUS_IGNORE);
     vector<int> sizes = buff;
     buff.resize(sizes[0]+sizes[1]+sizes[2]);
-    MPI_Recv(buff.data(),buff.size(),MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    MPI_Irecv(buff.data(),buff.size(),MPI_INT,0,1,MPI_COMM_WORLD,&req2);
+    MPI_Wait(&req2,MPI_STATUS_IGNORE);
     dim1.resize(sizes[0]);dim2.resize(sizes[1]);dim3.resize(sizes[2]);
     int ctr = 0;
     for(int i = 0; i < sizes[0]; i++)dim1[i] = buff[ctr++];
@@ -1177,9 +1184,23 @@ void receive_matrix_dims(vector<int> &dim1, vector<int> &dim2, vector<int> &dim3
 }
 
 void send_R1CS_matrixes(vector<vector<int>> &Data,vector<vector<int>> tA_dim,vector<vector<int>> tB_dim,vector<vector<int>> tC_dim, int N){
+    vector<vector<MPI_Request>> req(N-1);
+    vector<vector<int>> buff(N),buff2(N);
+    for(int i = 0; i < N-1; i++) req[i].resize(3);
     for(int i = 1; i < N; i++){
-        send_matrix_dims(tA_dim[i],tB_dim[i],tC_dim[i],i);
-        MPI_Send(Data[i].data(),Data[i].size(),MPI_INT,i,0,MPI_COMM_WORLD);
+        //send_matrix_dims(tA_dim[i],tB_dim[i],tC_dim[i],i,req[i-1]);
+
+        buff[i] = {(int)tA_dim[i].size(),(int)tB_dim[i].size(),(int)tC_dim[i].size()};
+        MPI_Isend(buff[i].data(),3,MPI_INT,i,0,MPI_COMM_WORLD,&req[i-1][0]);
+        buff2[i] = tA_dim[i];buff2[i].insert(buff2[i].end(),tB_dim[i].begin(),tB_dim[i].end());
+        buff2[i].insert(buff2[i].end(),tC_dim[i].begin(),tC_dim[i].end());
+        MPI_Isend(buff2[i].data(),buff2[i].size(),MPI_INT,i,1,MPI_COMM_WORLD,&req[i-1][1]);
+        MPI_Isend(Data[i].data(),Data[i].size(),MPI_INT,i,2,MPI_COMM_WORLD,&req[i-1][2]);
+    }
+    for(int i = 0; i < req.size(); i++){
+        MPI_Wait(&req[i][0],MPI_STATUS_IGNORE);
+        MPI_Wait(&req[i][1],MPI_STATUS_IGNORE);
+        MPI_Wait(&req[i][2],MPI_STATUS_IGNORE);
     }
 }
 
@@ -1260,10 +1281,11 @@ void receive_R1CS_matrixes(int N, int M){
     for(int i = 0; i < dim1.size(); i++) total_size += dim1[i];
     for(int i = 0; i < dim2.size(); i++) total_size += dim2[i];
     for(int i = 0; i < dim3.size(); i++) total_size += dim3[i];
-    
     vector<int> data(2*total_size);
+    MPI_Request req;
+    MPI_Irecv(data.data(),data.size(),MPI_INT,0,2,MPI_COMM_WORLD,&req);
+    MPI_Wait(&req,MPI_STATUS_IGNORE);
     
-    MPI_Recv(data.data(),data.size(),MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     parse_R1CS_matrixes(data,dim1,dim2,dim3,N,M);
 }
 
@@ -1300,7 +1322,9 @@ void receive_index(vector<sparse_eval_data> &index,vector<int> &dim){
     
     vector<int> buff(15);
     dim.clear();dim.resize(12);
-    MPI_Recv(buff.data(),buff.size(),MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    MPI_Request req1,req2;
+    MPI_Irecv(buff.data(),buff.size(),MPI_INT,0,0,MPI_COMM_WORLD,&req1);
+    MPI_Wait(&req1,MPI_STATUS_IGNORE);
     for(int i = 0; i < 12; i++){
         dim[i] =  buff[i];
     }
@@ -1315,7 +1339,8 @@ void receive_index(vector<sparse_eval_data> &index,vector<int> &dim){
         size += 3*dim[4*i+3];
     }  
     vector<int> data(size);
-    MPI_Recv(data.data(),data.size(),MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    MPI_Irecv(data.data(),data.size(),MPI_INT,0,1,MPI_COMM_WORLD,&req2);
+    MPI_Wait(&req2,MPI_STATUS_IGNORE);
     parse_index(index,dim, data);
 }
 
@@ -1370,7 +1395,6 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
         send_index(parsed_data,dims , N);
         parse_index(index,dims,parsed_data[0]);
         vector<vector<int>> parsed_R1CS_matrixes(N);
-        printf("%d,%d,%d\n",tA.size(),tB.size(),tC.size());
         vector<vector<int>> tA_dim(N),tB_dim(N),tC_dim(N);
         for(int i = 0; i < N; i++){
             //parsed_R1CS_matrixes[i].resize(12*M/N,0);
@@ -1420,7 +1444,6 @@ void distribute_index(int N, int M,vector<sparse_eval_data> &index, int type){
                 }
             }
         }
-        
         send_R1CS_matrixes(parsed_R1CS_matrixes,tA_dim,tB_dim,tC_dim,N);        
         parse_R1CS_matrixes(parsed_R1CS_matrixes[0],tA_dim[0],tB_dim[0],tC_dim[0],N,M);
     }else{
@@ -1491,7 +1514,6 @@ void secret_share_coefficients(vector<F> &w, int M, int N, int _k, int k){
 void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector<F> &w, int N, int M, int _k, int k, int cir_type){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
-    vector<u64> buff_u64;
     vector<F> buff;
     
 
@@ -1511,17 +1533,30 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
         vR = R_shares[0];
         vO = O_shares[0];
         w = W_shares[0];
-        
+        vector<MPI_Request> req(N-1);
+        vector<vector<u64>> buff_u64(N);
         for(int i = 1; i < N; i++){
-            buff = L_shares[i];buff.insert(buff.end(),R_shares[i].begin(),R_shares[i].end());
-            buff.insert(buff.end(),O_shares[i].begin(),O_shares[i].end());
-            buff.insert(buff.end(),W_shares[i].begin(),W_shares[i].end());
-            field_vector_serialize(buff,buff_u64);
-            MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+    
+            //buff = L_shares[i];buff.insert(buff.end(),R_shares[i].begin(),R_shares[i].end());
+            //buff.insert(buff.end(),O_shares[i].begin(),O_shares[i].end());
+            //buff.insert(buff.end(),W_shares[i].begin(),W_shares[i].end());
+            L_shares[i].insert(L_shares[i].end(),R_shares[i].begin(),R_shares[i].end());
+            L_shares[i].insert(L_shares[i].end(),O_shares[i].begin(),O_shares[i].end());
+            L_shares[i].insert(L_shares[i].end(),W_shares[i].begin(),W_shares[i].end());
+            field_vector_serialize(L_shares[i],buff_u64[i]);
+            MPI_Isend(buff_u64[i].data(),buff_u64[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            L_shares[i].clear();
+        }
+        for(int i = 0; i < N-1; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
         }
     }else{
+        vector<u64> buff_u64;
+    
+        MPI_Request req;
         buff_u64.resize(2*((1<<logn) + 3*(1<<logm))/k);
-        MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        MPI_Irecv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
         field_vector_deserialize(buff_u64,buff);    
         vL.resize((1<<logm)/k);vR.resize((1<<logm)/k);vO.resize((1<<logm)/k);
         w.resize((1<<logn)/k);
@@ -1547,7 +1582,7 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
 void setup_randomness(vector<F> &R, int N, int _k, int k, int size){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
-    vector<u64> buff_u64;
+    
     int logk = (int)log2(k);
     if(rank == 0){
         vector<F> random_values(k*(size));
@@ -1555,13 +1590,28 @@ void setup_randomness(vector<F> &R, int N, int _k, int k, int size){
         for(int i = 0; i < random_values.size(); i++) random_values[i] = random();
         compute_secret_shares(random_values,R_shares,N,k,_k,true);
         R = R_shares[0];
+        vector<MPI_Request> req(N-1); 
+        vector<vector<u64>> buff_u64(N);
         for(int i = 1; i < N; i++){
-            field_vector_serialize(R_shares[i],buff_u64);
-            MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+   
+            field_vector_serialize(R_shares[i],buff_u64[i]);
+            F s = F(0);
+            MPI_Isend(buff_u64[i].data(),buff_u64[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
+            R_shares[i].clear();
+            //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
+        }
+        for(int i = 0; i < N-1; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
         }
     }else{
+        vector<u64> buff_u64;
+   
         buff_u64.resize(2*(size));
-        MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-        field_vector_deserialize(buff_u64,R);           
+        MPI_Request req;
+        //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        MPI_Irecv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+        field_vector_deserialize(buff_u64,R);         
+          
     }
 }
