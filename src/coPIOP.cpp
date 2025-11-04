@@ -24,6 +24,8 @@ double cm = 0.0;
 int gate_ctr = 0;
 timer pt,pt_cp,temp_pc;
 timer_cpu pt_cpu;
+extern timer sch_com;
+
 timer vt;
 
 
@@ -1099,7 +1101,7 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
         claims[1] = sparse_matrix_evaluation_batch(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,batch_row_data[1],batch_codewords[1],batch_MT[1],N,ps);
         temp_pc.end();
-        if(rank == 0)printf("Phase 5 (Sparse Matrix Eval): %lf, Comp_time: %lf\n",temp_pc.get_time(),pt_cp.get_time()-temp_comp_time);temp_pc.reset();
+        if(rank == 0)printf("Phase 5 (Sparse Matrix Eval): %lf, Comp_time: %lf, Comm time: %lf\n",temp_pc.get_time(),pt_cp.get_time()-temp_comp_time,sch_com.get_time());temp_pc.reset();
     
         temp_pc.start();
         int temp_rounds = com_rounds;

@@ -13,6 +13,7 @@ extern int com_rounds;
 extern int sumcheck_offset;
 extern int multree_offset;
 extern bool isLAN;
+timer sch_com;
 
 vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
     int rank;
@@ -457,6 +458,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
         final_v1.resize(final_v1.size()*N,F(0));
         final_v2.resize(final_v2.size()*N,F(0));
         vector<MPI_Request> req(N-1);
+        sch_com.start();
+
         for(int i = 1; i < N; i++){
             MPI_Irecv(recv_buff[i-1].data(),recv_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
             
@@ -471,6 +474,7 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
                 idx++;
             }   
         }
+        sch_com.end();
         pt_cp.start();
         
         vector<F> B(beta2.size()*beta3.size());
@@ -499,7 +503,10 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
         buff_u64.clear();buff_u64.resize(2*(2+offset+(int)log2(N))); 
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
+    sch_com.start();
+
     myBcast(buff_u64, N);
+    sch_com.end();
     //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
 	if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
@@ -529,7 +536,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
     if(rank == 0){
         int idx = aggr_v1.size(); 
         
-        
+        sch_com.start();
+
         
         vector<vector<u64>> recv_buff(N-1);
         for(int i = 0; i < N-1; i++)recv_buff[i].resize(4*aggr_v1.size());
@@ -551,6 +559,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
                 idx++;
             }   
         }
+        sch_com.end();
+
         pt_cp.start();
         vector<F> extended_lambdas,extended_beta;
         for(int i =0 ; i < N; i++){
@@ -589,8 +599,11 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
         //printf(">> %d\n",buff_u64.size());
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
-        
+    sch_com.start();
+
     myBcast(buff_u64, N);
+    sch_com.end();
+
     if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
     }
@@ -1046,6 +1059,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     
     if(rank == 0){
         int ctr = 0;
+        sch_com.start();
         vector<vector<F>> local_input(vectors);
         for(int i = 0; i < local_input.size(); i++){
             local_input[i].resize(N*(transcript[depth-1].size())/vectors);
@@ -1078,7 +1092,8 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
             //    local_input[j][i].img = buff[2*j+1];
             //}
         }
-        
+        sch_com.end();
+
         pt_cp.start();
         printf("Size : %d\n",local_input.size()*local_input[0].size());
         eval_claim = prove_multiplication_tree_new(local_input, output, F(0),y, {});
