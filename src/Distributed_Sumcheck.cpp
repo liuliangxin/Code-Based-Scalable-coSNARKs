@@ -1996,13 +1996,16 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
         acc_polys[i] = polys[i];    
     }
     v1.clear();v2.clear();
+    timer eval;
+    eval.start();
     precompute_beta(claims.second[0],v1);
     precompute_beta(claims.second[2],v2);
     pt_cp.end();
     vector<F> evals3 = batch_distributed_eval(polys,v1,v2,N);
+    eval.end();
     vector<vector<F>> eval_points3 = claims.second;
     pt_cp.start();
-    
+    if(rank == 0) printf("          Distributed Eval: %lf\n",eval.get_time());
     
     if(rank == 0){
         //printf("%d\n",output1.size());
@@ -2074,8 +2077,11 @@ pair<F,vector<F>> _prove_sparse_eval(F y, F a, F b, F c, vector<vector<F>> &beta
         }
     }    
     pt_cp.end();
-    
+    eval.reset();
+    eval.start();
     vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
+    eval.end();
+    if(rank == 0) printf("          Final Sumcheck: %lf\n",eval.get_time());
     
     beta_evals.resize(next_pow2(beta_evals.size()),F(0));
     return make_pair(evaluate_vector(beta_evals,temp_r),betas_r);
