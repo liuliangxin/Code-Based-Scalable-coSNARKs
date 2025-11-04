@@ -246,6 +246,7 @@ void commit(vector<F> &codeword, vector<F> &row_data, vector<F> &W_shares, vecto
 
 
 void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data, MT &Com, int k, int N){
+    double pt_temp = pt_cp.get_time();
     pt_cp.start();
     vector<vector<F>> matrix_data(N);
     for(int i = 0; i < N; i++){
@@ -277,6 +278,10 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     pt_cp.end();
     
     distributed_MT(codeword,Com,N);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    
+    if(rank == 0) printf("          Commit comp time: %lf\n",pt_cp.get_time()-pt_temp);
 }
 
 

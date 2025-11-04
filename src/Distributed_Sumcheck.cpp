@@ -1816,8 +1816,8 @@ pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &
     timer eval;
     eval.reset();
         
-    vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
     eval.start();
+    vector<pair<F,vector<F>>>  beta_evals2 =  _cubic_sumcheck(y,v1,v2,v3,ones,N);
     eval.end();
     if(rank == 0) printf("          Final Sumcheck: %lf\n",eval.get_time());
     //for(int i = 0; i < )
