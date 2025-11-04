@@ -909,6 +909,8 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
 
     MPI_Barrier(MPI_COMM_WORLD);
     com_rounds = 0;
+    cm = 0.0;
+    
     pt_cp.reset();
     pt.start();
     pt_cpu.start();
@@ -1035,13 +1037,17 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
     init_dummy_index_commitment(index,batch_row_data[2],batch_codewords[2],batch_MT[2],index_rate,N);
     setup_time.end();
     if(rank == 0) printf("Setup time: %lf\n",setup_time.get_time()); 
+    
     MPI_Barrier(MPI_COMM_WORLD);
+    cm = 0.0;
     com_rounds = 0;
     pt_cp.reset();
     pt.start();
     pt_cpu.start();
     temp_pc.start();
     int temp_rounds;
+    double temp_comp_time;
+    temp_comp_time = pt_cp.get_time();
     commit(codeword, row_data, witness, r_witness, Com, 500, k, _k, N);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
     for(int i = 0; i < 4; i++){
@@ -1059,43 +1065,51 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
     }
     temp_pc.end();
     temp_rounds = com_rounds;
-    if(rank == 0)printf("Phase 1: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
+    if(rank == 0)printf("Phase 1: %lf, rounds: %d, comp_time: %lf\n",temp_pc.get_time(),com_rounds,pt_cp.get_time()-temp_comp_time);temp_pc.reset();
     temp_rounds = com_rounds;
     temp_pc.start();
+    temp_comp_time = pt_cp.get_time();
+    
     vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, ps);
     temp_pc.end();
-    if(rank == 0)printf("Phase 2: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds-temp_rounds);temp_pc.reset();
+    if(rank == 0)printf("Phase 2: %lf, rounds: %d, comp_time: %lf\n",temp_pc.get_time(),com_rounds-temp_rounds,pt_cp.get_time()-temp_comp_time);temp_pc.reset();
     F a,b,c;
     temp_rounds = com_rounds;
     temp_pc.start();
+    temp_comp_time = pt_cp.get_time();
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c, ps);
     temp_pc.end();
-    if(rank == 0)printf("Phase 3: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds-temp_rounds);temp_pc.reset();
+    if(rank == 0)printf("Phase 3: %lf, rounds: %d, comp_time: %lf\n",temp_pc.get_time(),com_rounds-temp_rounds,pt_cp.get_time()-temp_comp_time);temp_pc.reset();
     
     temp_rounds = com_rounds;
     temp_pc.start();
+    temp_comp_time = pt_cp.get_time();
+    
     claims[0] = aggregate_random_evaluations_batch(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,ps);
     temp_pc.end();
     batch_row_data[0] = R;batch_codewords[0] = codeword_R;batch_MT[0] = CR;
         
     
-    if(rank == 0)printf("Phase 4: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds-temp_rounds);temp_pc.reset();
+    if(rank == 0)printf("Phase 4: %lf, rounds: %d, comp_time: %lf\n",temp_pc.get_time(),com_rounds-temp_rounds,pt_cp.get_time()-temp_comp_time);temp_pc.reset();
     
     //return;
     if(!data_parallel){
+        temp_comp_time = pt_cp.get_time();
         temp_pc.start();
         claims[1] = sparse_matrix_evaluation_batch(claims2[1].first,a,b,c,
                              claims1[0].second,claims2[0].second,index,batch_row_data[1],batch_codewords[1],batch_MT[1],N,ps);
         temp_pc.end();
-        if(rank == 0)printf("Phase 5 (Sparse Matrix Eval): %lf\n",temp_pc.get_time());temp_pc.reset();
+        if(rank == 0)printf("Phase 5 (Sparse Matrix Eval): %lf, Comp_time: %lf\n",temp_pc.get_time(),pt_cp.get_time()-temp_comp_time);temp_pc.reset();
     
         temp_pc.start();
         int temp_rounds = com_rounds;
+        temp_comp_time = pt_cp.get_time();
         batch_open_PIOP(claims, batch_row_data,batch_codewords, batch_MT, k, N,ps);
         
         //open_index(index_data,index_codeword, index_Com, N,ps);
         temp_pc.end();
-        if(rank == 0)printf("Phase 6 (Open Plaintex): %lf, Rounds : %d\n",temp_pc.get_time(),com_rounds-temp_rounds);temp_pc.reset();
+        
+        if(rank == 0)printf("Phase 6 (Open Plaintex): %lf, Rounds : %d, Comp time: %lf\n",temp_pc.get_time(),com_rounds-temp_rounds,pt_cp.get_time()-temp_comp_time);temp_pc.reset();
     
     }
     temp_pc.start();

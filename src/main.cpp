@@ -37,7 +37,8 @@ extern int sumcheck_offset = 4;
 extern int PC_offset = 10;
 extern int multree_offset = 4;
 extern int com_rounds;
-bool isLAN = false;
+bool isLAN = true;
+extern double cm;
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
     vector<vector<F>> data(M/k);
@@ -963,6 +964,7 @@ int main(int argc, char *argv[]){
 
         }
     }else if(benchmark == 4){
+        PC_offset = 0;
         vector<F> poly(M);
         for(int i = 0; i < poly.size(); i++){
             poly[i] = F(i);
@@ -982,12 +984,27 @@ int main(int argc, char *argv[]){
         precompute_beta(r2,b2);
         
         open_plaintext(codeword,row_data,b1,b2,Com,y,500,N/2,N,ps,false);
+        
+        vector<double> buff = {vt.get_time(),ps,cm};
+        if(rank != 0){
+            MPI_Send(buff.data(),3,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
+        }else{
+            double total_vt = vt.get_time();
+            for(int i = 1; i < N; i++){
+                MPI_Recv(buff.data(),3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                total_vt += buff[0];
+                ps += buff[1];
+                cm += buff[2];
+            }
+            printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps,cm/1024.0);
+            printf("Interaction Rounds: %d\n",com_rounds);
+        }
         printf(">>> Rounds: %d\n",com_rounds);
     }else{
         vector<vector<F>> r1(3),r2(3);
         vector<F> arr1(M/N,1);
-        vector<F> arr2(M/(2*N),2);
-        vector<F> arr3(M/(4*N),3);
+        vector<F> arr2(M/(N),2);
+        vector<F> arr3(M/(N),3);
         vector<vector<F>> codeword(3);
         vector<vector<F>> row_data(3);
         vector<MT> Com(3);
@@ -998,16 +1015,30 @@ int main(int argc, char *argv[]){
         plaintext_commit(arr3,codeword[2],row_data[2],Com[2],N/2,N);
         r1[0] = generate_randomness((int)log2(M) - (int)log2(N/2));
         r2[0] = generate_randomness((int)log2(N/2));
-        r1[1] = generate_randomness((int)log2(M/2) - (int)log2(N/2));
+        r1[1] = generate_randomness((int)log2(M) - (int)log2(N/2));
         r2[1] = generate_randomness((int)log2(N/2));
-        r1[2] = generate_randomness((int)log2(M/4) - (int)log2(N/2));
+        r1[2] = generate_randomness((int)log2(M) - (int)log2(N/2));
         r2[2] = generate_randomness((int)log2(N/2));
         vector<vector<F>> v1(3),v2(3);
         for(int i = 0; i < v1.size(); i++) precompute_beta(r1[i],v1[i]);
         for(int i = 0; i < v2.size(); i++) precompute_beta(r2[i],v2[i]);
         //r11 = generate_randomness();
         batch_open(codeword, row_data, v1, v2, Com, {1,2,3}, {500,500,500}, {N/2,N/2,N/2},  N, ps, {false,false,false}, {true,true,true});
-        
+        double cm = 0.0;
+        vector<double> buff = {vt.get_time(),ps,cm};
+        if(rank != 0){
+            MPI_Send(buff.data(),3,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
+        }else{
+            double total_vt = vt.get_time();
+            for(int i = 1; i < N; i++){
+                MPI_Recv(buff.data(),3,MPI_DOUBLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                total_vt += buff[0];
+                ps += buff[1];
+                cm += buff[2];
+            }
+            printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps,cm/1024.0);
+            printf("Interaction Rounds: %d\n",com_rounds);
+        }
         //test_quadratic_sumheck(N,  M);
     }
     

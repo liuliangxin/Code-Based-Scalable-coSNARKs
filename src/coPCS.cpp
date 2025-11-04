@@ -822,6 +822,7 @@ void send_batch_PC_data(vector<vector<F>> &codeword, vector<vector<F>> &row_data
             }    
             ctr+= (l[j]-query_index[j].size());
         }
+        cm += 8*buff_64.size()/1024.0;
         
         MPI_Isend(buff_64.data(),buff_64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&stat);
         MPI_Wait(&stat, MPI_STATUS_IGNORE);

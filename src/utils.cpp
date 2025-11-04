@@ -1290,30 +1290,39 @@ F betas_eval(int size, vector<F> r11, vector<F> r12, vector<F> r21, vector<F> r2
 
 F sparrow_V_check(vector<F> poly, int degree){
     F sum = F(0);
-    for(int i = poly.size()-degree; i < poly.size(); i++){
-        sum += poly[i];
+    if(degree <= 16){
+        for(int i = poly.size()-degree; i < poly.size(); i++) sum += poly[i];
+        
+    }else{
+        for(int i = 0; i < degree; i++) sum += poly[2*i];
     }
-    for(int i = 0; i < poly.size(); i++){
-        //sum += poly[i];
-    }
+    
     return sum;
 }
 
 F evaluate_poly_extended(vector<F> poly, vector<F> poly_sum, F r, int c){
-	vector<F> L = compute_lagrange_coeff(getRootOfUnity(c),r,1ULL<<(c));
 	F sum = F(0);
 	int idx = 0;
+	if(c <= 4){
+        vector<F> L = compute_lagrange_coeff(getRootOfUnity(c),r,1ULL<<(c));
+	    for(int i = 0; i < (1<<c); i++){
+            for(int j = i+1; j < (1<<c); j++){
+                sum += L[i]*L[j]*poly[idx];
+                idx++;
+            }
+        }
+        for(int i = 0; i < (1<<c); i++){
+            sum += L[i]*L[i]*poly[idx];
+            if(poly_sum.size()) sum += L[i]*poly_sum[i];
+            idx++;
+        }
+    }else{
+        vector<F> L = compute_lagrange_coeff(getRootOfUnity(c+1),r,1ULL<<(c+1));
+	    for(int i = 0; i < L.size(); i++){
+            sum +=  poly[i]*L[i];
+        }
+    }
+    
 	
-	for(int i = 0; i < (1<<c); i++){
-		for(int j = i+1; j < (1<<c); j++){
-			sum += L[i]*L[j]*poly[idx];
-			idx++;
-		}
-	}
-	for(int i = 0; i < (1<<c); i++){
-		sum += L[i]*L[i]*poly[idx];
-        if(poly_sum.size()) sum += L[i]*poly_sum[i];
-        idx++;
-	}
     return sum;
 }

@@ -45,14 +45,15 @@ vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
         MPI_Request req;
         MPI_Isend(send_buff.data(),send_buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
-    }   
+    }
+       
     if(rank == 0)cm += (N-1)*8*buff_u64.size()/1024.0;
     myBcast(buff_u64, N);
-    
     //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff_u64,buff);
     }
+    
     return buff;
 }
 
@@ -272,7 +273,10 @@ F compute_ip(vector<F> &v1, vector<F> &v2, int poly_degree, int size, vector<F> 
 }
 
 vector<F> _sparrow_quadratic_sumcheck_step1(vector<F> &v1, vector<F> &v2, int poly_degree, int size, vector<F> beta = {}){
-    vector<F> poly(poly_degree*(poly_degree+1)/2,F(0));
+    vector<F> poly;
+    if(poly_degree <= 16) poly.resize(poly_degree*(poly_degree+1)/2,F(0));
+    else poly.resize(2*poly_degree,F(0));
+
     int ctr = 0;
 	int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -283,24 +287,39 @@ vector<F> _sparrow_quadratic_sumcheck_step1(vector<F> &v1, vector<F> &v2, int po
         }
         vector<F> temp_v1(poly_degree),temp_v2(poly_degree);
         for(int l = 0; l < poly_degree; l++){
-			temp_v1[l] = v1[poly_degree*i + l];
-			temp_v2[l] = v2[poly_degree*i + l];
+            temp_v1[l] = v1[poly_degree*i + l];
+            temp_v2[l] = v2[poly_degree*i + l];
             sum += beta[ctr]*temp_v2[l]*temp_v1[l];
         }
-		int idx = 0;
-        for(int l = 0; l < poly_degree; l++){
-			for(int h = l+1; h < poly_degree; h++){
-				if(beta.size()) poly[idx] += beta[ctr]*(temp_v1[l]*temp_v2[h] + temp_v1[h]*temp_v2[l]);
-                else poly[idx] += temp_v1[l]*temp_v2[h] + temp_v1[h]*temp_v2[l];
+            
+        if(poly_degree <= 16){
+            int idx = 0;
+            for(int l = 0; l < poly_degree; l++){
+                for(int h = l+1; h < poly_degree; h++){
+                    if(beta.size()) poly[idx] += beta[ctr]*(temp_v1[l]*temp_v2[h] + temp_v1[h]*temp_v2[l]);
+                    else poly[idx] += temp_v1[l]*temp_v2[h] + temp_v1[h]*temp_v2[l];
+                    idx++;
+                }
+            }
+                        
+            for(int l = 0; l < poly_degree; l++){
+                if(beta.size()) poly[idx] += beta[ctr]*temp_v1[l]*temp_v2[l];
+                else poly[idx] += temp_v1[l]*temp_v2[l];
                 idx++;
             }
-		}
-                    
-        for(int l = 0; l < poly_degree; l++){
-            if(beta.size()) poly[idx] += beta[ctr]*temp_v1[l]*temp_v2[l];
-            else poly[idx] += temp_v1[l]*temp_v2[l];
-            idx++;
+        }else{
+            fft(temp_v1,(int)log2(temp_v1.size()),true);
+            fft(temp_v2,(int)log2(temp_v2.size()),true);
+            temp_v1.resize(2*temp_v1.size(),F(0));
+            temp_v2.resize(2*temp_v2.size(),F(0));
+            fft(temp_v1,(int)log2(temp_v2.size()),false);
+            fft(temp_v2,(int)log2(temp_v2.size()),false);
+            for(int l = 0; l < poly.size(); l++){
+                if(beta.size()) poly[l] += beta[ctr]*temp_v1[l]*temp_v2[l];
+                else poly[l] += temp_v1[l]*temp_v2[l];
+            }
         }
+        
         
     }
     return poly;
@@ -331,12 +350,18 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
     int offset = sumcheck_offset;
     vector<int> degrees;
     
-
-    int rounds = int(log2(v1.size()))-offset;
-    if(rounds%4 != 0) degrees.push_back(rounds - 4*((int)rounds/4));
     vector<F> original_v1 = v1,original_v2 = v2;   
-    for(int i = 0; i < rounds/4; i++){
+        
+    int rounds = int(log2(v1.size()))-offset;
+    if(rounds <= 8){
+        if(rounds%4 != 0) degrees.push_back(rounds - 4*((int)rounds/4));
+        
+        for(int i = 0; i < rounds/4; i++){
+            degrees.push_back(4);
+        }
+    }else{
         degrees.push_back(4);
+        degrees.push_back(rounds - 4);
     }
     //if(!rank) printf("%d\n",degrees.size());    
     
@@ -366,18 +391,19 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
             */
             
             pt_cp.start();
-
             vector<F> poly = _sparrow_quadratic_sumcheck_step1(v1, v2, 1<<degrees[i], _s, beta2);
             for(int j = 0; j < poly.size(); j++){
                 poly[j] = beta3[rank]*poly[j];
             }
             pt_cp.end();
     
+            
             poly = aggregate_quadratic_poly_sparrow(poly,N);
+            
             pt_cp.start();
-        
+
             if(rank == 0)vt.start();
-        
+            
             if(sparrow_V_check(poly,1<<degrees[i]) != y){
                 printf("Error in distributed sumcheck round %d, %d, (%lld,%lld),(%lld,%lld)\n",i,poly.size(),poly[0].real,poly[0].img,y.real,y.img);
                 exit(-1);
@@ -631,6 +657,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck_sparrow(F y, vector<F> &v1, vector
     
         } 
         if(rank == 0){
+            pt_cp.start();
+
             for(int i = 0; i < challenges.size(); i++){
                 vector<F> L = compute_lagrange_coeff(getRootOfUnity(degrees[i]),challenges[i],1<<degrees[i]);
                 vector<F> buff = Lambdas;
@@ -644,19 +672,22 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck_sparrow(F y, vector<F> &v1, vector
             if(Lambdas.size() != s){
                 printf("Error\n");
             }
+            pt_cp.end();
 
         }
     }else{
         offset = int(log2(v1.size()));
     }
-    
+    pt_cp.start();
+
     vector<F> final_v1(1<<(offset)),final_v2(1<<(offset)),buff;
     vector<u64> buff_u64;
     for(int i = 0; i  <final_v1.size(); i++){
         final_v1[i] = v1[i];
         final_v2[i] = v2[i];
     }
-    
+    pt_cp.end();
+
     vector<F> reply;
     if(rank == 0){
         int idx = final_v1.size(); 
@@ -709,6 +740,8 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck_sparrow(F y, vector<F> &v1, vector
 	if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
     }
+    
+    pt_cp.start();
     F y1_claim = reply[0];
     F y2_claim = reply[1];
     
@@ -731,20 +764,7 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck_sparrow(F y, vector<F> &v1, vector
             aggr_v2[i] += original_v2[aggr_v2.size()*j + i]*beta[j];
         } 
     }
-    if(rank == 0){
-        F sum = F(0),sum2 = F(0);
-        printf("%d,%d\n",aggr_v1.size(),Lambdas.size());
-        for(int i = 0; i < Lambdas.size(); i++){
-            sum += aggr_v1[i]*Lambdas[i];
-        }
-        for(int i = 0; i < beta.size(); i++){
-            sum2 += beta[i]*v1[i];
-        }
-        if(sum != sum2){
-            printf("ERROR\n");
-        }
-
-    }
+    pt_cp.end();
 
     if(rank == 0){
         int idx = aggr_v1.size(); 
@@ -1117,16 +1137,20 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         
         if((r2.size() < sumcheck_offset+1) || isLAN ){
             vector<F>  beta1,beta2;
-        	precompute_beta(r2,beta2);
+        	pt_cp.start();
+            precompute_beta(r2,beta2);
             precompute_beta(r1,beta1);
+            pt_cp.end();
             claims = _cubic_sumcheck(sum,in1[i], in2[i],beta2, beta1, N );
         }else{
             vector<F> beta1,beta2,beta3,r21,r22;
         	for(int j = 0; j < r2.size()-sumcheck_offset; j++) r21.push_back(r2[j]);
         	for(int j = r2.size()-sumcheck_offset; j < r2.size(); j++) r22.push_back(r2[j]);
+            pt_cp.start();
             precompute_beta(r21,beta2);
             precompute_beta(r22,beta3);
             precompute_beta(r1,beta1);
+            pt_cp.end();
             claims = _cubic_sumcheck_sparrow(sum,in1[i], in2[i],beta2,beta3, beta1, N );
         
         }
