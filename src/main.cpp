@@ -759,7 +759,6 @@ void test_mult_tree(vector<int> dims, int N){
 
 int main(int argc, char *argv[]){
     
-
     /*
     vector<F> w,vl,vr,vo,ra,rb,rc;
     generate_R1CS_matrixes(1<<atoi(argv[1]), 1);
@@ -1000,7 +999,7 @@ int main(int argc, char *argv[]){
             printf("Interaction Rounds: %d\n",com_rounds);
         }
         printf(">>> Rounds: %d\n",com_rounds);
-    }else{
+    }else if(benchmark == 5){
         vector<vector<F>> r1(3),r2(3);
         vector<F> arr1(M/N,1);
         vector<F> arr2(M/(N),2);
@@ -1040,6 +1039,10 @@ int main(int argc, char *argv[]){
             printf("Interaction Rounds: %d\n",com_rounds);
         }
         //test_quadratic_sumheck(N,  M);
+    }else{
+        sumcheck_offset = atoi(argv[4]) - (int)log2(N);
+        printf("OK\n");   
+        test_cubic_sumheck(N,M);
     }
     
     // ==================================================== //

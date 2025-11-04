@@ -21,7 +21,6 @@ vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
     vector<F> buff; 
     vector<u64> buff_u64(2*H.size()),send_buff(2*H.size());
     com_rounds+=2;
-    
     if(rank == 0){
         vector<vector<u64>> recv_data(N);
         vector<MPI_Request> req(N-1);
@@ -46,6 +45,7 @@ vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
         MPI_Request req;
         MPI_Isend(send_buff.data(),send_buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        //MPI_Wait(&req,MPI_STATUS_IGNORE);
     }
        
     if(rank == 0)cm += (N-1)*8*buff_u64.size()/1024.0;
@@ -53,8 +53,8 @@ vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
     //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff_u64,buff);
-    }
     
+    }
     return buff;
 }
 
@@ -423,6 +423,7 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
     
         } 
         if(rank == 0){
+            pt_cp.start();
             for(int i = 0; i < challenges.size(); i++){
                 vector<F> L = compute_lagrange_coeff(getRootOfUnity(degrees[i]),challenges[i],1<<degrees[i]);
                 vector<F> buff = Lambdas;
@@ -436,6 +437,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
             if(Lambdas.size() != _s){
                 printf("Error\n");
             }
+            pt_cp.end();
+
 
         }
     }else{
@@ -508,7 +511,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
     myBcast(buff_u64, N);
     sch_com.end();
     //MPI_Bcast(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
-	if(rank != 0){
+	pt_cp.start();
+    if(rank != 0){
         field_vector_deserialize(buff_u64,reply);
     }
     F y1_claim = reply[0];
@@ -533,6 +537,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
             aggr_v2[i] += original_v2[aggr_v2.size()*j + i]*beta[j];
         } 
     }
+    pt_cp.end();
+
     if(rank == 0){
         int idx = aggr_v1.size(); 
         
@@ -1213,6 +1219,8 @@ pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     int total_size;
     int size;
+    pt_cp.start();
+    
     for(int i = 0; i < input.size(); i++) {
         if(i > 0 && input[i].size() > input[i-1].size()){
             printf("Input is not sorted, exiting \n");
@@ -1233,6 +1241,7 @@ pair<F,vector<vector<F>>> prove_product_opt(vector<vector<F>> &input, vector<F> 
             new_input.push_back(buff);
         }
     }
+    pt_cp.end();
     vector<F> temp_out;
     pair<F,vector<vector<F>>> claim = prove_product(new_input,temp_out,F(0),{},N);
     int ctr = 0;
@@ -1626,6 +1635,8 @@ pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &
                         vector<F> r1, vector<F> r2, int N){
     
     
+    double temp = pt_cp.get_time();
+    timer t;t.start();
     pt_cp.start();
     vector<vector<F>> Tr(24);
     vector<F> output;
@@ -1646,6 +1657,8 @@ pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &
     pt_cp.end();
     
     pair<F,vector<vector<F>>> claim = prove_product_opt(Tr, output, N, debug_evals);
+    t.end();
+    if(rank == 0) printf("> %lf,%lf\n",t.get_time(),pt_cp.get_time()-temp);
     if(rank == 0){
         vector<F> organized_output(output.size());
         for(int i = 0; i < output.size(); i++){

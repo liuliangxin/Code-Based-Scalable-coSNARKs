@@ -640,24 +640,26 @@ pair<F,vector<F>> sparse_matrix_evaluation_batch(F y, F a, F b, F c, vector<F> r
         printf("Wrong dimensions 2\n");
         exit(-1);
     }
+    double temp = pt_cp.get_time();
     pt_cp.start();
-
+    
     timer sparse_eval_timer;
     sparse_eval_timer.start();
     compute_R1CS_betas(r1,  r2, index, beta1, beta2, logm, logn, N);
     pt_cp.end();
     commit_sparse_eval_witness(beta1, beta2, codeword , row_data, Com, N/2,  N);
     sparse_eval_timer.end();
-    if(rank == 0) printf("      Phase 5.0 (Commit): %lf\n",sparse_eval_timer.get_time());
+    if(rank == 0) printf("      Phase 5.0 (Commit): %lf, Pt : %lf\n",sparse_eval_timer.get_time(),pt_cp.get_time()-temp);
 
     //pair<F,vector<F>> claim = _prove_sparse_eval(y, a, b, c, beta1, beta2, index,r1,r2, N);
     sparse_eval_timer.reset();
+    temp = pt_cp.get_time();
     sparse_eval_timer.start();
     int gkr_rounds = com_rounds;
     pair<F,vector<F>> claim = _prove_sparse_eval_opt(y, a, b, c, beta1, beta2, index,r1,r2, N);
     sparse_eval_timer.end();
     
-    if(rank == 0) printf("      Phase 5.1 (Sumcheck): %lf, Rounds: %d\n",sparse_eval_timer.get_time(),com_rounds-gkr_rounds);
+    if(rank == 0) printf("      Phase 5.1 (Sumcheck): %lf, Local time: %lf, Rounds: %d\n",sparse_eval_timer.get_time(),pt_cp.get_time()-temp,com_rounds-gkr_rounds);
 
     sparse_eval_timer.reset();
     return claim;
