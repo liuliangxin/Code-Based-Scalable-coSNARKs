@@ -37,7 +37,7 @@ extern int sumcheck_offset = 4;
 extern int PC_offset = 10;
 extern int multree_offset = 4;
 extern int com_rounds;
-bool isLAN = true;
+bool isLAN = false;
 extern double cm;
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
