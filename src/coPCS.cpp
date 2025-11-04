@@ -268,7 +268,9 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     pt_cp.end();
     cm += 8*send_buff.size()/1024.0;        
     com_rounds++;
+    timer com_time;com_time.start();
     MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
+    com_time.end();
     pt_cp.start();
     
     field_vector_deserialize(recv_buff,row_data);
@@ -281,7 +283,7 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     
-    if(rank == 0) printf("          Commit comp time: %lf\n",pt_cp.get_time()-pt_temp);
+    if(rank == 0) printf("          Commit comp time: %lf, Com time: %lf\n",pt_cp.get_time()-pt_temp,com_time.get_time());
 }
 
 
