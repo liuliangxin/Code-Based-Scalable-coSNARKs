@@ -799,7 +799,7 @@ int main(int argc, char *argv[]){
     
     
     int N = size;
-    if(rank == 0) printf("Workers: %d\n",rank);
+    if(rank == 0) printf("Workers: %d\n",size);
     int k = N/4;
     int _k = N/2;
     int M = 1ULL<<(atoi(argv[2]));
