@@ -418,9 +418,9 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
             }
             pt_cp.end();
     
-            com_timer.start();
+            sch_com.start();
             poly = aggregate_quadratic_poly_sparrow(poly,N);
-            com_timer.end();
+            sch_com.end();
             
             pt_cp.start();
 
@@ -465,16 +465,20 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
     }else{
         offset = int(log2(v1.size()));
     }
+    pt_cp.start();
+        
     vector<F> final_v1(1<<(offset)),final_v2(1<<(offset)),buff;
     vector<u64> buff_u64;
     for(int i = 0; i  <final_v1.size(); i++){
         final_v1[i] = v1[i];
         final_v2[i] = v2[i];
     }
-    
+    pt_cp.end();
+        
     vector<F> reply;
     if(rank == 0){
         int idx = final_v1.size(); 
+        pt_cp.start();
         
         vector<vector<u64>> recv_buff(N-1);
         for(int i = 0; i < N-1; i++)recv_buff[i].resize(4*final_v1.size());
@@ -482,6 +486,8 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
         final_v1.resize(final_v1.size()*N,F(0));
         final_v2.resize(final_v2.size()*N,F(0));
         vector<MPI_Request> req(N-1);
+        pt_cp.end();
+        
         sch_com.start();
         
         for(int i = 1; i < N; i++){
@@ -1012,13 +1018,14 @@ vector<pair<F,vector<F>>> _cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vec
 
 pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &output, F y, vector<F> r, int N){
 
-    pt_cp.start();
+    double temp_time = pt_cp.get_time();
+	pt_cp.start();
     timer smch_timer;
     smch_timer.start();
     int vectors = input.size();
 	int depth = (int)log2(next_pow2(input[0].size()))-multree_offset;
 	int size = input[0].size();
-	for(int i = 0; i < input.size(); i++){
+    for(int i = 0; i < input.size(); i++){
 		if(input[i].size() != size){
 			printf("Error in mul tree sumcheck, no equal size vectors %d,%d\n",input[i].size(),size);
 			exit(-1);
@@ -1146,7 +1153,8 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     //printf("%d ?? %d\n",rank,buff.size());
     myBcast(buff, N);
     smch_timer.end();
-    if(rank == 0) printf("          Step 1: %lf, %lf\n",smch_timer.get_time(),com_timer.get_time());
+    if(rank == 0) printf("          Step 1: %lf, %lf,%lf\n",smch_timer.get_time(),pt_cp.get_time()-temp_time,sch_com.get_time());
+    temp_time = pt_cp.get_time();
     //MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff,buff_reply);
@@ -1170,6 +1178,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     for(int  i = multree_offset+ r1.size(); i < r.size(); i++){
         r2.push_back(r[i]);
     }
+    double smc_time = smch_timer.get_time();
     for(int i = depth-1; i >= 0; i--){
         pt_cp.start();
         smch_timer.start();
@@ -1197,7 +1206,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         
         }
         smch_timer.end();
-        if(rank == 0) printf("          Round %d: %lf, %lf\n",i,smch_timer.get_time(),com_timer.get_time());
+        if(rank == 0) printf("          Round %d: %lf, %lf\n",i,smch_timer.get_time(),sch_com.get_time());
     
         pt_cp.start();
     
@@ -1213,11 +1222,10 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
             r1.push_back(r[j]);
         }
         pt_cp.end();
-    
 	}
+    if(rank == 0) printf("          Step 2: %lf, %lf,%lf\n",smch_timer.get_time() - smc_time,pt_cp.get_time()-temp_time,sch_com.get_time());
     pt_cp.start();
     
-
     vector<vector<F>> eval_points(3);
     
     for(int i = 0; i < r.size()-(int)log2(N)-(int)log2(vectors); i++){

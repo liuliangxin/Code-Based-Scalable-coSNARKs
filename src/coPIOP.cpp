@@ -619,7 +619,7 @@ void sparse_matrix_evaluation(F y, F a, F b, F c, vector<F> r1,vector<F> r2, vec
 
     sparse_eval_timer.reset();
     sparse_eval_timer.start();
-    open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,500,N/2,N,ps);
+    open_sparse_eval(codeword,row_data,claim.second,Com,claim.first,796,N/2,N,ps);
     sparse_eval_timer.end();
     if(rank == 0) printf("      Phase 5.2 (Open): %lf\n",sparse_eval_timer.get_time());
     
@@ -878,7 +878,7 @@ void batch_open_PIOP(vector<pair<F,vector<F>>> claims, vector<vector<F>> &row_da
     
 
     
-    batch_open(codeword,row_data,v1,v2,Com,{claims[0].first,claims[1].first,F(1)},{500,500,100},{k,N/2,N},N,ps,{true,false,false},{true,true,false});
+    batch_open(codeword,row_data,v1,v2,Com,{claims[0].first,claims[1].first,F(1)},{500,796,100},{k,N/2,N},N,ps,{true,false,false},{true,true,false});
 }
 
 
@@ -1147,7 +1147,7 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
             ps += buff[1];
             cm += buff[2];
         }
-        printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps+ps_plain,cm/1024.0);
+        //printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps+ps_plain,cm/1024.0);
         printf("Interaction Rounds: %d\n",com_rounds);
     }
 }

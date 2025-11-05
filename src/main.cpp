@@ -24,7 +24,7 @@
 
 int tensor_row_size;
 int mul_counter= 0;
-extern timer pt,pt_cp,vt;
+extern timer pt,pt_cp,vt,sch_com;
 extern timer_cpu pt_cpu;
 extern vector<vector<pair<int, int>>> A,B,C;
 extern vector<vector<pair<int, int>>> pA,pB,pC;
@@ -39,6 +39,7 @@ extern int multree_offset = 4;
 extern int com_rounds;
 bool isLAN = false;
 extern double cm;
+
 
 void encode_locally(vector<vector<F>> &C, vector<vector<F>> &R_shares, int l, int N, int M, int k, int _k){
     vector<vector<F>> data(M/k);
@@ -474,7 +475,10 @@ void test_cubic_sumheck(int N, int M){
     }
     double vt = 0.0,ps = 0.0;
 
+     pt.start();
+       
     vector<pair<F,vector<F>>> claims = _cubic_sumcheck_sparrow(sum, arr1, arr2, beta1,beta2,beta3, N);
+     pt.end();
     /*
     if(rank == 0){
         if(evaluate_vector(f1,claims[0].second) != claims[0].first){
@@ -795,6 +799,7 @@ int main(int argc, char *argv[]){
     
     
     int N = size;
+    if(rank == 0) printf("Workers: %d\n",rank);
     int k = N/4;
     int _k = N/2;
     int M = 1ULL<<(atoi(argv[2]));
@@ -1043,6 +1048,7 @@ int main(int argc, char *argv[]){
         sumcheck_offset = atoi(argv[4]) - (int)log2(N);
         printf("OK\n");   
         test_cubic_sumheck(N,M);
+        if(rank == 0)printf("%lf,%lf,%lf\n",pt_cp.get_time(),pt.get_time(),sch_com.get_time());
     }
     
     // ==================================================== //
