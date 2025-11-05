@@ -391,9 +391,16 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N);
         _a[0] = coef[0];_b[0] = coef[1];_c[0] = coef[2]; 
+        vector<MPI_Request> req(N);
+        vector<vector<u64>> recv_data(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(coef_u,coef);
+            recv_data[i].resize(6);
+            MPI_Irecv(recv_data[i].data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            //MPI_Recv(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2]; 
         }
         pt_cp.start();
@@ -429,7 +436,11 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
         //}        
     }else{
         cm += 8*coef_u.size()/1024.0;
-        MPI_Send(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(coef_u.data(),coef_u.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
+        //MPI_Send(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         //MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
     myBcast(coef_u,N);
@@ -771,9 +782,17 @@ vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector
             final_h2[i].resize(N);            
             final_v1[i][0] = v1[i];final_v2[i][0] = v2[i];final_v3[i][0] = v3[i];final_h1[i][0] = h1[i];final_h2[i][0] = h2[i];
         }
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
+            recv_data[i].resize(10*v1.size());
+            MPI_Irecv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],buff);
             for(int j = 0; j < v1.size(); j++){
                 final_v1[j][i] = buff[j];
                 final_v2[j][i] = buff[j + v1.size()];
@@ -796,7 +815,11 @@ vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector
         buff.insert(buff.end(),h2.begin(),h2.end());
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
+        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(6+(int)log2(k)));
         //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
@@ -820,10 +843,18 @@ vector<pair<F,vector<F>>> F_batch_sumcheck_rest(F v1, F v2, F v3, F v4, F h1, F 
     if(rank == 0){
         vector<F> final_v1(N),final_v2(N),final_v3(N),final_v4(N),final_h1(N),final_h2(N);
         final_v1[0] = v1;final_v2[0] = v2;final_v3[0] = v3;final_v4[0] = v4;final_h1[0] = h1;final_h2[0] = h2;
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),12,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
+            recv_data[i].resize(12);
+            MPI_Irecv(recv_data[i].data(),12,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(buff_u64.data(),12,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],buff);
             final_v1[i] = buff[0];final_v2[i] = buff[1];final_v3[i] = buff[2];final_v4[i] = buff[3];final_h1[i] = buff[4];final_h2[i] = buff[5];
+
         }
         ret = batch_sumcheck_local(final_v1, final_v2, final_v3, final_v4, final_h1, final_h2, b, y, k, _k, N);
         field_vector_serialize(ret,buff_u64);
@@ -836,7 +867,12 @@ vector<pair<F,vector<F>>> F_batch_sumcheck_rest(F v1, F v2, F v3, F v4, F h1, F 
         buff = {v1,v2,v3,v4,h1,h2};
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
+        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(6+(int)log2(k)));
         //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
@@ -860,9 +896,16 @@ vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int 
     if(rank == 0){
         vector<F> final_v1(N),final_v2(N);
         final_v1[0] = v1;final_v2[0] = v2;
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),4,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
+            recv_data[i].resize(4);
+            MPI_Irecv(recv_data[i].data(),4,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(buff_u64.data(),4,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        }
+        for(int i = 1; i  < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],buff);
             final_v1[i] = buff[0];final_v2[i] = buff[1];
         }
         ret = quadratic_sumcheck_local(final_v1, final_v2, y, k, _k, N);
@@ -875,7 +918,11 @@ vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int 
         buff = {v1,v2};
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
         buff_u64.clear();buff_u64.resize(2*(2+(int)log2(k)));
         //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         //field_vector_deserialize(buff_u64,ret);        
@@ -906,10 +953,16 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N),_d(N);
         _a[0] = coef[0];_b[0] = coef[1];_c[0] = coef[2],_d[0] = coef[3]; 
-        
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(coef_u.data(),8,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(coef_u,coef);
+            recv_data[i].resize(8);
+            MPI_Irecv(recv_data[i].data(),8,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(coef_u.data(),8,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2];_d[i] = coef[3];
         }
         pt_cp.start();
@@ -965,7 +1018,11 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
          
     }else{
         cm += 8*coef_u.size()/1024.0;
-        MPI_Send(coef_u.data(),8,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(coef_u.data(),coef_u.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
+        //MPI_Send(coef_u.data(),8,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         //MPI_Recv(coef_u.data(),8,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         //field_vector_deserialize(coef_u,coef);
         //a = coef[0];b = coef[1];c = coef[2];d = coef[3]; 
@@ -995,10 +1052,18 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
         
     if(rank == 0){
         vector<F> Y(N);Y[0] = y; 
+        vector<vector<u32>> recv_data(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff.data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            Y[i].real = buff[0];
-            Y[i].img = buff[1];
+            //MPI_Recv(buff.data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            recv_data[i].resize(2);
+            MPI_Irecv(recv_data[i].data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+
+        }
+        for(int i =  1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            Y[i].real = recv_data[i][0];
+            Y[i].img = recv_data[i][1];
         }
         pt_cp.start();
     
@@ -1012,7 +1077,10 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     }else{
         buff = {y.real,y.img};
         cm += 8*buff.size()/1024.0;
-        MPI_Send(buff.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        //MPI_Send(buff.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     myBcast(buff, N);
@@ -1044,11 +1112,21 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
             partial_Y[i][0] = Y[i];
         }
         Y_int.resize(Y.size()*2);
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(Y_int.data(),Y_int.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(Y_int,Y);
-            for(int j = 0; j < Y.size(); j++) partial_Y[j][i] = Y[j];
+            recv_data[i].resize(Y.size()*2);
+            MPI_Irecv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+        
+            //MPI_Recv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
         }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],Y);
+            for(int j = 0; j < Y.size(); j++) partial_Y[j][i] = Y[j];
+
+        }
+
         pt_cp.start();
     
         Y.clear();Y.resize(arr.size(),F(0));
@@ -1072,7 +1150,11 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
     }else{
         field_vector_serialize(Y,Y_int);
         cm += 8*Y_int.size()/1024.0;
-        MPI_Send(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        //MPI_Send(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
     }
     if(rank == 0) cm += (N-1)*8*Y_int.size()/1024.0;
     myBcast(Y_int, N);
@@ -1115,11 +1197,19 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
             Y[i] += beta2[0]*y[i];
         }
         pt_cp.end();
-    
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
+
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff.data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            recv_data[i].resize(2*poly.size());
+            MPI_Irecv(recv_data[i].data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(buff.data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
             for(int j = 0; j < poly.size(); j++){
-                F v; v.real = buff[2*j];v.img = buff[2*j+1];
+                F v; v.real = recv_data[i][2*j];v.img = recv_data[i][2*j+1];
                 Y[j] += beta2[i]*v;
             }
         }
@@ -1128,7 +1218,10 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
     }else{
         field_vector_serialize(y,buff);
         cm += 8*buff.size()/1024.0;
-        MPI_Send(buff.data(),2*poly.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     myBcast(buff, N);
@@ -1162,9 +1255,18 @@ vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vect
             Y[i] += beta2[0]*y[i];
         }
         pt_cp.end();
-    
+
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
+        for(int i = 1; i  < N; i++){
+            recv_data[i].resize(2*poly.size());
+            MPI_Irecv(recv_data[i].data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(recv_data[i].data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            
+        }
+
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff.data(),2*poly.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
             for(int j = 0; j < poly.size(); j++){
                 F v; v.real = buff[2*j];v.img = buff[2*j+1];
                 Y[j] += beta2[i]*v;
@@ -1175,7 +1277,10 @@ vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vect
     }else{
         field_vector_serialize(y,buff);
         cm += 8*buff.size()/1024.0;
-        MPI_Send(buff.data(),2*poly.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     myBcast(buff, N);

@@ -16,13 +16,20 @@ void distributed_MT(vector<F> &data, MT &Com, int N){
     pt_cp.end();
     com_rounds++;
     if(rank != 0){
-        
-        MPI_Send(Com.Base_MT[Com.Base_MT.size()-1][0].arr,32,MPI_UINT8_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(Com.Base_MT[Com.Base_MT.size()-1][0].arr,32,MPI_UINT8_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+        //MPI_Send(Com.Base_MT[Com.Base_MT.size()-1][0].arr,32,MPI_UINT8_T,0,0,MPI_COMM_WORLD);
     }else{
         vector<_hash> recv_hashes(N);
+        vector<MPI_Request> req(N);
         recv_hashes[0] = Com.Base_MT[Com.Base_MT.size()-1][0];
         for(int i = 1; i < N; i++){
-            MPI_Recv(recv_hashes[i].arr,32,MPI_UINT8_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);            
+            MPI_Irecv(recv_hashes[i].arr,32,MPI_UINT8_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(recv_hashes[i].arr,32,MPI_UINT8_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);            
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
         }
         Com.Root_MT.resize((int)log2(N)+1);
         Com.Root_MT[0] = recv_hashes;
@@ -992,17 +999,28 @@ void open_zk(vector<F> &codeword, vector<vector<F>> &mask_codeword,
             vector<u64> buff;
             field_vector_serialize(codeword,buff);
             cm += 8*buff.size()/1024.0;
-            MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+            MPI_Request req;
+            MPI_Isend(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+            MPI_Wait(&req,MPI_STATUS_IGNORE);
+            //MPI_Send(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         }else{
             vt.start();
             
             vector<vector<F>> final_codeword(N);
             final_codeword[0] = codeword;
             vector<u64> buff(2*codeword.size());
+            vector<vector<u64>> recv_data(N);
+            vector<MPI_Request> req(N);
             for(int i = 1; i < N; i++){
-                MPI_Recv(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-                field_vector_deserialize(buff,codeword);
+                recv_data[i].resize(2*codeword.size());
+                MPI_Irecv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+                //MPI_Recv(buff.data(),buff.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            }
+            for(int i = 1; i < N; i++){
+                MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+                field_vector_deserialize(recv_data[i],codeword);
                 final_codeword[i] = codeword;
+
             }
             ps += final_codeword.size()*final_codeword[0].size()*16/1024.0;
             vector<vector<F>> _final_codeword(N);

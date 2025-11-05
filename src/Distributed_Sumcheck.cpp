@@ -14,7 +14,7 @@ extern int sumcheck_offset;
 extern int multree_offset;
 extern bool isLAN;
 timer sch_com;
-
+timer com_timer;
 vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -66,9 +66,16 @@ quadratic_poly aggregate_poly(quadratic_poly H, int N){
     com_rounds+=2;
     
     if(rank == 0){
+        vector<vector<u64>> recv_data(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
+            recv_data[i].resize(buff_u64.size());
+            MPI_Irecv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
+            //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_data[i],buff);
             H = H + quadratic_poly(buff[0],buff[1],buff[2]);
         }
         buff = {H.a,H.b,H.c};
@@ -77,7 +84,10 @@ quadratic_poly aggregate_poly(quadratic_poly H, int N){
         buff = {H.a,H.b,H.c};
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
     }   
     if(rank == 0)cm += (N-1)*8*buff_u64.size()/1024.0;
     myBcast(buff_u64, N);
@@ -196,15 +206,21 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
         buff_u64.resize(4*final_v1.size());    
         final_v1.resize(final_v1.size()*N,F(0));
         final_v2.resize(final_v2.size()*N,F(0));
-        
+        vector<vector<u64>> recv_buff(N);
+        vector<MPI_Request> req(N);
         for(int i = 1; i < N; i++){
-            MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            field_vector_deserialize(buff_u64,buff);
+            recv_buff[i].resize(4*final_v1.size());
+            //MPI_Recv(recv_buff[i].data(),recv_buff[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);   
+            MPI_Irecv(recv_buff[i].data(),recv_buff[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);   
+        }
+        for(int i = 1; i < N; i++){
+            MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            field_vector_deserialize(recv_buff[i],buff);
             for(int j = 0; j < (1<<offset); j++){
                 final_v1[idx] = buff[j];
                 final_v2[idx] = buff[j+ (buff.size()/2)];
                 idx++;
-            }   
+            }
         }
         pt_cp.start();
         
@@ -221,7 +237,11 @@ vector<pair<F,vector<F>>> _quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,
         buff = final_v1; buff.insert(buff.end(),final_v2.begin(),final_v2.end());
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        MPI_Request req;
+        MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
+        MPI_Wait(&req,MPI_STATUS_IGNORE);
+        
+        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(2+offset+(int)log2(N))); 
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
@@ -398,8 +418,9 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
             }
             pt_cp.end();
     
-            
+            com_timer.start();
             poly = aggregate_quadratic_poly_sparrow(poly,N);
+            com_timer.end();
             
             pt_cp.start();
 
@@ -462,7 +483,7 @@ vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> 
         final_v2.resize(final_v2.size()*N,F(0));
         vector<MPI_Request> req(N-1);
         sch_com.start();
-
+        
         for(int i = 1; i < N; i++){
             MPI_Irecv(recv_buff[i-1].data(),recv_buff[i-1].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i-1]);
             
@@ -1125,7 +1146,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
     //printf("%d ?? %d\n",rank,buff.size());
     myBcast(buff, N);
     smch_timer.end();
-    if(rank == 0) printf("          Step 1: %lf\n",smch_timer.get_time());
+    if(rank == 0) printf("          Step 1: %lf, %lf\n",smch_timer.get_time(),com_timer.get_time());
     //MPI_Bcast(buff.data(),buff.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(buff,buff_reply);
@@ -1176,7 +1197,7 @@ pair<F,vector<vector<F>>> prove_product(vector<vector<F>> &input, vector<F> &out
         
         }
         smch_timer.end();
-        if(rank == 0) printf("          Round %d: %lf\n",i,smch_timer.get_time());
+        if(rank == 0) printf("          Round %d: %lf, %lf\n",i,smch_timer.get_time(),com_timer.get_time());
     
         pt_cp.start();
     
