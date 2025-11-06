@@ -210,9 +210,12 @@ void encode(vector<F> &codeword, vector<F> &row_data, vector<vector<F>> &data, v
     com_rounds++;
 
     
-    myAlltoAll(send_buff, recv_buff, N, send_buff.size());
+    //myAlltoAll(send_buff, recv_buff, N, send_buff.size());
     //MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
-
+    MPI_Request req;
+    MPI_Ialltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD,&req);
+    MPI_Wait(&req,MPI_STATUS_IGNORE);
+    
     field_vector_deserialize(recv_buff,row);
 
     row_data.resize(next_pow2(row.size()+l),0);
