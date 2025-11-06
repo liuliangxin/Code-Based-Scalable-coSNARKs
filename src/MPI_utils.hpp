@@ -33,3 +33,4 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
 void secret_share_coefficients(vector<F> &w, int M, int N, int _k, int k);
 void myBcast(vector<u64> &data, int N);
 vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F>> v2, vector<bool> secret_shared, vector<int> rounds,vector<int> k, int round, int N);
+void myAlltoAll(vector<u64> &in, vector<u64> &out, int N, int total_size);

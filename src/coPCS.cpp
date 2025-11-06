@@ -208,7 +208,10 @@ void encode(vector<F> &codeword, vector<F> &row_data, vector<vector<F>> &data, v
     recv_buff.resize(send_buff.size());
     cm += 8*send_buff.size()/1024.0;        
     com_rounds++;
-    MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
+
+    
+    myAlltoAll(send_buff, recv_buff, N, send_buff.size());
+    //MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
 
     field_vector_deserialize(recv_buff,row);
 

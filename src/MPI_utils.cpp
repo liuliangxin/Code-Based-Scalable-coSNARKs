@@ -11,8 +11,45 @@ extern double cm;
 extern timer pt_cp,vt;
 extern int com_rounds;
 
+
+void myAlltoAll(vector<u64> &in, vector<u64> &out, int N, int total_size){
+    int rank;
+    
+    vector<vector<u64>> recv_data(N);
+    vector<vector<u64>> send_data(N);
+    MPI_Request req1,req2;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+    for(int i = 0; i < N; i++){
+        if(i == rank)continue;
+        send_data[i].resize(total_size/N);
+        recv_data[i].resize(total_size/N);
+        for(int j = 0; j < total_size/N; j++){
+            send_data[i][j] = in[i*total_size/N+j];
+        }
+        MPI_Isend(send_data[i].data(),send_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req1);
+        MPI_Irecv(recv_data[i].data(),send_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req2);
+    }
+    for(int i = 0; i < N; i++){
+        if(i == rank){
+            for(int j = 0; j < total_size/N; j++){
+                out[i*total_size/N + j] = in[i*total_size/N + j];
+            }
+            continue;
+        }
+        MPI_Wait(&req2,MPI_STATUS_IGNORE);
+        for(int j = 0; j < total_size/N; j++){
+            out[i*total_size/N + j] = recv_data[i][j];
+        }
+    }
+    for(int i = 0; i < N; i++){
+        if(i == rank) continue;
+        MPI_Wait(&req1,MPI_STATUS_IGNORE);
+    }
+
+}
+
 void myBcast(vector<u64> &data, int N){
-      int rank;
+    int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     if(rank == 0){
         vector<MPI_Request> req(N-1);

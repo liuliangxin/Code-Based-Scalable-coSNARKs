@@ -1147,7 +1147,7 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
             ps += buff[1];
             cm += buff[2];
         }
-        //printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps+ps_plain,cm/1024.0);
+        printf("Vt : %lf sec, Ps: %lf KB, Com: %lf MB\n",total_vt,ps+ps_plain,cm/1024.0);
         printf("Interaction Rounds: %d\n",com_rounds);
     }
 }
