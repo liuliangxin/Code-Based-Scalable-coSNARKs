@@ -37,7 +37,7 @@ extern int sumcheck_offset = 4;
 extern int PC_offset = 10;
 extern int multree_offset = 4;
 extern int com_rounds;
-bool isLAN = true;
+bool isLAN = false;
 extern double cm;
 
 
