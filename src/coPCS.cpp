@@ -215,7 +215,7 @@ void encode(vector<F> &codeword, vector<F> &row_data, vector<vector<F>> &data, v
     MPI_Request req;
     MPI_Ialltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD,&req);
     MPI_Wait(&req,MPI_STATUS_IGNORE);
-    
+
     field_vector_deserialize(recv_buff,row);
 
     row_data.resize(next_pow2(row.size()+l),0);
@@ -282,7 +282,11 @@ void plaintext_commit(vector<F> &data, vector<F> &codeword ,vector<F> &row_data,
     cm += 8*send_buff.size()/1024.0;        
     com_rounds++;
     timer com_time;com_time.start();
-    MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
+    
+    MPI_Request req;
+    //MPI_Alltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);
+    MPI_Ialltoall(send_buff.data(),send_buff.size()/N,MPI_UINT64_T,recv_buff.data(),recv_buff.size()/N,MPI_UINT64_T,MPI_COMM_WORLD,&req);
+    MPI_Wait(&req,MPI_STATUS_IGNORE);
     com_time.end();
     pt_cp.start();
     
