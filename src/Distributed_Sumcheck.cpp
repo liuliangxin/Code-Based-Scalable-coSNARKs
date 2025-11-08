@@ -1410,6 +1410,7 @@ void compute_R1CS_betas(vector<F> r1, vector<F> r2, vector<sparse_eval_data> &da
 
     vector<F> b; precompute_beta(r2,b);
     for(int i = 0; i < data.size(); i++){
+        
         beta1[i].resize(data[i].IDX1.size(),F(0));
         for(int j = 0; j < data[i].IDX1.size(); j++){
             int idx1 = data[i].IDX1[j];

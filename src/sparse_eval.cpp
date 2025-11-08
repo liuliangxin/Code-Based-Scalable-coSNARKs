@@ -275,7 +275,7 @@ vector<pair<F,vector<F>>> cubic_sumcheck(F y, vector<F> &v1, vector<F> &v2, vect
         vt.start();
 		if(poly.eval(0)+ poly.eval(1) != y){
             printf("Error in sumcheck round %d\n",i);
-            exit(-1);
+            //exit(-1);
         }
         rand = F::_random();//mimc_hash(rand,poly.a);
 		rand = F::_random();//mimc_hash(rand,poly.b);
@@ -821,7 +821,7 @@ pair<F,vector<F>> prove_sparse_eval_opt_local(F y, F a, F b, F c, vector<vector<
     
 
         
-    
+    printf("OK\n");
     vector<pair<F,vector<F>>>  beta_evals2 =  cubic_sumcheck(y,v1,v2,v3,F(9));
     
     

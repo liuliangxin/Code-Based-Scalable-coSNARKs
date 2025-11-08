@@ -34,6 +34,6 @@ void compute_secret_shares(vector<F> &v, vector<vector<F>> &v_shares, int N, int
 void prove_R1CS(size_t size, int N, int _k, int k);
 void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type=0);
 
-void prove_R1CS_standard(size_t size);
+void prove_R1CS_standard(size_t size, int cir);
 void compute_beta_shares(vector<F> &shares, vector<F> r, int k, int N, int _k);
 void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type=0);

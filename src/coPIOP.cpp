@@ -1203,17 +1203,24 @@ void prove_R1CS_standard(size_t size, int cir){
     
     
     printf("Pt: %lf, Vt: %lf, Ps: %lf\n",pt,vt,ps);
-    return;
+    
     vector<sparse_eval_data> data;
     prepare_R1CS_data(A, B, C, logm, logn, data);
     
-    compute_witness_vector(r1,r2,data,witness,1,pt);
+    //compute_witness_vector(r1,r2,data,witness,1,pt);
     beta1.clear();beta2.clear();
-    vector<vector<F>> _beta1,_beta2;
+    vector<vector<F>> _beta1(3),_beta2(3);
+    
     compute_R1CS_betas(r1,  r2, data, _beta1, _beta2, logm, logn,1);
+    int wit_size = 0;
+    for(int i = 0; i <  _beta1.size(); i++){
+        wit_size += next_pow2(_beta1[i].size());
+        wit_size += next_pow2(_beta2[i].size());
+    }
+    printf("Witness size: %d\n", next_pow2(wit_size));
+    
     
     witness.clear();
-    
     prove_sparse_eval_opt_local(claims[1].first, a, b, c, _beta1, _beta2, data ,r1, r2, pt, ps, vt);
     //prove_sparse_eval(claims[1].first,a,b,c, beta1, beta2, data,pt, ps, vt);
     

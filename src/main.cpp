@@ -1045,7 +1045,7 @@ int main(int argc, char *argv[]){
         }
         //test_quadratic_sumheck(N,  M);
     }else if(benchmark == 6){
-        
+        prove_R1CS_standard(1<<atoi(argv[2]), atoi(argv[3]));
     }else{
         sumcheck_offset = atoi(argv[4]) - (int)log2(N);
         printf("OK\n");   
