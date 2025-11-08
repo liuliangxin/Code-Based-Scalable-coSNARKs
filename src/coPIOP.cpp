@@ -1153,22 +1153,21 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
 }
 
 
-void prove_R1CS_standard(size_t size){
+void prove_R1CS_standard(size_t size, int cir){
     double pt = 0.0,vt = 0.0,ps = 0.0;
     double cm = 0.0;
 
     vector<F> witness,vL,vO,vR;
     vector<F> RA,RB,RC;
     
-    generate_R1CS_matrixes(size);
+    generate_R1CS_matrixes(size,cir);
     
     vector<vector<int>> idx;
     vector<vector<short>> bits;
-    logm = (int)log2(size);
-    logn = (int)log2(size)+1;
-
     
-    prepare_witness_data(size, witness, vL, vR, vO);
+    
+    
+    prepare_witness_data(size, witness, vL, vR, vO,cir);
     vector<F> rand_vL = vL,rand_vR = vR,rand_vO = vO;
 
 
@@ -1204,15 +1203,19 @@ void prove_R1CS_standard(size_t size){
     
     
     printf("Pt: %lf, Vt: %lf, Ps: %lf\n",pt,vt,ps);
+    return;
     vector<sparse_eval_data> data;
     prepare_R1CS_data(A, B, C, logm, logn, data);
-    beta1.clear();beta2.clear();precompute_beta(r1,beta1);precompute_beta(r2,beta2);
+    
+    compute_witness_vector(r1,r2,data,witness,1,pt);
+    beta1.clear();beta2.clear();
+    vector<vector<F>> _beta1,_beta2;
+    compute_R1CS_betas(r1,  r2, data, _beta1, _beta2, logm, logn,1);
     
     witness.clear();
-    compute_witness_vector(r1,r2,data,witness,1,pt);
     
-    
-    prove_sparse_eval(claims[1].first,a,b,c, beta1, beta2, data,pt, ps, vt);
+    prove_sparse_eval_opt_local(claims[1].first, a, b, c, _beta1, _beta2, data ,r1, r2, pt, ps, vt);
+    //prove_sparse_eval(claims[1].first,a,b,c, beta1, beta2, data,pt, ps, vt);
     
     //evaluate_sparse_matrix(size, N, r1, r2, claims[1].first, a, b, c, pt, ps, vt,cm);
     printf("PIOP Perf---- Pt : %lf, Vt: %lf, Ps: %lf KB, Data to commit: (Online): %d, (Offline): %d\n",pt, vt,ps,witness.size(),next_pow2(12*next_pow2(data[0].IDX1.size())));

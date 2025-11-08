@@ -29,3 +29,6 @@ pair<F,vector<F>> _prove_sparse_eval_opt(F y, F a, F b, F c, vector<vector<F>> &
 void sort_transcript(vector<vector<F>> &Tr, vector<int> &order);
 vector<pair<F,vector<F>>> _quadratic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> &v2, int N);
 vector<pair<F,vector<F>>> _cubic_sumcheck_sparrow(F y, vector<F> &v1, vector<F> &v2, vector<F> &beta1, vector<F> &beta2, vector<F> &beta3, int N);
+void sort_transcript(vector<vector<F>> &Tr, vector<int> &order);
+void compute_transcript(vector<vector<F>> &Tr, vector<sparse_eval_data> &data, vector<F> challenges, vector<vector<F>> &beta1, vector<vector<F>> &beta2,
+                    vector<F> r1, vector<F> r2, int N);

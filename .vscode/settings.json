@@ -22,6 +22,7 @@
         "__tree": "cpp",
         "iterator": "cpp",
         "map": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "type_traits": "cpp"
     }
 }

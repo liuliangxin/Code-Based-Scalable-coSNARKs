@@ -63,3 +63,4 @@ vector<pair<F,vector<F>>> zerocheck_sumcheck(F y, vector<F> &v1, vector<F> &v2, 
 vector<pair<F,vector<F>>> quadratic_sumcheck(F y, vector<F> &v1, vector<F> &v2,F previous_r);
 pair<F,vector<F>> prove_multiplication_tree_new(vector<vector<F>> &input, vector<F> &output, F previous_r, F y, vector<F> r);
 vector<pair<F,vector<F>>> batch_cubic_sumcheck(vector<F> &v1,vector<F> &v2, vector<F> &v3, vector<F> &v4, F y, F a);
+pair<F,vector<F>> prove_sparse_eval_opt_local(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data ,vector<F> r1, vector<F> r2, double &pt, double &ps, double &vt);

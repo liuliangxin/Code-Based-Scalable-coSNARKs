@@ -5895,11 +5895,17 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /home/chris/coSNARK_MPI/lib/libXKCP.a.headers/SimpleFIPS202.h \
   /home/chris/coSNARK_MPI/lib/libXKCP.a.headers/config.h \
   /home/chris/coSNARK_MPI/src/Blake3_hash.h \
+  /home/chris/coSNARK_MPI/src/Distributed_Sumcheck.h \
+  /home/chris/coSNARK_MPI/src/Fiat_Shamir.h \
+  /home/chris/coSNARK_MPI/src/coPCS_utils.h \
+  /home/chris/coSNARK_MPI/src/coPIOP.h \
+  /home/chris/coSNARK_MPI/src/coSumcheck.h \
   /home/chris/coSNARK_MPI/src/config_pc.hpp \
   /home/chris/coSNARK_MPI/src/constants.h \
   /home/chris/coSNARK_MPI/src/fieldElement.hpp \
   /home/chris/coSNARK_MPI/src/flo-shani.h \
   /home/chris/coSNARK_MPI/src/merkle_tree.h \
+  /home/chris/coSNARK_MPI/src/mimc.h \
   /home/chris/coSNARK_MPI/src/my_hhash.h \
   /home/chris/coSNARK_MPI/src/polynomial.h \
   /home/chris/coSNARK_MPI/src/sparse_eval.hpp \
@@ -5937,6 +5943,7 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/c++/13/bits/cxxabi_forced.h \
   /usr/include/c++/13/bits/cxxabi_init_exception.h \
   /usr/include/c++/13/bits/enable_special_members.h \
+  /usr/include/c++/13/bits/erase_if.h \
   /usr/include/c++/13/bits/exception.h \
   /usr/include/c++/13/bits/exception_defines.h \
   /usr/include/c++/13/bits/exception_ptr.h \
@@ -5961,6 +5968,7 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/c++/13/bits/move.h \
   /usr/include/c++/13/bits/nested_exception.h \
   /usr/include/c++/13/bits/new_allocator.h \
+  /usr/include/c++/13/bits/node_handle.h \
   /usr/include/c++/13/bits/ostream.tcc \
   /usr/include/c++/13/bits/ostream_insert.h \
   /usr/include/c++/13/bits/parse_numbers.h \
@@ -5992,9 +6000,13 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/c++/13/bits/stl_iterator.h \
   /usr/include/c++/13/bits/stl_iterator_base_funcs.h \
   /usr/include/c++/13/bits/stl_iterator_base_types.h \
+  /usr/include/c++/13/bits/stl_map.h \
+  /usr/include/c++/13/bits/stl_multimap.h \
   /usr/include/c++/13/bits/stl_pair.h \
   /usr/include/c++/13/bits/stl_raw_storage_iter.h \
+  /usr/include/c++/13/bits/stl_relops.h \
   /usr/include/c++/13/bits/stl_tempbuf.h \
+  /usr/include/c++/13/bits/stl_tree.h \
   /usr/include/c++/13/bits/stl_uninitialized.h \
   /usr/include/c++/13/bits/stl_vector.h \
   /usr/include/c++/13/bits/streambuf.tcc \
@@ -6002,6 +6014,7 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/c++/13/bits/string_view.tcc \
   /usr/include/c++/13/bits/stringfwd.h \
   /usr/include/c++/13/bits/uniform_int_dist.h \
+  /usr/include/c++/13/bits/unique_lock.h \
   /usr/include/c++/13/bits/unique_ptr.h \
   /usr/include/c++/13/bits/uses_allocator.h \
   /usr/include/c++/13/bits/uses_allocator_args.h \
@@ -6044,8 +6057,10 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/c++/13/istream \
   /usr/include/c++/13/limits \
   /usr/include/c++/13/locale \
+  /usr/include/c++/13/map \
   /usr/include/c++/13/math.h \
   /usr/include/c++/13/memory \
+  /usr/include/c++/13/mutex \
   /usr/include/c++/13/new \
   /usr/include/c++/13/numbers \
   /usr/include/c++/13/optional \
@@ -6077,17 +6092,20 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/c++/13/tuple \
   /usr/include/c++/13/type_traits \
   /usr/include/c++/13/typeinfo \
+  /usr/include/c++/13/utility \
   /usr/include/c++/13/variant \
   /usr/include/c++/13/vector \
   /usr/include/ctype.h \
   /usr/include/endian.h \
   /usr/include/errno.h \
+  /usr/include/fcntl.h \
   /usr/include/features-time64.h \
   /usr/include/features.h \
   /usr/include/libintl.h \
   /usr/include/limits.h \
   /usr/include/linux/close_range.h \
   /usr/include/linux/errno.h \
+  /usr/include/linux/falloc.h \
   /usr/include/linux/limits.h \
   /usr/include/locale.h \
   /usr/include/math.h \
@@ -6115,6 +6133,9 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/x86_64-linux-gnu/bits/endianness.h \
   /usr/include/x86_64-linux-gnu/bits/environments.h \
   /usr/include/x86_64-linux-gnu/bits/errno.h \
+  /usr/include/x86_64-linux-gnu/bits/fcntl-linux.h \
+  /usr/include/x86_64-linux-gnu/bits/fcntl.h \
+  /usr/include/x86_64-linux-gnu/bits/fcntl2.h \
   /usr/include/x86_64-linux-gnu/bits/floatn-common.h \
   /usr/include/x86_64-linux-gnu/bits/floatn.h \
   /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h \
@@ -6143,6 +6164,7 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/x86_64-linux-gnu/bits/select.h \
   /usr/include/x86_64-linux-gnu/bits/select2.h \
   /usr/include/x86_64-linux-gnu/bits/setjmp.h \
+  /usr/include/x86_64-linux-gnu/bits/stat.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-intn.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-least.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
@@ -6157,6 +6179,7 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/x86_64-linux-gnu/bits/strings_fortified.h \
   /usr/include/x86_64-linux-gnu/bits/struct_mutex.h \
   /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h \
+  /usr/include/x86_64-linux-gnu/bits/struct_stat.h \
   /usr/include/x86_64-linux-gnu/bits/syscall.h \
   /usr/include/x86_64-linux-gnu/bits/thread-shared-types.h \
   /usr/include/x86_64-linux-gnu/bits/time.h \
@@ -6180,6 +6203,7 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/include/x86_64-linux-gnu/bits/types/sigset_t.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h \
   /usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h \
@@ -6288,6 +6312,7 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/lib/gcc/x86_64-linux-gnu/13/include/movdirintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/mwaitintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/mwaitxintrin.h \
+  /usr/lib/gcc/x86_64-linux-gnu/13/include/omp.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/pconfigintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/pkuintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/pmmintrin.h \
@@ -6320,7 +6345,40 @@ src/CMakeFiles/pigeon.dir/sparse_eval.cpp.o: /home/chris/coSNARK_MPI/src/sparse_
   /usr/lib/gcc/x86_64-linux-gnu/13/include/xsaveintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/xsaveoptintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/13/include/xsavesintrin.h \
-  /usr/lib/gcc/x86_64-linux-gnu/13/include/xtestintrin.h
+  /usr/lib/gcc/x86_64-linux-gnu/13/include/xtestintrin.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/mpi_portable_platform.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/constants.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/mpicxx.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology_inln.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win.h \
+  /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win_inln.h
 
 src/CMakeFiles/pigeon.dir/timer.cpp.o: /home/chris/coSNARK_MPI/src/timer.cpp \
   /home/chris/coSNARK_MPI/lib/libXKCP.a.headers/SimpleFIPS202.h \

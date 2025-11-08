@@ -6,6 +6,7 @@
 #include "utils.hpp"
 #include "merkle_tree.h"
 #include "timer.hpp"
+#include "Distributed_Sumcheck.h"
 vector<int> real_idx_dim;
 extern timer vt;
 
@@ -659,6 +660,179 @@ vector<pair<F,vector<F>>> compute_final_claim(vector<F> r, vector<vector<int>> F
     return {make_pair(y1[0],_r),make_pair(y1[1],_r),make_pair(y1[2],_r)};
 }
 
+
+void compute_transcript_local(vector<vector<F>> &Tr,vector<sparse_eval_data> &data,vector<F> challenges, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<F> r1, vector<F> r2){
+
+    vector<F> base_beta1,base_beta2;
+    precompute_beta(r1,base_beta1);
+    precompute_beta(r2,base_beta2);
+    
+    for(int j = 0; j < data.size(); j++){
+        Tr[2*j].resize(next_pow2(data[j].IDX1.size()),F(1));
+        Tr[2*j+1].resize(next_pow2(data[j].IDX1.size()),F(1));
+        for(int i = 0; i < data[j].IDX1.size(); i++){
+            Tr[2*j][i] = challenges[0]*beta1[j][i] +  challenges[1]*F(data[j].RD1[i]) + challenges[2]*F(data[j].IDX1[i]) + F(1);
+            Tr[2*j+1][i] = challenges[0]*beta1[j][i] +  challenges[1]*F(data[j].WR1[i]) + challenges[2]*F(data[j].IDX1[i]) + F(1);
+        }
+    }
+    for(int j = 0; j < data.size(); j++){
+        Tr[2*j+6].resize(next_pow2(data[j].IDX2.size()),F(1));
+        Tr[2*j+1+6].resize(next_pow2(data[j].IDX2.size()),F(1));
+        for(int i = 0; i < data[j].IDX2.size(); i++){
+            Tr[2*j+6][i] = challenges[0]*beta2[j][i] +  challenges[1]*F(data[j].RD2[i]) + challenges[2]*F(data[j].IDX2[i]) + F(1);
+            Tr[2*j+1+6][i] = challenges[0]*beta2[j][i] +  challenges[1]*F(data[j].WR2[i]) + challenges[2]*F(data[j].IDX2[i]) + F(1);
+        }
+    }
+    for(int j = 0; j < data.size(); j++){
+        Tr[2*j+12].resize(next_pow2(data[j].FINAL_FR1.size()),F(1));
+        Tr[2*j+1+12].resize(next_pow2(data[j].FINAL_FR1.size()),F(1));
+    
+        for(int i = 0; i < data[j].FINAL_FR1.size(); i++){
+            Tr[2*j+0+12][i] =   challenges[0]*base_beta1[i]+F(1)  +  challenges[2]*F(i);
+            Tr[2*j+1+12][i] = challenges[0]*base_beta1[i] +  challenges[1]*F(data[j].FINAL_FR1[i]) + challenges[2]*F(i) + F(1);
+        }
+    }
+    for(int j = 0; j < data.size(); j++){
+        Tr[2*j+18].resize(next_pow2(data[j].FINAL_FR2.size()),F(1));
+        Tr[2*j+1+18].resize(next_pow2(data[j].FINAL_FR2.size()),F(1));
+        for(int i = 0; i < data[j].FINAL_FR2.size(); i++){
+            Tr[2*j+18][i] =   challenges[2]*F(i) + F(1) + challenges[0]*base_beta2[i]; 
+            Tr[2*j+1+18][i] = challenges[0]*base_beta2[i] +  challenges[1]*F(data[j].FINAL_FR2[i]) + challenges[2]*F(i) + F(1);
+        }
+    }
+}
+
+pair<F,vector<F>> prove_product_opt_local(vector<vector<F>> &input, vector<F> &output){
+    
+    int total_size;
+    int size;
+    
+    
+    for(int i = 0; i < input.size(); i++) {
+        if(i > 0 && input[i].size() > input[i-1].size()){
+            printf("Input is not sorted, exiting \n");
+            exit(-1);
+        }
+        input[i].resize(next_pow2(input[i].size()),F(1));
+        total_size += input[i].size();
+        size = input[i].size();
+    }
+    
+    vector<vector<F>> new_input;
+    vector<F> buff(size);
+    for(int i = 0; i < input.size(); i++){
+        int ctr = 0;
+        for(int j = 0; j < input[i].size()/size; j++){
+            for(int k = 0; k < size; k++) buff[k] = input[i][ctr++];
+            new_input.push_back(buff);
+        }
+    }
+    
+    vector<F> temp_out;
+    pair<F,vector<F>> claim = prove_multiplication_tree_new(new_input,temp_out,F(0),F(0),{});
+    int ctr = 0;
+    output.resize(input.size(),F(1));
+    for(int i = 0; i < input.size(); i++){
+        for(int j = 0; j < input[i].size()/size; j++)output[i] *= temp_out[ctr++];
+    }
+    
+    
+    
+    
+    return claim;
+
+}
+
+
+
+pair<F,vector<F>> prove_sparse_eval_opt_local(F y, F a, F b, F c, vector<vector<F>> &beta1, vector<vector<F>> &beta2, vector<sparse_eval_data> &data ,vector<F> r1, vector<F> r2, double &pt, double &ps, double &vt){
+    vector<vector<F>> Tr(24);
+    vector<F> output;
+    vector<int> order;
+    
+    //pt_cp.start();
+    vector<F> challenges(3);
+    clock_t t1 = clock();
+    for(int i = 0; i < 3; i++) challenges[i] = hash_to_field({0}); 
+    
+    compute_transcript_local(Tr, data, challenges, beta1, beta2, r1, r2);
+    
+    //vector<F> test_v = Tr[13];
+    
+    sort_transcript(Tr, order);
+    vector<F> debug_evals;
+    
+    pair<F,vector<F>> claim = prove_product_opt_local(Tr, output);
+    
+        vector<F> organized_output(output.size());
+        for(int i = 0; i < output.size(); i++){
+            organized_output[i] = output[order[i]];
+        }
+        for(int i = 0; i < 6; i++){
+            if(organized_output[2*i]*organized_output[2*i+1+12] != organized_output[2*i+1]*organized_output[2*i+12]){
+                printf("Error phase 2 %d\n",i);
+            }
+        }
+    
+    
+    vector<F> r = claim.second;
+    vector<F> evals;
+    
+    for(int i = 0; i < data.size(); i++){
+        evals.push_back(evaluate_vector(beta1[i],r));
+        evals.push_back(evaluate_vector(convert_to_field(data[i].RD1),r));
+        evals.push_back(evaluate_vector(convert_to_field(data[i].IDX1),r));
+    }
+    for(int i = 0; i < data.size(); i++){
+        evals.push_back(evaluate_vector(beta2[i],r));
+        evals.push_back(evaluate_vector(convert_to_field(data[i].RD2),r));
+        evals.push_back(evaluate_vector(convert_to_field(data[i].IDX2),r));
+    }
+    for(int i = 0; i < data.size(); i++) evals.push_back(evaluate_vector(convert_to_field(data[i].FINAL_FR1),r));
+    for(int i = 0; i < data.size(); i++) evals.push_back(evaluate_vector(convert_to_field(data[i].FINAL_FR2),r));
+    
+    //vector<F> evals = batch_distributed_eval_opt(polys, r, claim.second[2], N);
+    
+    vector<F> beta_evals;
+    
+    for(int i = 0; i < data.size(); i++){
+        beta_evals.push_back(evals[3*i]);
+        beta_evals.push_back(evals[3*i + 9]);
+    }
+
+  
+    order.clear();
+    vector<F> v1,v2,v3;
+    vector<vector<F>> _beta2_sorted,_beta1_sorted = beta1;
+    vector<F> aggr_challenges = {a,b,c};
+    sort_transcript(_beta1_sorted,order);    
+    for(int i = 0; i < beta2.size(); i++) _beta2_sorted.push_back(beta2[order[i]]);
+    
+    for(int i = 0; i < beta1.size(); i++){
+        v1.insert(v1.end(),_beta1_sorted[i].begin(),_beta1_sorted[i].end());
+        v2.insert(v2.end(),_beta2_sorted[i].begin(),_beta2_sorted[i].end());
+        vector<F> c_buff(_beta1_sorted[i].size(),aggr_challenges[order[i]]);
+        v3.insert(v3.end(),c_buff.begin(),c_buff.end());
+    }
+    v1.resize(next_pow2(v1.size()),F(0));
+    v2.resize(next_pow2(v2.size()),F(0));
+    v3.resize(next_pow2(v3.size()),F(0));
+    
+    
+
+        
+    
+    vector<pair<F,vector<F>>>  beta_evals2 =  cubic_sumcheck(y,v1,v2,v3,F(9));
+    
+    
+    //for(int i = 0; i < )
+    F __r = F::_random();
+    r2 = beta_evals2[0].second;
+    r2.insert(r2.begin(),__r);
+    return make_pair((F(1)-__r)*beta_evals2[0].first + __r*beta_evals2[1].first,r2);
+    //return make_pair(evaluate_vector(beta_evals,temp_r),betas_r);
+
+}
 
 
 void prove_sparse_eval(F y, F a, F b, F c, vector<F> &beta1, vector<F> &beta2, vector<sparse_eval_data> &data, double &pt, double &ps, double &vt){

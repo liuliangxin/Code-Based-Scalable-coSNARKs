@@ -1044,6 +1044,8 @@ int main(int argc, char *argv[]){
             printf("Interaction Rounds: %d\n",com_rounds);
         }
         //test_quadratic_sumheck(N,  M);
+    }else if(benchmark == 6){
+        
     }else{
         sumcheck_offset = atoi(argv[4]) - (int)log2(N);
         printf("OK\n");   
