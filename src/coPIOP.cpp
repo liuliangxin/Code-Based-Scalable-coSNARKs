@@ -1170,7 +1170,7 @@ void prove_R1CS_standard(size_t size, int cir){
     prepare_witness_data(size, witness, vL, vR, vO,cir);
     vector<F> rand_vL = vL,rand_vR = vR,rand_vO = vO;
 
-
+    printf("Witness size 1 : %d\n",witness.size());
     vector<F> r1;
     for(int i = 0; i < (int)log2(vL.size()); i++)r1.push_back(F::_random());
     
@@ -1198,11 +1198,9 @@ void prove_R1CS_standard(size_t size, int cir){
     }
     claims = quadratic_sumcheck(a*claims[1].first+b*claims[2].first+c*claims[3].first, witness, R_aggr,F(0));
     vector<F> r2 = claims[0].second;
-    clock_t t2 = clock();
-    pt += (double)((t2-t1))/(double)CLOCKS_PER_SEC;
     
     
-    printf("Pt: %lf, Vt: %lf, Ps: %lf\n",pt,vt,ps);
+    
     
     vector<sparse_eval_data> data;
     prepare_R1CS_data(A, B, C, logm, logn, data);
@@ -1217,12 +1215,22 @@ void prove_R1CS_standard(size_t size, int cir){
         wit_size += next_pow2(_beta1[i].size());
         wit_size += next_pow2(_beta2[i].size());
     }
-    printf("Witness size: %d\n", next_pow2(wit_size));
+    printf("Witness 2 size: %d\n", next_pow2(wit_size));
     
     
     witness.clear();
     prove_sparse_eval_opt_local(claims[1].first, a, b, c, _beta1, _beta2, data ,r1, r2, pt, ps, vt);
     //prove_sparse_eval(claims[1].first,a,b,c, beta1, beta2, data,pt, ps, vt);
+    int idx_size = 0;
+    for(int i = 0; i < data.size(); i++){
+        idx_size += next_pow2(data[0].IDX1.size());
+        idx_size += next_pow2(data[0].RD1.size());
+        idx_size += next_pow2(data[0].FINAL_FR1.size());
+        idx_size += next_pow2(data[0].FINAL_FR2.size());
+    }
+    idx_size = next_pow2(idx_size);
+    clock_t t2 = clock();
+    pt += (double)((t2-t1))/(double)CLOCKS_PER_SEC;
     
     //evaluate_sparse_matrix(size, N, r1, r2, claims[1].first, a, b, c, pt, ps, vt,cm);
     printf("PIOP Perf---- Pt : %lf, Vt: %lf, Ps: %lf KB, Data to commit: (Online): %d, (Offline): %d\n",pt, vt,ps,witness.size(),next_pow2(12*next_pow2(data[0].IDX1.size())));
