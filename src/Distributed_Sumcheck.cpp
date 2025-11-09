@@ -15,6 +15,7 @@ extern int multree_offset;
 extern bool isLAN;
 timer sch_com;
 timer com_timer;
+extern bool data_parallel;
 vector<F> aggregate_quadratic_poly_sparrow(vector<F> H, int N){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -1359,7 +1360,7 @@ void secret_share_vector(vector<F> &v, int _k, int k, int N){
     field_vector_serialize(buff,buff_u64);
     buff_recv_u64.resize(buff_u64.size(),(0));
     pt_cp.end();
-    cm += 8*buff_u64.size()/1024.0;
+    if(!data_parallel)cm += 8*buff_u64.size()/1024.0;
     com_rounds++;
     
     MPI_Alltoall(buff_u64.data(),buff_u64.size()/N,MPI_UINT64_T,buff_recv_u64.data(),buff_u64.size()/N,MPI_UINT64_T,MPI_COMM_WORLD);

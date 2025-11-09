@@ -937,22 +937,26 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     temp_pc.end();
+    if(rank == 0)printf("1 >>>>>>>> %lf\n",cm/1024.0);
+    
     if(rank == 0)printf("Phase 1: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     temp_pc.start();
     vector<pair<F,vector<F>>> claims1 = prove_phase1(vL, vR, vO, rL, rR, rO,R3,R4, N,_k, k, ps);
     temp_pc.end();
     if(rank == 0)printf("Phase 2: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     F a,b,c;
+    if(rank == 0)printf("1 >>>>>>>> %lf\n",cm/1024.0);
     temp_pc.start();
     vector<pair<F,vector<F>>> claims2 = prove_phase2(witness, r_witness, rL, rR, rO, RA, RB, RC,R1,R2, claims1[0].second, claims1[0].first,claims1[1].first,claims1[2].first,N, size, _k, k, a,b,c, ps);
     temp_pc.end();
     if(rank == 0)printf("Phase 3: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     
-    
+    if(rank == 0)printf("1 >>>>>>>> %lf\n",cm/1024.0);
     temp_pc.start();
     aggregate_random_evaluations(claims1,  claims2, R,  _R,codeword_R,_codeword_R,CR ,a,b,c, N, k,  _k,ps);
     temp_pc.end();
     if(rank == 0)printf("Phase 4: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
+    if(rank == 0)printf("2 >>>>>>>> %lf\n",cm/1024.0);
     
     //return;
     if(!data_parallel){
@@ -972,6 +976,7 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     }
     temp_pc.start();
     open_zk(codeword,C_mask,row_data,mask_data,Com,Com_mask, claims2[0].second,claims2[0].first,500,k,_k,(1<<logm),N,ps);
+    if(rank == 0)printf("3 >>>>>>>> %lf\n",(double)cm/1024.0);
     temp_pc.end();
     if(rank == 0)printf("Phase 7: %lf, rounds: %d\n",temp_pc.get_time(),com_rounds);temp_pc.reset();
     pt.end();
