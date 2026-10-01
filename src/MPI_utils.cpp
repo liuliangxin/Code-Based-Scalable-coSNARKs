@@ -1,6 +1,12 @@
 #pragma once
 #include "MPI_utils.hpp"
 #include "timer.hpp"
+#include "accountability/PVIA.hpp"
+#include "accountability/AccountableAggregation.hpp"
+#include "accountability/JointPackedPreprocessing.hpp"
+#include "accountability/AuthenticatedMpcExchange.hpp"
+#include <cstdlib>
+#include <cstring>
 extern vector<vector<pair<int,int>>> A,B,C;
 // Transposed R1CS matrixes
 extern vector<vector<pair<int,int>>> tA,tB,tC;
@@ -10,6 +16,149 @@ extern vector<int> real_idx_dim;
 extern double cm;
 extern timer pt_cp,vt;
 extern int com_rounds;
+
+namespace {
+void enforce_pvia_prebroadcast_release_gate(const char* release_name) {
+    if (!release_name) return;
+    auto& rt = pvia::Runtime::instance();
+    if (!rt.enabled()) return;
+    const pvia::Phase phase = rt.pending_phase();
+    const uint32_t round = rt.pending_round();
+    if (phase != pvia::Phase::UNKNOWN &&
+        rt.pre_release_gate(release_name, phase, round))
+        return;
+    if (phase != pvia::Phase::UNKNOWN)
+        rt.handle_global_failure(release_name, phase, round);
+    std::exit(15);
+}
+
+std::array<u64, pvia::META_WORDS> prepare_cosumcheck_tail_send(
+    pvia::Phase phase, uint32_t tail_round,
+    const vector<F>& local_fields, const vector<F>& public_aux) {
+    std::array<u64, pvia::META_WORDS> meta{};
+    auto& rt = pvia::Runtime::instance();
+    if (!rt.enabled()) return meta;
+
+    std::vector<pvia::OperationRef> predecessors;
+    const auto predecessor = rt.previous_round_operation_ref(
+        phase, tail_round, pvia::Obligation::PUBLISH);
+    if (predecessor.object_id != 0)
+        predecessors.push_back(predecessor);
+
+    const pvia::RecordId send_record = rt.register_vector_operation(
+        phase, tail_round, pvia::Obligation::SEND,
+        local_fields, predecessors);
+    if (send_record == 0) std::exit(15);
+    if (!public_aux.empty()) {
+        rt.bind_public_field_aux(
+            send_record, pvia::AuditPublicAuxKind::GENERIC_FIELDS,
+            public_aux);
+    }
+    rt.activate_vector(send_record, local_fields);
+    const auto payload = pvia::serialize_field_vector_for_meta(local_fields);
+    meta = rt.make_pending_meta(payload, false);
+    return meta;
+}
+
+std::array<u64, pvia::META_WORDS> prepare_scalar_aggregation_send(
+    uint32_t context_id, const vector<F>& local_fields,
+    const vector<F>& public_aux) {
+    std::array<u64, pvia::META_WORDS> meta{};
+    auto& rt = pvia::Runtime::instance();
+    if (!rt.enabled()) return meta;
+
+    const pvia::RecordId send_record = rt.register_vector_operation(
+        pvia::Phase::SCALAR_AGGREGATION, context_id,
+        pvia::Obligation::SEND, local_fields, {});
+    if (send_record == 0) std::exit(15);
+    if (!public_aux.empty()) {
+        rt.bind_public_field_aux(
+            send_record, pvia::AuditPublicAuxKind::GENERIC_FIELDS,
+            public_aux);
+    }
+    rt.activate_vector(send_record, local_fields);
+    const auto payload = pvia::serialize_field_vector_for_meta(local_fields);
+    meta = rt.make_pending_meta(payload, false);
+    return meta;
+}
+
+std::array<u64, pvia::META_WORDS> prepare_scalar_aggregation_publication(
+    uint32_t context_id, const vector<F>& result_fields,
+    const vector<F>& public_aux) {
+    std::array<u64, pvia::META_WORDS> meta{};
+    auto& rt = pvia::Runtime::instance();
+    if (!rt.enabled()) return meta;
+
+    const auto contributors = rt.checkpoint_operations(
+        pvia::Phase::SCALAR_AGGREGATION, context_id,
+        pvia::Obligation::SEND);
+    const pvia::RecordId aggregate_record = rt.register_vector_operation(
+        pvia::Phase::SCALAR_AGGREGATION, context_id,
+        pvia::Obligation::AGGREGATE, result_fields, contributors);
+    if (aggregate_record == 0) std::exit(15);
+    if (!public_aux.empty()) {
+        rt.bind_public_field_aux(
+            aggregate_record,
+            pvia::AuditPublicAuxKind::AGGREGATION_WEIGHTS,
+            public_aux);
+    }
+    rt.activate_vector(aggregate_record, result_fields);
+
+    const pvia::RecordId publish_record = rt.prepare_followup_vector(
+        pvia::Obligation::PUBLISH, result_fields);
+    if (publish_record == 0) std::exit(15);
+    rt.activate_vector(publish_record, result_fields);
+    const auto payload = pvia::serialize_field_vector_for_meta(result_fields);
+    meta = rt.make_pending_meta(payload, false);
+    return meta;
+}
+
+std::array<u64, pvia::META_WORDS> prepare_cosumcheck_tail_publication(
+    pvia::Phase phase, uint32_t tail_round,
+    const vector<F>& result_fields, const vector<F>& public_aux) {
+    std::array<u64, pvia::META_WORDS> meta{};
+    auto& rt = pvia::Runtime::instance();
+    if (!rt.enabled()) return meta;
+
+    const auto contributors = rt.checkpoint_operations(
+        phase, tail_round, pvia::Obligation::SEND);
+    const pvia::RecordId aggregate_record = rt.register_vector_operation(
+        phase, tail_round, pvia::Obligation::AGGREGATE,
+        result_fields, contributors);
+    if (aggregate_record == 0) std::exit(15);
+    if (!public_aux.empty()) {
+        rt.bind_public_field_aux(
+            aggregate_record,
+            pvia::AuditPublicAuxKind::AGGREGATION_WEIGHTS,
+            public_aux);
+    }
+    rt.activate_vector(aggregate_record, result_fields);
+
+    const pvia::RecordId publish_record = rt.prepare_followup_vector(
+        pvia::Obligation::PUBLISH, result_fields);
+    if (publish_record == 0) std::exit(15);
+    rt.activate_vector(publish_record, result_fields);
+    const auto payload = pvia::serialize_field_vector_for_meta(result_fields);
+    meta = rt.make_pending_meta(payload, false);
+    return meta;
+}
+
+void send_bound_payload(
+    const std::array<u64, pvia::META_WORDS>& meta,
+    const vector<u64>& payload, int receiver) {
+    auto& rt = pvia::Runtime::instance();
+    if (rt.enabled()) {
+        auto sealed = meta;
+        if (!rt.seal_transfer_meta(sealed, payload))
+            std::exit(15);
+        rt.observe_outgoing_transfer(sealed, payload);
+        rt.observe_local_payload(payload);
+        MPI_Send(
+            sealed.data(), pvia::META_WORDS, MPI_UINT64_T,
+            receiver, pvia::META_TAG, MPI_COMM_WORLD);
+    }
+}
+} // namespace
 
 
 void myAlltoAll(vector<u64> &in, vector<u64> &out, int N, int total_size){
@@ -67,7 +216,8 @@ void myBcast(vector<u64> &data, int N){
 }
 
 
-F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
+F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N,
+       uint32_t scalar_context){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F y = F(0),sum = F(0);
@@ -77,10 +227,23 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
         y += data[i]*v1[i];
     }
     pt_cp.end();
-    
+
+    vector<F> scalar_public_aux = v1;
+    scalar_public_aux.insert(
+        scalar_public_aux.end(), v2.begin(), v2.end());
+    scalar_public_aux.push_back(F(k));
+    scalar_public_aux.push_back(F(_k));
+    scalar_public_aux.push_back(F(N));
+    const vector<F> local_scalar_fields = {y};
+    const auto scalar_meta = prepare_scalar_aggregation_send(
+        scalar_context, local_scalar_fields, scalar_public_aux);
+    std::array<u64, pvia::META_WORDS> scalar_publish_meta{};
+
     vector<u64> f_element(2);
     com_rounds+=2;
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         vector<F> Y(N);Y[0] = y;
         vector<MPI_Request> req(N);
         vector<vector<u64>> recv_data(N);
@@ -91,7 +254,16 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
             //MPI_Recv(f_element.data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             Y[i].real = recv_data[i][0];
             Y[i].img = recv_data[i][1];
 
@@ -114,6 +286,10 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
         }
         f_element[0] = sum.real;
         f_element[1] = sum.img;
+        if (pvia::Runtime::instance().enabled()) {
+            scalar_publish_meta = prepare_scalar_aggregation_publication(
+                scalar_context, vector<F>{sum}, scalar_public_aux);
+        }
         pt_cp.end();
     
         //for(int i = 1; i < N; i++){
@@ -125,12 +301,20 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
         f_element[0] = y.real;
         f_element[1] = y.img;
         cm += 8*f_element.size()/1024.0;
+        send_bound_payload(scalar_meta, f_element, 0);
         MPI_Request req;
         MPI_Isend(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         //MPI_Recv(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
     myBcast(f_element,N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(
+            scalar_publish_meta, f_element, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     if(rank != 0){
         sum.real = f_element[0];
         sum.img = f_element[1];
@@ -138,7 +322,8 @@ F F_ip(vector<F> &data, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
     return sum;
 }
 
-F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, int k, int _k, int N){
+F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, int k, int _k, int N,
+            uint32_t scalar_context){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F y = F(0),sum = F(0);
@@ -148,11 +333,24 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
         y += data1[i]*data2[i]*v1[i];
     }
     pt_cp.end();
-    
+
+    vector<F> scalar_public_aux = v1;
+    scalar_public_aux.insert(
+        scalar_public_aux.end(), v2.begin(), v2.end());
+    scalar_public_aux.push_back(F(k));
+    scalar_public_aux.push_back(F(_k));
+    scalar_public_aux.push_back(F(N));
+    const vector<F> local_scalar_fields = {y};
+    const auto scalar_meta = prepare_scalar_aggregation_send(
+        scalar_context, local_scalar_fields, scalar_public_aux);
+    std::array<u64, pvia::META_WORDS> scalar_publish_meta{};
+
     vector<u64> f_element(2);
     com_rounds+=2;
     
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         
         vector<F> Y(N);Y[0] = y;
         vector<MPI_Request> req(N);
@@ -164,7 +362,16 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
             MPI_Irecv(recv_data[i].data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             Y[i].real = recv_data[i][0];
             Y[i].img = recv_data[i][1];
         }
@@ -184,6 +391,10 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
         }
         f_element[0] = sum.real;
         f_element[1] = sum.img;
+        if (pvia::Runtime::instance().enabled()) {
+            scalar_publish_meta = prepare_scalar_aggregation_publication(
+                scalar_context, vector<F>{sum}, scalar_public_aux);
+        }
         pt_cp.end();
     
         //for(int i = 1; i < N; i++){
@@ -195,14 +406,22 @@ F F_ip_prod(vector<F> &data1, vector<F> &data2, vector<F> &v1, vector<F> &v2, in
         f_element[0] = y.real;
         f_element[1] = y.img;
         cm += 8*f_element.size()/1024.0;
+        send_bound_payload(scalar_meta, f_element, 0);
         MPI_Request req;
         MPI_Isend(f_element.data(),f_element.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
     
         //MPI_Send(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         //MPI_Recv(f_element.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
     myBcast(f_element,N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(
+            scalar_publish_meta, f_element, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     if(rank != 0){
         sum.real = f_element[0];
         sum.img = f_element[1];
@@ -257,7 +476,7 @@ quadratic_poly _batch_aggregate(vector<quadratic_poly> polys,vector<F> v2, int k
     return H;
 }   
 
-vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F>> v2, vector<bool> secret_shared, vector<int> rounds,vector<int> k, int round, int N){
+vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F>> v2, vector<bool> secret_shared, vector<int> rounds,vector<int> k, int round, int N, const char* release_name){
     vector<F> poly;
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -271,8 +490,17 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
     }
     vector<u64> coef_u;
     field_vector_serialize(poly,coef_u);
+
+    std::array<u64, pvia::META_WORDS> pvia_meta{};
+    const bool pvia_on = pvia::Runtime::instance().enabled();
+    if (pvia_on) {
+        pvia_meta = pvia::Runtime::instance().make_pending_meta(coef_u, false);
+        pvia::Runtime::instance().observe_local_payload(coef_u);
+    }
+
     com_rounds +=2;
     vector<quadratic_poly> final_P(rounds.size());
+    std::array<u64, pvia::META_WORDS> pvia_aggregate_meta{};
         
     if(rank == 0){
         vector<MPI_Request> req(N-1);
@@ -284,7 +512,14 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
             MPI_Irecv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i+1,0,MPI_COMM_WORLD,&req[i]);
         }
         for(int i = 0; i < N-1; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia_on) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i+1, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia_on)
+                pvia::Runtime::instance().observe_remote_meta(i+1, remote_meta, recv_data[i]);
             field_vector_deserialize(recv_data[i],polys[i+1]); 
         }
         vector<vector<quadratic_poly>> P(rounds.size());
@@ -311,15 +546,39 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
             }
         }
         //printf("%d, (%lld),%lld\n",round,final_P[1].a.real,poly[0].real);
+        if (pvia_on) {
+            vector<F> pvia_batch_aux = {
+                F(N), F(round), F(static_cast<int>(rounds.size()))};
+            for (int idx = 0; idx < rounds.size(); ++idx) {
+                pvia_batch_aux.push_back(F(rounds[idx]));
+                pvia_batch_aux.push_back(F(k[idx]));
+                pvia_batch_aux.push_back(F(secret_shared[idx] ? 1 : 0));
+                pvia_batch_aux.push_back(F(static_cast<int>(v2[idx].size())));
+                pvia_batch_aux.insert(
+                    pvia_batch_aux.end(), v2[idx].begin(), v2[idx].end());
+            }
+            pvia_aggregate_meta = pvia::bind_rank0_aggregate(
+                poly, "AGGREGATE_BATCH", rank, pvia_batch_aux,
+                pvia::AuditRelationKernel::AGGREGATE_BATCH);
+        }
         field_vector_serialize(poly,coef_u);
         
     }else{
+        if (pvia_on) {
+            pvia::Runtime::instance().seal_transfer_meta(pvia_meta, coef_u);
+            pvia::Runtime::instance().observe_outgoing_transfer(pvia_meta, coef_u);
+            MPI_Send(pvia_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                     0, pvia::META_TAG, MPI_COMM_WORLD);
+        }
         MPI_Request req;
         MPI_Isend(coef_u.data(),coef_u.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
     }
+    enforce_pvia_prebroadcast_release_gate(release_name);
     myBcast(coef_u,N);
-    if(rank != 0){
+    if (pvia_on)
+        pvia::publish_rank0_aggregate_meta(pvia_aggregate_meta, coef_u, rank);
+    {
         field_vector_deserialize(coef_u,poly);
         int ctr = 0;
         for(int i = 0; i < rounds.size(); i++){
@@ -331,11 +590,12 @@ vector<quadratic_poly> batch_aggregate(vector<quadratic_poly> H, vector<vector<F
         //printf("%d, (%lld)\n",round,final_P[1].a.real);
         
     }
+    if (pvia_on) pvia::Runtime::instance().consume_pending();
     return final_P;
 
 }
 
-quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
+quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N, const char* release_name){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F a = F(0),b = F(0),c = F(0);
@@ -346,7 +606,17 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
     
     field_vector_serialize(coef,coef_u);
     pt_cp.end();
+
+    // PVIA sidecar metadata is transmitted only when the development path is enabled.
+    std::array<u64, pvia::META_WORDS> pvia_meta{};
+    const bool pvia_on = pvia::Runtime::instance().enabled();
+    if (pvia_on) {
+        pvia_meta = pvia::Runtime::instance().make_pending_meta(coef_u, false);
+        pvia::Runtime::instance().observe_local_payload(coef_u);
+    }
+
     com_rounds+=2;
+    std::array<u64, pvia::META_WORDS> pvia_aggregate_meta{};
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N);
         _a[0] = coef[0];_b[0] = coef[1];_c[0] = coef[2]; 
@@ -359,7 +629,14 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
             MPI_Irecv(recv_data[i].data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia_on) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia_on)
+                pvia::Runtime::instance().observe_remote_meta(i, remote_meta, recv_data[i]);
             field_vector_deserialize(recv_data[i],coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2]; 
         
@@ -387,6 +664,9 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
             c += _c[N*j/_k];
         }
         coef[0] = a;coef[1] = b;coef[2] = c;
+        if (pvia_on) pvia_aggregate_meta = pvia::bind_rank0_aggregate(
+            coef, "AGGREGATE_QUADRATIC", rank,
+            pvia::make_aggregation_aux({}, N, k, _k));
         field_vector_serialize(coef,coef_u);
         pt_cp.end();
     
@@ -396,6 +676,12 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
         //}        
     }else{
         cm += 8*coef_u.size()/1024.0;
+        if (pvia_on) {
+            pvia::Runtime::instance().seal_transfer_meta(pvia_meta, coef_u);
+            pvia::Runtime::instance().observe_outgoing_transfer(pvia_meta, coef_u);
+            MPI_Send(pvia_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                     0, pvia::META_TAG, MPI_COMM_WORLD);
+        }
         MPI_Request req;
         MPI_Isend(coef_u.data(),coef_u.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
@@ -404,16 +690,18 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, int k, int _k, int N){
         //MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         //a = coef[0];b = coef[1];c = coef[2]; 
     }
+    enforce_pvia_prebroadcast_release_gate(release_name);
     myBcast(coef_u,N);
-    if(rank != 0){
-        field_vector_deserialize(coef_u,coef);
-        a = coef[0];b = coef[1];c = coef[2]; 
-    } 
+    if (pvia_on) pvia::publish_rank0_aggregate_meta(
+        pvia_aggregate_meta, coef_u, rank);
+    field_vector_deserialize(coef_u,coef);
+    a = coef[0];b = coef[1];c = coef[2];
     H = quadratic_poly(a,b,c);
+    if (pvia_on) pvia::Runtime::instance().consume_pending();
     return H;
 }
 
-quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, int _k, int N){
+quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, int _k, int N, const char* release_name){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F a = F(0),b = F(0),c = F(0);
@@ -424,7 +712,17 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
     
     field_vector_serialize(coef,coef_u);
     pt_cp.end();
+
+    // PVIA sidecar metadata is transmitted only when the development path is enabled.
+    std::array<u64, pvia::META_WORDS> pvia_meta{};
+    const bool pvia_on = pvia::Runtime::instance().enabled();
+    if (pvia_on) {
+        pvia_meta = pvia::Runtime::instance().make_pending_meta(coef_u, false);
+        pvia::Runtime::instance().observe_local_payload(coef_u);
+    }
+
     com_rounds+=2;
+    std::array<u64, pvia::META_WORDS> pvia_aggregate_meta{};
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N);
         _a[0] = coef[0];_b[0] = coef[1];_c[0] = coef[2]; 
@@ -435,7 +733,14 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
             MPI_Irecv(recv_data[i].data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia_on) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia_on)
+                pvia::Runtime::instance().observe_remote_meta(i, remote_meta, recv_data[i]);
             //MPI_Recv(coef_u.data(),6,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
             field_vector_deserialize(recv_data[i],coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2]; 
@@ -464,7 +769,10 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
             c += v[j]*_c[N*j/_k];
         }
         coef[0] = a;coef[1] = b;coef[2] = c;
-        
+        if (pvia_on) pvia_aggregate_meta = pvia::bind_rank0_aggregate(
+            coef, "AGGREGATE_QUADRATIC_WEIGHTED", rank,
+            pvia::make_aggregation_aux(v, N, k, _k),
+            pvia::AuditRelationKernel::AGGREGATE_WEIGHTED);
         field_vector_serialize(coef,coef_u);
         pt_cp.end();
         //for(int i = 1; i < N; i++){
@@ -473,6 +781,12 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
         //}        
     }else{
         cm += 8*coef_u.size()/1024.0;
+        if (pvia_on) {
+            pvia::Runtime::instance().seal_transfer_meta(pvia_meta, coef_u);
+            pvia::Runtime::instance().observe_outgoing_transfer(pvia_meta, coef_u);
+            MPI_Send(pvia_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                     0, pvia::META_TAG, MPI_COMM_WORLD);
+        }
         MPI_Request req;
         MPI_Isend(coef_u.data(),coef_u.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
@@ -480,13 +794,15 @@ quadratic_poly aggregate_quadratic_poly(quadratic_poly H, vector<F> &v, int k, i
         //MPI_Send(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         //MPI_Recv(coef_u.data(),6,MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
+    enforce_pvia_prebroadcast_release_gate(release_name);
     myBcast(coef_u,N);
-    if(rank != 0){
-        field_vector_deserialize(coef_u,coef);
-        a = coef[0];b = coef[1];c = coef[2]; 
-    }
+    if (pvia_on) pvia::publish_rank0_aggregate_meta(
+        pvia_aggregate_meta, coef_u, rank);
+    field_vector_deserialize(coef_u,coef);
+    a = coef[0];b = coef[1];c = coef[2];
 
     H = quadratic_poly(a,b,c);
+    if (pvia_on) pvia::Runtime::instance().consume_pending();
     return H;
 }
 
@@ -802,14 +1118,32 @@ vector<F> batch_sumcheck_local(vector<F> final_v1, vector<F> final_v2,
 
 vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector<F> &v3,vector<F> &h1, vector<F> &h2, 
                                             vector<F> &beta1, vector<F> &beta2, 
-                                            F b, F y, int k, int _k, int N){
+                                            F b, F y, int k, int _k, int N,
+                                            uint32_t tail_round){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64(10*v1.size());
     vector<F> buff,ret;
+    vector<F> local_fields = v1;
+    local_fields.insert(local_fields.end(),v2.begin(),v2.end());
+    local_fields.insert(local_fields.end(),v3.begin(),v3.end());
+    local_fields.insert(local_fields.end(),h1.begin(),h1.end());
+    local_fields.insert(local_fields.end(),h2.begin(),h2.end());
+    vector<F> public_aux = beta1;
+    public_aux.insert(public_aux.end(), beta2.begin(), beta2.end());
+    public_aux.push_back(b);
+    public_aux.push_back(y);
+    public_aux.push_back(F(k));
+    public_aux.push_back(F(_k));
+    public_aux.push_back(F(N));
+    const auto local_meta = prepare_cosumcheck_tail_send(
+        pvia::Phase::COSUMCHECK_ZERO, tail_round, local_fields, public_aux);
+    std::array<u64, pvia::META_WORDS> publish_meta{};
     com_rounds+=2;
     
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         vector<vector<F>> final_v1(v1.size()),final_v2(v2.size()),final_v3(v3.size()),final_h1(h1.size()),final_h2(h2.size());
         for(int i = 0; i < final_v1.size(); i++){
             final_v1[i].resize(N);
@@ -828,7 +1162,16 @@ vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector
             
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             field_vector_deserialize(recv_data[i],buff);
             for(int j = 0; j < v1.size(); j++){
                 final_v1[j][i] = buff[j];
@@ -841,26 +1184,31 @@ vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector
         ret = zero_check_sumcheck_local(convert2vector(final_v1), convert2vector(final_v2), convert2vector(final_v3), convert2vector(final_h1), convert2vector(final_h2), beta1, beta2, b, y, k, _k, N);
         //for(int i = 1; i < N; i++){
         field_vector_serialize(ret,buff_u64);
+        if (pvia::Runtime::instance().enabled()) {
+            publish_meta = prepare_cosumcheck_tail_publication(
+                pvia::Phase::COSUMCHECK_ZERO, tail_round, ret, public_aux);
+        }
             //cm += 8*buff_u64.size()/1024.0;
             //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         //}
     }else{
-        buff = v1;
-        buff.insert(buff.end(),v2.begin(),v2.end());
-        buff.insert(buff.end(),v3.begin(),v3.end());
-        buff.insert(buff.end(),h1.begin(),h1.end());
-        buff.insert(buff.end(),h2.begin(),h2.end());
+        buff = local_fields;
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
+        send_bound_payload(local_meta, buff_u64, 0);
         MPI_Request req;
         MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
 
-        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(6+(int)log2(k)));
-        //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
     myBcast(buff_u64,N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(publish_meta, buff_u64, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     if(rank != 0){
         field_vector_deserialize(buff_u64,ret);        
     }
@@ -870,14 +1218,22 @@ vector<pair<F,vector<F>>> F_zero_check_rest(vector<F> &v1, vector<F> &v2, vector
 }
 
 vector<pair<F,vector<F>>> F_batch_sumcheck_rest(F v1, F v2, F v3, F v4, F h1, F h2, 
-                                            F b, F y, int k, int _k, int N){
+                                            F b, F y, int k, int _k, int N,
+                                            uint32_t tail_round){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64(12);
     vector<F> buff,ret;
+    const vector<F> local_fields = {v1,v2,v3,v4,h1,h2};
+    const vector<F> public_aux = {b,y,F(k),F(_k),F(N)};
+    const auto local_meta = prepare_cosumcheck_tail_send(
+        pvia::Phase::COSUMCHECK_BATCH, tail_round, local_fields, public_aux);
+    std::array<u64, pvia::META_WORDS> publish_meta{};
     com_rounds+=2;
     
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         vector<F> final_v1(N),final_v2(N),final_v3(N),final_v4(N),final_h1(N),final_h2(N);
         final_v1[0] = v1;final_v2[0] = v2;final_v3[0] = v3;final_v4[0] = v4;final_h1[0] = h1;final_h2[0] = h2;
         vector<vector<u64>> recv_data(N);
@@ -888,32 +1244,49 @@ vector<pair<F,vector<F>>> F_batch_sumcheck_rest(F v1, F v2, F v3, F v4, F h1, F 
             //MPI_Recv(buff_u64.data(),12,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             field_vector_deserialize(recv_data[i],buff);
             final_v1[i] = buff[0];final_v2[i] = buff[1];final_v3[i] = buff[2];final_v4[i] = buff[3];final_h1[i] = buff[4];final_h2[i] = buff[5];
 
         }
         ret = batch_sumcheck_local(final_v1, final_v2, final_v3, final_v4, final_h1, final_h2, b, y, k, _k, N);
         field_vector_serialize(ret,buff_u64);
+        if (pvia::Runtime::instance().enabled()) {
+            publish_meta = prepare_cosumcheck_tail_publication(
+                pvia::Phase::COSUMCHECK_BATCH, tail_round, ret, public_aux);
+        }
             
         //for(int i = 1; i < N; i++){
         //    cm += 8*buff_u64.size()/1024.0;
         //    MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         //}
     }else{
-        buff = {v1,v2,v3,v4,h1,h2};
+        buff = local_fields;
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        
+        send_bound_payload(local_meta, buff_u64, 0);
         MPI_Request req;
         MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
 
-        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         buff_u64.clear();buff_u64.resize(2*(6+(int)log2(k)));
-        //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
     myBcast(buff_u64,N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(publish_meta, buff_u64, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     if(rank != 0){
         field_vector_deserialize(buff_u64,ret);        
     }
@@ -923,14 +1296,23 @@ vector<pair<F,vector<F>>> F_batch_sumcheck_rest(F v1, F v2, F v3, F v4, F h1, F 
 }
 
 
-vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int _k, int N){
+vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int _k, int N,
+                                            uint32_t tail_round){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<u64> buff_u64(4);
     vector<F> buff,ret;
+    const vector<F> local_fields = {v1,v2};
+    const vector<F> public_aux = {y,F(k),F(_k),F(N)};
+    const auto local_meta = prepare_cosumcheck_tail_send(
+        pvia::Phase::COSUMCHECK_QUADRATIC, tail_round,
+        local_fields, public_aux);
+    std::array<u64, pvia::META_WORDS> publish_meta{};
     com_rounds+=2;
     
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         vector<F> final_v1(N),final_v2(N);
         final_v1[0] = v1;final_v2[0] = v2;
         vector<vector<u64>> recv_data(N);
@@ -941,30 +1323,48 @@ vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int 
             //MPI_Recv(buff_u64.data(),4,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         }
         for(int i = 1; i  < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             field_vector_deserialize(recv_data[i],buff);
             final_v1[i] = buff[0];final_v2[i] = buff[1];
         }
         ret = quadratic_sumcheck_local(final_v1, final_v2, y, k, _k, N);
         //for(int i = 1; i < N; i++){
         field_vector_serialize(ret,buff_u64);
+        if (pvia::Runtime::instance().enabled()) {
+            publish_meta = prepare_cosumcheck_tail_publication(
+                pvia::Phase::COSUMCHECK_QUADRATIC, tail_round,
+                ret, public_aux);
+        }
             //cm += 8*buff_u64.size()/1024.0;
             //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD);
         //}
     }else{
-        buff = {v1,v2};
+        buff = local_fields;
         field_vector_serialize(buff,buff_u64);
         cm += 8*buff_u64.size()/1024.0;
-        //MPI_Send(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        send_bound_payload(local_meta, buff_u64, 0);
         MPI_Request req;
         MPI_Isend(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
 
         buff_u64.clear();buff_u64.resize(2*(2+(int)log2(k)));
-        //MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-        //field_vector_deserialize(buff_u64,ret);        
     }
     myBcast(buff_u64,N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(publish_meta, buff_u64, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     if(rank != 0){
         field_vector_deserialize(buff_u64,ret);                
     }
@@ -974,7 +1374,7 @@ vector<pair<F,vector<F>>> F_quadratic_sumcheck_rest(F v1, F v2, F y, int k, int 
 }
 
 
-cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N){
+cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N, const char* release_name){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     F a = F(0),b = F(0),c = F(0),d = F(0);
@@ -985,7 +1385,17 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
     
     field_vector_serialize(coef,coef_u);
     pt_cp.end();
+
+    // PVIA sidecar metadata is transmitted only when the development path is enabled.
+    std::array<u64, pvia::META_WORDS> pvia_meta{};
+    const bool pvia_on = pvia::Runtime::instance().enabled();
+    if (pvia_on) {
+        pvia_meta = pvia::Runtime::instance().make_pending_meta(coef_u, false);
+        pvia::Runtime::instance().observe_local_payload(coef_u);
+    }
+
     com_rounds+=2;
+    std::array<u64, pvia::META_WORDS> pvia_aggregate_meta{};
     
     if(rank == 0){
         vector<F> _a(N),_b(N),_c(N),_d(N);
@@ -998,7 +1408,14 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
             //MPI_Recv(coef_u.data(),8,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia_on) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia_on)
+                pvia::Runtime::instance().observe_remote_meta(i, remote_meta, recv_data[i]);
             field_vector_deserialize(recv_data[i],coef);
             _a[i] = coef[0];_b[i] = coef[1];_c[i] = coef[2];_d[i] = coef[3];
         }
@@ -1045,6 +1462,10 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
             d += v[j]*_d[N*j/_k];
         }
         coef[0] = a;coef[1] = b;coef[2] = c;coef[3] = d;
+        if (pvia_on) pvia_aggregate_meta = pvia::bind_rank0_aggregate(
+            coef, "AGGREGATE_CUBIC", rank,
+            pvia::make_aggregation_aux(v, N, k, _k),
+            pvia::AuditRelationKernel::AGGREGATE_WEIGHTED);
         field_vector_serialize(coef,coef_u);
         pt_cp.end();
     
@@ -1055,6 +1476,12 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
          
     }else{
         cm += 8*coef_u.size()/1024.0;
+        if (pvia_on) {
+            pvia::Runtime::instance().seal_transfer_meta(pvia_meta, coef_u);
+            pvia::Runtime::instance().observe_outgoing_transfer(pvia_meta, coef_u);
+            MPI_Send(pvia_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                     0, pvia::META_TAG, MPI_COMM_WORLD);
+        }
         MPI_Request req;
         MPI_Isend(coef_u.data(),coef_u.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
@@ -1064,12 +1491,13 @@ cubic_poly aggregate_cubic_poly(cubic_poly H, vector<F> &v, int k, int _k, int N
         //field_vector_deserialize(coef_u,coef);
         //a = coef[0];b = coef[1];c = coef[2];d = coef[3]; 
     }
+    enforce_pvia_prebroadcast_release_gate(release_name);
     myBcast(coef_u,N);
-    if(rank != 0){
-        field_vector_deserialize(coef_u,coef);
-        a = coef[0];b = coef[1];c = coef[2];d = coef[3]; 
-
-    }
+    if (pvia_on) pvia::publish_rank0_aggregate_meta(
+        pvia_aggregate_meta, coef_u, rank);
+    field_vector_deserialize(coef_u,coef);
+    a = coef[0];b = coef[1];c = coef[2];d = coef[3];
+    if (pvia_on) pvia::Runtime::instance().consume_pending();
     return cubic_poly(a,b,c,d);
 }
 
@@ -1127,7 +1555,8 @@ F distributed_eval(vector<F> &poly, vector<F> &beta1, vector<F> &beta2, int N){
     return y;
 }
 
-vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k, int _k){
+vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, int k, int _k,
+                   uint32_t scalar_context){
     
     pt_cp.start();
     int rank;
@@ -1140,9 +1569,17 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
     }
     vector<u64> Y_int;
     pt_cp.end();
+
+    const vector<F> scalar_public_aux = {
+        F(N), F(k), F(_k), F(static_cast<long long>(arr.size()))};
+    const auto scalar_meta = prepare_scalar_aggregation_send(
+        scalar_context, Y, scalar_public_aux);
+    std::array<u64, pvia::META_WORDS> scalar_publish_meta{};
     com_rounds+=2;
     
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         vector<vector<F>> partial_Y(arr.size());
         for(int i = 0; i < partial_Y.size(); i++){
             partial_Y[i].resize(N);
@@ -1158,7 +1595,16 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
             //MPI_Recv(recv_data[i].data(),recv_data[i].size(),MPI_UINT64_T,i,0,MPI_COMM_WORLD,&req[i]);
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             field_vector_deserialize(recv_data[i],Y);
             for(int j = 0; j < Y.size(); j++) partial_Y[j][i] = Y[j];
 
@@ -1181,20 +1627,32 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
             }
         }
         field_vector_serialize(Y,Y_int);
+        if (pvia::Runtime::instance().enabled()) {
+            scalar_publish_meta = prepare_scalar_aggregation_publication(
+                scalar_context, Y, scalar_public_aux);
+        }
         pt_cp.end();
     
         
     }else{
         field_vector_serialize(Y,Y_int);
         cm += 8*Y_int.size()/1024.0;
+        send_bound_payload(scalar_meta, Y_int, 0);
         //MPI_Send(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD);
         MPI_Request req;
         MPI_Isend(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
 
     }
     if(rank == 0) cm += (N-1)*8*Y_int.size()/1024.0;
     myBcast(Y_int, N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(
+            scalar_publish_meta, Y_int, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     //MPI_Bcast(Y_int.data(),Y_int.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     if(rank != 0){
         field_vector_deserialize(Y_int,Y);
@@ -1202,7 +1660,8 @@ vector<F> batch_ip(vector<vector<F>> &arr, vector<vector<vector<F>>> &v, int N, 
     return Y;
 }
 
-vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vector<F> r2, int N){
+vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vector<F> r2, int N,
+                                     uint32_t scalar_context){
     int rank;
     pt_cp.start();
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -1223,9 +1682,19 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
         for(int j = (int)log2(poly[i].size()); j < r.size(); j++) y[i] *= (F(1)-r[j]).inv();
     }
     pt_cp.end();
+
+    vector<F> scalar_public_aux = r1;
+    scalar_public_aux.insert(
+        scalar_public_aux.end(), r2.begin(), r2.end());
+    scalar_public_aux.push_back(F(N));
+    const auto scalar_meta = prepare_scalar_aggregation_send(
+        scalar_context, y, scalar_public_aux);
+    std::array<u64, pvia::META_WORDS> scalar_publish_meta{};
     com_rounds+=2;
     
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         
         pt_cp.start();
         vector<F> beta2;precompute_beta(r2,beta2);
@@ -1244,7 +1713,16 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
             
         }
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             for(int j = 0; j < poly.size(); j++){
                 F v; v.real = recv_data[i][2*j];v.img = recv_data[i][2*j+1];
                 Y[j] += beta2[i]*v;
@@ -1252,16 +1730,28 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
         }
 
         field_vector_serialize(Y,buff);
+        if (pvia::Runtime::instance().enabled()) {
+            scalar_publish_meta = prepare_scalar_aggregation_publication(
+                scalar_context, Y, scalar_public_aux);
+        }
     }else{
         field_vector_serialize(y,buff);
         cm += 8*buff.size()/1024.0;
+        send_bound_payload(scalar_meta, buff, 0);
         MPI_Request req;
         MPI_Isend(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
 
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     myBcast(buff, N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(
+            scalar_publish_meta, buff, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     //MPI_Bcast(buff.data(),2*poly.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     field_vector_deserialize(buff,y);
     return y;
@@ -1269,7 +1759,8 @@ vector<F> batch_distributed_eval_opt(vector<vector<F>> &poly, vector<F> r1, vect
 
 
 
-vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vector<F> &beta2, int N){
+vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vector<F> &beta2, int N,
+                                 uint32_t scalar_context){
     int rank;
     pt_cp.start();
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
@@ -1282,9 +1773,19 @@ vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vect
         }
     }
     pt_cp.end();
+
+    vector<F> scalar_public_aux = beta1;
+    scalar_public_aux.insert(
+        scalar_public_aux.end(), beta2.begin(), beta2.end());
+    scalar_public_aux.push_back(F(N));
+    const auto scalar_meta = prepare_scalar_aggregation_send(
+        scalar_context, y, scalar_public_aux);
+    std::array<u64, pvia::META_WORDS> scalar_publish_meta{};
     com_rounds+=2;
     
     if(rank == 0){
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         
         pt_cp.start();
         vector<F> Y(poly.size(),F(0));
@@ -1303,24 +1804,47 @@ vector<F> batch_distributed_eval(vector<vector<F>> &poly, vector<F> &beta1, vect
         }
 
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                         i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Wait(&req[i],MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, recv_data[i]);
+            }
             for(int j = 0; j < poly.size(); j++){
-                F v; v.real = buff[2*j];v.img = buff[2*j+1];
+                F v;
+                v.real = recv_data[i][2*j];
+                v.img = recv_data[i][2*j+1];
                 Y[j] += beta2[i]*v;
             }
         }
 
         field_vector_serialize(Y,buff);
+        if (pvia::Runtime::instance().enabled()) {
+            scalar_publish_meta = prepare_scalar_aggregation_publication(
+                scalar_context, Y, scalar_public_aux);
+        }
     }else{
         field_vector_serialize(y,buff);
         cm += 8*buff.size()/1024.0;
+        send_bound_payload(scalar_meta, buff, 0);
         MPI_Request req;
         MPI_Isend(buff.data(),buff.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
 
     }
     if(rank == 0) cm += (N-1)*8*buff.size()/1024.0;
     myBcast(buff, N);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(
+            scalar_publish_meta, buff, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     //MPI_Bcast(buff.data(),2*poly.size(),MPI_UINT64_T,0,MPI_COMM_WORLD);
     field_vector_deserialize(buff,y);
     return y;
@@ -1690,6 +2214,10 @@ void secret_share_coefficients(vector<F> &w, int M, int N, int _k, int k){
         MPI_Recv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         field_vector_deserialize(buff_u64,w);           
     }
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::Runtime::instance().import_state(
+            "pcs_secret_shared_coefficients", pvia::Phase::PCS, w);
+    }
 }
 
 
@@ -1697,15 +2225,99 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
     vector<F> buff;
-    
 
-    if(rank == 0){
+    auto& rt = pvia::Runtime::instance();
+    pvia::CheckpointId bootstrap_checkpoint = 0;
+    if (rt.enabled()) {
+        // A session-scoped private-epoch bootstrap boundary.  It contains no
+        // witness material; the receive record created below is placed in the
+        // next generation of INIT/0 and becomes the predecessor of validity.
+        rt.seal_checkpoint_instance(pvia::Phase::INIT, 0);
+        bootstrap_checkpoint = rt.checkpoint_id(pvia::Phase::INIT, 0);
+        if (bootstrap_checkpoint == 0) {
+            if (rank == 0)
+                printf("[PVIA][input] bootstrap checkpoint unavailable\n");
+            std::exit(15);
+        }
+    }
+
+    pvia::AuthenticatedMpcExchange exchange(rank, N, MPI_COMM_WORLD);
+    const bool use_bound_transport =
+        rt.enabled() && bootstrap_checkpoint != 0 &&
+        exchange.production_authenticated_ready();
+    pvia::Digest distribution_binding{};
+
+    const size_t local_l_count = static_cast<size_t>((1 << logm) / k);
+    const size_t local_w_count = static_cast<size_t>((1 << logn) / k);
+    const size_t fields_per_receiver = 3 * local_l_count + local_w_count;
+    const size_t words_per_receiver = 2 * fields_per_receiver;
+
+    if (use_bound_transport) {
+        vector<u64> dealer_payloads;
+        if(rank == 0){
+            vector<F> L,R,O,W;
+            vector<vector<F>> L_shares,R_shares,O_shares,W_shares;
+            prepare_witness_data(M,W,L,R,O,cir_type);
+            compute_secret_shares(W,W_shares,N,k,_k,true);
+            compute_secret_shares(L,L_shares,N,k,_k,true);
+            compute_secret_shares(R,R_shares,N,k,_k,true);
+            compute_secret_shares(O,O_shares,N,k,_k,true);
+
+            dealer_payloads.reserve(static_cast<size_t>(N) * words_per_receiver);
+            for(int i = 0; i < N; i++){
+                vector<F> packed = L_shares[i];
+                packed.insert(packed.end(),R_shares[i].begin(),R_shares[i].end());
+                packed.insert(packed.end(),O_shares[i].begin(),O_shares[i].end());
+                packed.insert(packed.end(),W_shares[i].begin(),W_shares[i].end());
+                vector<u64> serialized;
+                field_vector_serialize(packed,serialized);
+                if (serialized.size() != words_per_receiver) {
+                    printf("[PVIA][input] serialized share shape mismatch\n");
+                    std::exit(15);
+                }
+                dealer_payloads.insert(
+                    dealer_payloads.end(), serialized.begin(), serialized.end());
+            }
+        }
+
+        pvia::AuthenticatedMpcMessageContext context;
+        context.protocol_domain = 0x505649494e505554ULL; // PVIINPUT
+        context.sid = rt.session_id();
+        context.checkpoint = bootstrap_checkpoint;
+        context.round = 0;
+        context.sequence = 1;
+        context.message_kind = 0x494e505554534852ULL; // INPUTSHR
+        vector<u64> received_words;
+        if (!exchange.ScatterWords(
+                context, 0, dealer_payloads, words_per_receiver,
+                &received_words, &distribution_binding) ||
+            received_words.size() != words_per_receiver ||
+            distribution_binding == pvia::Digest{}) {
+            if (rank == 0)
+                printf("[PVIA][input] common transport unavailable\n");
+            std::exit(15);
+        }
+        field_vector_deserialize(received_words,buff);
+        if (buff.size() != fields_per_receiver) {
+            if (rank == 0)
+                printf("[PVIA][input] received share shape mismatch\n");
+            std::exit(15);
+        }
+        vL.assign(buff.begin(), buff.begin() + static_cast<std::ptrdiff_t>(local_l_count));
+        vR.assign(
+            buff.begin() + static_cast<std::ptrdiff_t>(local_l_count),
+            buff.begin() + static_cast<std::ptrdiff_t>(2 * local_l_count));
+        vO.assign(
+            buff.begin() + static_cast<std::ptrdiff_t>(2 * local_l_count),
+            buff.begin() + static_cast<std::ptrdiff_t>(3 * local_l_count));
+        w.assign(
+            buff.begin() + static_cast<std::ptrdiff_t>(3 * local_l_count),
+            buff.end());
+    } else if(rank == 0){
         vector<F> L,R,O,W;
         vector<vector<F>> L_shares,R_shares,O_shares,W_shares;
         prepare_witness_data(M,W,L,R,O,cir_type);
 
-        
-        
         compute_secret_shares(W,W_shares,N,k,_k,true);
         compute_secret_shares(L,L_shares,N,k,_k,true);
         compute_secret_shares(R,R_shares,N,k,_k,true);
@@ -1718,10 +2330,6 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
         vector<MPI_Request> req(N-1);
         vector<vector<u64>> buff_u64(N);
         for(int i = 1; i < N; i++){
-    
-            //buff = L_shares[i];buff.insert(buff.end(),R_shares[i].begin(),R_shares[i].end());
-            //buff.insert(buff.end(),O_shares[i].begin(),O_shares[i].end());
-            //buff.insert(buff.end(),W_shares[i].begin(),W_shares[i].end());
             L_shares[i].insert(L_shares[i].end(),R_shares[i].begin(),R_shares[i].end());
             L_shares[i].insert(L_shares[i].end(),O_shares[i].begin(),O_shares[i].end());
             L_shares[i].insert(L_shares[i].end(),W_shares[i].begin(),W_shares[i].end());
@@ -1734,37 +2342,78 @@ void distribute_proving_data(vector<F> &vL, vector<F> &vR, vector<F> &vO, vector
         }
     }else{
         vector<u64> buff_u64;
-    
         MPI_Request req;
-        buff_u64.resize(2*((1<<logn) + 3*(1<<logm))/k);
+        buff_u64.resize(words_per_receiver);
         MPI_Irecv(buff_u64.data(),buff_u64.size(),MPI_UINT64_T,0,0,MPI_COMM_WORLD,&req);
         MPI_Wait(&req,MPI_STATUS_IGNORE);
-        field_vector_deserialize(buff_u64,buff);    
-        vL.resize((1<<logm)/k);vR.resize((1<<logm)/k);vO.resize((1<<logm)/k);
-        w.resize((1<<logn)/k);
+        field_vector_deserialize(buff_u64,buff);
+        vL.resize(local_l_count);vR.resize(local_l_count);vO.resize(local_l_count);
+        w.resize(local_w_count);
 
-        for(int i = 0; i < vL.size(); i++){
-            vL[i] = buff[i];
-        }
-        for(int i = 0; i < vR.size(); i++){
-            vR[i] = buff[i + vL.size()];
-        }
-        for(int i = 0; i < vO.size(); i++){
-            vO[i] = buff[i + 2*vL.size()];
-        }
-        for(int i = 0; i < w.size(); i++){
-            w[i] = buff[i + 3*vL.size()];
-        }
-        
+        for(size_t i = 0; i < vL.size(); i++) vL[i] = buff[i];
+        for(size_t i = 0; i < vR.size(); i++) vR[i] = buff[i + vL.size()];
+        for(size_t i = 0; i < vO.size(); i++) vO[i] = buff[i + 2*vL.size()];
+        for(size_t i = 0; i < w.size(); i++) w[i] = buff[i + 3*vL.size()];
     }
 
+    if (rt.enabled()) {
+        vector<F> received_state = vL;
+        received_state.insert(received_state.end(), vR.begin(), vR.end());
+        received_state.insert(received_state.end(), vO.begin(), vO.end());
+        received_state.insert(received_state.end(), w.begin(), w.end());
+        const pvia::RecordId receive_record = rt.register_vector_operation(
+            pvia::Phase::INIT, 0, pvia::Obligation::RECEIVE,
+            received_state, {});
+        if (receive_record == 0) {
+            if (rank == 0)
+                printf("[PVIA][input] receive binding unavailable\n");
+            std::exit(15);
+        }
+        vector<u64> aux = {
+            bootstrap_checkpoint,
+            use_bound_transport ? 1ULL : 0ULL,
+            static_cast<u64>(N),
+            static_cast<u64>(k),
+            static_cast<u64>(_k),
+            static_cast<u64>(fields_per_receiver)};
+        if (distribution_binding != pvia::Digest{}) {
+            for (size_t i = 0; i < 4; ++i) {
+                u64 word = 0;
+                std::memcpy(
+                    &word, distribution_binding.bytes.data() + 8 * i, 8);
+                aux.push_back(word);
+            }
+        }
+        rt.bind_public_word_aux(
+            receive_record, pvia::AuditPublicAuxKind::GENERIC_WORDS, aux);
+        rt.activate_vector(receive_record, received_state);
+        rt.consume_pending();
+        rt.seal_checkpoint_instance(pvia::Phase::INIT, 0);
+    }
 } 
 
-
-void setup_randomness(vector<F> &R, int N, int _k, int k, int size){
+void setup_randomness(vector<F> &R, int N, int _k, int k, int size, uint64_t joint_domain){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
-    
+
+    if (pvia::Runtime::instance().enabled()) {
+        if (joint_domain == 0) {
+            if (rank == 0)
+                printf("[PVIA][preprocessing] missing joint randomness domain\n");
+            std::exit(15);
+        }
+        pvia::JointPackedPreprocessingResult joint_result;
+        if (!pvia::generate_joint_packed_random_share(
+                static_cast<size_t>(size), N, k, _k, joint_domain,
+                &R, &joint_result, MPI_COMM_WORLD) ||
+            !joint_result.ok) {
+            if (rank == 0)
+                printf("[PVIA][preprocessing] joint randomness unavailable\n");
+            std::exit(15);
+        }
+        return;
+    }
+
     int logk = (int)log2(k);
     if(rank == 0){
         vector<F> random_values(k*(size));

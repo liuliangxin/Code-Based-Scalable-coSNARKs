@@ -19,7 +19,28 @@
 #include "Distributed_Sumcheck.h"
 #include "MPI_utils.hpp"
 #include "timer.hpp"
+#include "accountability/PVIA.hpp"
+#include "accountability/TransferAuthentication.hpp"
+#include "accountability/Ed25519TransferAuditHarness.hpp"
+#include "accountability/Ed25519TransferSecureRuntime.hpp"
+#include "accountability/FoldResidualComputationSelfTest.hpp"
+#include "accountability/FoldResidualRuntimeHarness.hpp"
+#include "accountability/ReferenceShamirAuditSession.hpp"
+#include "accountability/ReferenceResidualMpcSelfTest.hpp"
+#include "accountability/ReleaseGateMatrixSelfTest.hpp"
+#include "accountability/RobustTerminationRuntimeSelfTest.hpp"
+#include "accountability/ReferenceBivariateVss.hpp"
+#include "accountability/PublicTransferCertificateCodec.hpp"
+#include "accountability/Ed25519PublicTransferJudge.hpp"
+#include "accountability/RobustAuditAbortCertificateCodec.hpp"
+#include "accountability/SharedLibraryMultiplicationConsistencyProviderSession.hpp"
+#include "accountability/ExperimentMetrics.hpp"
 #include <algorithm>
+#include <cerrno>
+#include <cstdlib>
+#include <limits>
+#include <string>
+#include <memory>
 
 
 int tensor_row_size;
@@ -533,7 +554,7 @@ void test_product(int N, int M, int K){
     vector<F> b1,b2;
     precompute_beta(claim.second[0],b1);
     precompute_beta(claim.second[2],b2);
-    vector<F> Y = batch_distributed_eval(input,b1,b2,N);
+    vector<F> Y = batch_distributed_eval(input,b1,b2,N, PVIA_SCALAR_CTX_TEST_BASE + 1U);
     
     if(rank == 0){
         F sum  =F(0);
@@ -612,7 +633,7 @@ void test_sparse_eval(int N, int M, int type){
     precompute_beta(r21,b1);precompute_beta(r22,b2);
     
 
-    vector<F> Y = batch_distributed_eval(polys,b1,b2,N);
+    vector<F> Y = batch_distributed_eval(polys,b1,b2,N, PVIA_SCALAR_CTX_TEST_BASE + 2U);
     vector<F> _RA,_RB,_RC;
     if(rank!= 0){
         generate_R1CS_matrixes(M,type);
@@ -783,7 +804,13 @@ int main(int argc, char *argv[]){
     exit(-1);
     */
     
-    int benchmark = atoi(argv[1]);
+    const bool standalone_transfer_judge = argc > 1 &&
+        std::string(argv[1]) == "--pvia-transfer-judge";
+    const bool standalone_robust_abort_judge = argc > 1 &&
+        std::string(argv[1]) == "--pvia-robust-abort-judge";
+    const bool standalone_judge =
+        standalone_transfer_judge || standalone_robust_abort_judge;
+    int benchmark = standalone_judge ? 0 : (argc > 1 ? atoi(argv[1]) : 0);
     int size;
     int rank;
     
@@ -794,12 +821,482 @@ int main(int argc, char *argv[]){
     
     MPI_Comm_size(MPI_COMM_WORLD, &size); //get number of processes
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //get my process id
+
+    if (standalone_transfer_judge) {
+        bool accepted = false;
+        if (size == 1 && argc == 5) {
+            std::vector<u64> encoded;
+            pvia::Digest anchor_digest{};
+            uint64_t sid = 0;
+            try { sid = std::stoull(argv[3]); } catch (...) { sid = 0; }
+            if (sid != 0 &&
+                pvia::read_public_transfer_blame_certificate_file(
+                    argv[2], &encoded) &&
+                pvia::parse_public_transfer_registry_anchor_hex(
+                    argv[4], &anchor_digest)) {
+                accepted = pvia::Ed25519PublicTransferJudge::VerifyEncoded(
+                    encoded, sid, anchor_digest);
+            }
+        }
+        if (rank == 0) {
+            if (argc != 5)
+                std::cerr << "usage: pigeon --pvia-transfer-judge "
+                          << "<certificate-file> <session-id> "
+                          << "<registry-anchor-hex>\n";
+            else if (size != 1)
+                std::cerr << "[PVIA][standalone-judge] requires exactly one MPI rank\n";
+            std::cout << "[PVIA][standalone-judge] "
+                      << (accepted ? "ACCEPT" : "REJECT") << "\n";
+        }
+        MPI_Finalize();
+        return accepted ? 0 : 7;
+    }
+
+    if (standalone_robust_abort_judge) {
+        bool accepted = false;
+        bool benchmark_requested = false;
+        uint64_t benchmark_repeats = 1;
+        uint64_t benchmark_completed = 0;
+        uint64_t benchmark_total_ns = 0;
+        size_t benchmark_certificate_bytes = 0;
+        const char* benchmark_env =
+            std::getenv("PVIA_ROBUST_ABORT_JUDGE_BENCHMARK_REPEATS");
+        if (benchmark_env && *benchmark_env) {
+            benchmark_requested = true;
+            try { benchmark_repeats = std::stoull(benchmark_env); }
+            catch (...) { benchmark_repeats = 1; }
+            if (benchmark_repeats == 0) benchmark_repeats = 1;
+            if (benchmark_repeats > 1000000ULL) benchmark_repeats = 1000000ULL;
+        }
+        if (size == 1 && argc == 4) {
+            std::vector<u64> encoded;
+            pvia::Digest anchor_digest{};
+            if (pvia::read_robust_audit_abort_certificate_file(
+                    argv[2], &encoded) &&
+                pvia::parse_robust_audit_registry_anchor_hex(
+                    argv[3], &anchor_digest)) {
+                benchmark_certificate_bytes = encoded.size() * sizeof(u64);
+                if (!benchmark_requested) {
+                    accepted =
+                        pvia::verify_encoded_robust_audit_abort_certificate(
+                            encoded, anchor_digest);
+                } else {
+                    accepted = true;
+                    const auto start = std::chrono::steady_clock::now();
+                    for (uint64_t i = 0; i < benchmark_repeats; ++i) {
+                        const bool verified =
+                            pvia::verify_encoded_robust_audit_abort_certificate(
+                                encoded, anchor_digest);
+                        ++benchmark_completed;
+                        if (!verified) { accepted = false; break; }
+                    }
+                    const auto end = std::chrono::steady_clock::now();
+                    benchmark_total_ns = static_cast<uint64_t>(
+                        std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            end - start).count());
+                }
+            }
+        }
+        if (rank == 0) {
+            if (argc != 4)
+                std::cerr << "usage: pigeon --pvia-robust-abort-judge "
+                          << "<certificate-file> <registry-anchor-hex>\n";
+            else if (size != 1)
+                std::cerr << "[PVIA][robust-abort-judge] requires exactly one MPI rank\n";
+            if (benchmark_requested && benchmark_completed > 0) {
+                std::cout << "[PVIA][robust-abort-judge-benchmark] repeats="
+                          << benchmark_repeats
+                          << " completed=" << benchmark_completed
+                          << " total_ns=" << benchmark_total_ns
+                          << " mean_ns="
+                          << (benchmark_total_ns / benchmark_completed)
+                          << " canonical_bytes="
+                          << benchmark_certificate_bytes << "\n";
+            }
+            std::cout << "[PVIA][robust-abort-judge] "
+                      << (accepted ? "ACCEPT" : "REJECT") << "\n";
+        }
+        MPI_Finalize();
+        return accepted ? 0 : 8;
+    }
+
+    const char* transfer_selftest_env = std::getenv("PVIA_TRANSFER_SELFTEST");
+    const bool transfer_selftest = transfer_selftest_env &&
+        std::string(transfer_selftest_env) != "0";
+    const char* transfer_no_framing_selftest_env =
+        std::getenv("PVIA_TRANSFER_NO_FRAMING_SELFTEST");
+    const bool transfer_no_framing_selftest =
+        transfer_no_framing_selftest_env &&
+        std::string(transfer_no_framing_selftest_env) != "0";
+    bool transfer_no_framing_selftest_ok = true;
+    const char* fold_runtime_selftest_env =
+        std::getenv("PVIA_FOLD_RUNTIME_SELFTEST");
+    const bool fold_runtime_selftest = fold_runtime_selftest_env &&
+        std::string(fold_runtime_selftest_env) != "0";
+    const char* shamir_fold_runtime_selftest_env =
+        std::getenv("PVIA_SHAMIR_FOLD_RUNTIME_SELFTEST");
+    const bool shamir_fold_runtime_selftest =
+        shamir_fold_runtime_selftest_env &&
+        std::string(shamir_fold_runtime_selftest_env) != "0";
+    bool fold_runtime_selftest_ok = true;
+    bool shamir_fold_runtime_selftest_ok = true;
+    const char* secure_transfer_env = std::getenv("PVIA_SECURE_TRANSFER");
+    const bool secure_transfer = secure_transfer_env &&
+        std::string(secure_transfer_env) != "0";
+    const char* secure_transfer_anchor_env =
+        std::getenv("PVIA_SECURE_TRANSFER_REQUIRE_ANCHOR");
+    const bool secure_transfer_require_anchor = secure_transfer_anchor_env &&
+        std::string(secure_transfer_anchor_env) != "0";
+    const char* secure_transfer_selftest_env = std::getenv("PVIA_SECURE_TRANSFER_SELFTEST");
+    const bool secure_transfer_selftest = secure_transfer_selftest_env &&
+        std::string(secure_transfer_selftest_env) != "0";
+    bool secure_transfer_selftest_ok = true;
+    if (secure_transfer_selftest && !secure_transfer) {
+        if (rank == 0) std::cerr << "[PVIA] PVIA_SECURE_TRANSFER_SELFTEST requires PVIA_SECURE_TRANSFER=1\n";
+        MPI_Finalize();
+        return 4;
+    }
+    if ((transfer_selftest && secure_transfer) ||
+        ((fold_runtime_selftest || shamir_fold_runtime_selftest) &&
+         (transfer_selftest || secure_transfer))) {
+        if (rank == 0)
+            std::cerr << "[PVIA] audit runtime selftests/backends are mutually exclusive\n";
+        MPI_Finalize();
+        return 2;
+    }
+    pvia::Ed25519TransferAuditHarness transfer_harness;
+    pvia::FoldResidualRuntimeHarness fold_runtime_harness(
+        shamir_fold_runtime_selftest);
+    pvia::Ed25519TransferSecureRuntime secure_transfer_runtime;
+    if (transfer_selftest)
+        pvia::Runtime::instance().set_audit_backend(&transfer_harness);
+    if (fold_runtime_selftest || shamir_fold_runtime_selftest)
+        pvia::Runtime::instance().set_audit_backend(&fold_runtime_harness);
+    if (secure_transfer &&
+        !secure_transfer_runtime.Attach(pvia::Runtime::instance())) {
+        if (rank == 0)
+            std::cerr << "[PVIA] failed to attach Ed25519 transfer-only secure composition\n";
+        MPI_Finalize();
+        return 3;
+    }
+
+    // Optional PVIA/PAAPS development runtime. Disabled unless PVIA_ENABLE=1.
+    pvia::Runtime::instance().initialize_from_environment(rank, size);
+    const char* pq_signature_env =
+        std::getenv("PVIA_REQUIRE_POST_QUANTUM_SIGNATURE");
+    const char* hash_signature_env =
+        std::getenv("PVIA_REQUIRE_HASH_BASED_SIGNATURE");
+    const bool require_pq_signature = pq_signature_env &&
+        std::string(pq_signature_env) != "0";
+    const bool require_hash_signature = hash_signature_env &&
+        std::string(hash_signature_env) != "0";
+    if (pvia::Runtime::instance().enabled() &&
+        (require_pq_signature || require_hash_signature)) {
+        pvia::AccountabilitySignatureRequirements requirements;
+        requirements.require_post_quantum = require_pq_signature;
+        requirements.require_hash_based = require_hash_signature;
+        requirements.allow_variable_length_signature = false;
+        auto& auth = pvia::Ed25519TransferAuthenticator::instance();
+        const auto capabilities = auth.SignatureCapabilities();
+        if (!auth.ready() ||
+            !pvia::accountability_signature_satisfies(capabilities, requirements)) {
+            if (rank == 0)
+                std::cerr << "[PVIA] requested accountability signature requirements are unavailable: "
+                          << "post-quantum=" << (require_pq_signature ? "required" : "optional")
+                          << " hash-based=" << (require_hash_signature ? "required" : "optional")
+                          << "; current Ed25519 backend is development-only and not post-quantum.\n";
+            if (secure_transfer) secure_transfer_runtime.Detach();
+            pvia::Runtime::instance().shutdown();
+            MPI_Finalize();
+            return 16;
+        }
+    }
+    const char* release_gate_matrix_env =
+        std::getenv("PVIA_RELEASE_GATE_MATRIX_SELFTEST");
+    const bool release_gate_matrix_selftest =
+        release_gate_matrix_env &&
+        std::string(release_gate_matrix_env) != "0";
+    if (release_gate_matrix_selftest) {
+        const bool gate_matrix_ok =
+            pvia::run_release_gate_matrix_selftest(
+                pvia::Runtime::instance(), rank, size);
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return gate_matrix_ok ? 0 : 23;
+    }
+    const char* reference_residual_mpc_selftest_env =
+        std::getenv("PVIA_REFERENCE_RESIDUAL_MPC_SELFTEST");
+    const bool reference_residual_mpc_selftest =
+        reference_residual_mpc_selftest_env &&
+        std::string(reference_residual_mpc_selftest_env) != "0";
+    if (reference_residual_mpc_selftest &&
+        !pvia::run_reference_residual_mpc_selftest(rank, size)) {
+        if (secure_transfer) secure_transfer_runtime.Detach();
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return 15;
+    }
+    const char* localization_scaling_env =
+        std::getenv("PVIA_LOCALIZATION_SCALING_Q");
+    if (localization_scaling_env &&
+        std::string(localization_scaling_env) != "0") {
+        const long long q_value =
+            std::strtoll(localization_scaling_env, nullptr, 10);
+        const char* position_env =
+            std::getenv("PVIA_LOCALIZATION_SCALING_FAULT");
+        const bool fault_last =
+            position_env && std::string(position_env) == "last";
+        const bool scaling_ok =
+            q_value > 0 &&
+            pvia::run_reference_residual_localization_benchmark(
+                rank, size, static_cast<size_t>(q_value),
+                fault_last);
+        if (rank == 0 && !scaling_ok)
+            std::cerr << "[PVIA][localization-scaling] FAILED\n";
+        if (secure_transfer) secure_transfer_runtime.Detach();
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return scaling_ok ? 0 : 22;
+    }
+    const char* shamir_mpc_selftest_env = std::getenv("PVIA_SHAMIR_MPC_SELFTEST");
+    const bool shamir_mpc_selftest = shamir_mpc_selftest_env &&
+        std::string(shamir_mpc_selftest_env) != "0";
+    if (shamir_mpc_selftest &&
+        !pvia::run_reference_shamir_mpc_selftest(rank, size)) {
+        if (secure_transfer) secure_transfer_runtime.Detach();
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return 10;
+    }
+    const char* robust_termination_runtime_selftest_env =
+        std::getenv("PVIA_ROBUST_TERMINATION_RUNTIME_SELFTEST");
+    const bool robust_termination_runtime_selftest =
+        robust_termination_runtime_selftest_env &&
+        std::string(robust_termination_runtime_selftest_env) != "0";
+    if (robust_termination_runtime_selftest) {
+        const bool robust_termination_runtime_ok =
+            pvia::run_robust_termination_runtime_selftest(
+                pvia::Runtime::instance(), rank, size);
+        if (rank == 0)
+            std::cout << "[PVIA][robust-termination-runtime-selftest] "
+                      << (robust_termination_runtime_ok ? "PASS" : "FAIL")
+                      << "\n";
+        if (!robust_termination_runtime_ok) {
+            if (secure_transfer) secure_transfer_runtime.Detach();
+            pvia::Runtime::instance().shutdown();
+            MPI_Finalize();
+            return 13;
+        }
+    }
+    const char* bivariate_vss_selftest_env =
+        std::getenv("PVIA_BIVARIATE_VSS_SELFTEST");
+    const bool bivariate_vss_selftest = bivariate_vss_selftest_env &&
+        std::string(bivariate_vss_selftest_env) != "0";
+    if (bivariate_vss_selftest &&
+        !pvia::ReferenceBivariateVss::SelfTest(rank, size)) {
+        if (secure_transfer) secure_transfer_runtime.Detach();
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return 12;
+    }
+    const char* fold_residual_selftest_env = std::getenv("PVIA_FOLD_RESIDUAL_SELFTEST");
+    const bool fold_residual_selftest = fold_residual_selftest_env &&
+        std::string(fold_residual_selftest_env) != "0";
+    if (fold_residual_selftest) {
+        int local_fold_ok = pvia::run_fold_residual_computation_selftest() ? 1 : 0;
+        int global_fold_ok = 0;
+        MPI_Allreduce(&local_fold_ok, &global_fold_ok, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+        if (rank == 0)
+            std::cout << "[PVIA][fold-residual-selftest] "
+                      << (global_fold_ok ? "PASS" : "FAIL") << "\n";
+        if (!global_fold_ok) {
+            if (secure_transfer) secure_transfer_runtime.Detach();
+            pvia::Runtime::instance().shutdown();
+            MPI_Finalize();
+            return 8;
+        }
+    }
+    if (secure_transfer &&
+        !secure_transfer_runtime.SessionAuthenticationReady(
+            secure_transfer_require_anchor)) {
+        if (rank == 0) {
+            std::cerr << "[PVIA] secure transfer authentication unavailable";
+            if (secure_transfer_require_anchor)
+                std::cerr << " or external registry anchor not verified";
+            std::cerr << "\n";
+        }
+        secure_transfer_runtime.Detach();
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return 6;
+    }
     
     
     
     
+
+    std::unique_ptr<
+        pvia::SharedLibraryMultiplicationConsistencyProviderSession>
+        consistency_provider_session;
+    const char* consistency_provider_library_env =
+        std::getenv("PVIA_MC_PROVIDER_LIBRARY");
+    const char* consistency_provider_id_env =
+        std::getenv("PVIA_MC_PROVIDER_PROOF_SYSTEM_ID");
+    const bool local_provider_library =
+        consistency_provider_library_env &&
+        consistency_provider_library_env[0] != '\0';
+    const bool local_provider_id =
+        consistency_provider_id_env &&
+        consistency_provider_id_env[0] != '\0';
+    const int local_provider_requested =
+        (local_provider_library || local_provider_id) ? 1 : 0;
+    int any_provider_requested = 0;
+    MPI_Allreduce(
+        &local_provider_requested, &any_provider_requested,
+        1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+    uint32_t local_provider_proof_system_id = 0;
+    bool local_provider_config_valid = !local_provider_requested;
+    if (local_provider_library && local_provider_id) {
+        errno = 0;
+        char* end = nullptr;
+        const unsigned long long parsed =
+            std::strtoull(consistency_provider_id_env, &end, 0);
+        local_provider_config_valid =
+            errno == 0 && end &&
+            end != consistency_provider_id_env && *end == '\0' &&
+            parsed > 0 &&
+            parsed <= static_cast<unsigned long long>(
+                std::numeric_limits<uint32_t>::max());
+        if (local_provider_config_valid)
+            local_provider_proof_system_id =
+                static_cast<uint32_t>(parsed);
+    }
+
+    if (any_provider_requested) {
+        const int local_ready =
+            local_provider_library && local_provider_id &&
+            local_provider_config_valid &&
+            pvia::Runtime::instance().enabled() ? 1 : 0;
+        int all_ready = 0;
+        MPI_Allreduce(
+            &local_ready, &all_ready, 1, MPI_INT, MPI_MIN,
+            MPI_COMM_WORLD);
+        if (!all_ready) {
+            if (rank == 0)
+                std::cerr
+                    << "[PVIA][consistency-provider] incomplete provider "
+                    << "configuration across participants\n";
+            if (secure_transfer) secure_transfer_runtime.Detach();
+            pvia::Runtime::instance().shutdown();
+            MPI_Finalize();
+            return 17;
+        }
+
+        consistency_provider_session =
+            std::make_unique<
+                pvia::SharedLibraryMultiplicationConsistencyProviderSession>(
+                std::string(consistency_provider_library_env),
+                local_provider_proof_system_id);
+        bool provider_activated = false;
+        {
+            pvia::ExperimentControlTrafficScope provider_traffic_scope(
+                pvia::ExperimentControlTrafficKind::CONSISTENCY_PROVIDER);
+            provider_activated = consistency_provider_session->Activate(
+                rank, size, MPI_COMM_WORLD);
+        }
+        if (!provider_activated) {
+            if (rank == 0) {
+                std::cerr
+                    << "[PVIA][consistency-provider] provider activation "
+                    << "did not complete";
+                if (!consistency_provider_session->error().empty())
+                    std::cerr << ": "
+                              << consistency_provider_session->error();
+                std::cerr << "\n";
+            }
+            consistency_provider_session->Reset();
+            if (secure_transfer) secure_transfer_runtime.Detach();
+            pvia::Runtime::instance().shutdown();
+            MPI_Finalize();
+            return 18;
+        }
+        if (rank == 0)
+            std::cout
+                << "[PVIA][consistency-provider] active protocol_id="
+                << consistency_provider_session->capabilities().protocol_id
+                << "\n";
+    }
+
+    if (benchmark == 7) {
+        if (!any_provider_requested) {
+            if (rank == 0)
+                std::cout
+                    << "[PVIA][consistency-provider-probe] NOT_CONFIGURED\n";
+            if (secure_transfer) secure_transfer_runtime.Detach();
+            pvia::Runtime::instance().shutdown();
+            MPI_Finalize();
+            return 19;
+        }
+
+        const auto* acceptance = consistency_provider_session
+            ? consistency_provider_session->acceptance() : nullptr;
+        const bool local_probe_ready =
+            consistency_provider_session &&
+            consistency_provider_session->active() &&
+            acceptance && acceptance->available &&
+            acceptance->acceptance_binding != pvia::Digest{} &&
+            acceptance->capability_binding != pvia::Digest{} &&
+            consistency_provider_session->capabilities().protocol_id != 0;
+        int local_probe_ready_int = local_probe_ready ? 1 : 0;
+        int all_probe_ready = 0;
+        MPI_Allreduce(
+            &local_probe_ready_int, &all_probe_ready,
+            1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+
+        if (rank == 0) {
+            if (all_probe_ready) {
+                std::cout
+                    << "[PVIA][consistency-provider-probe] PASS protocol_id="
+                    << consistency_provider_session->capabilities().protocol_id
+                    << " relation_binding="
+                    << consistency_provider_session
+                           ->capabilities().relation_binding.hex()
+                    << " capability_binding="
+                    << consistency_provider_session
+                           ->capabilities().capability_binding.hex()
+                    << " acceptance_binding="
+                    << acceptance->acceptance_binding.hex()
+                    << "\n";
+            } else {
+                std::cout
+                    << "[PVIA][consistency-provider-probe] INCOMPLETE\n";
+            }
+        }
+
+        if (consistency_provider_session)
+            consistency_provider_session->Reset();
+        if (secure_transfer) secure_transfer_runtime.Detach();
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return all_probe_ready ? 0 : 20;
+    }
+
     int N = size;
     if(rank == 0) printf("Workers: %d\n",size);
+    const bool packed_party_count_valid =
+        N >= 4 && (N % 4) == 0 && (N & (N - 1)) == 0;
+    if ((benchmark == 0 || benchmark == 1) && !packed_party_count_valid) {
+        if (rank == 0)
+            std::cerr << "coPIOP/PCS requires a power-of-two worker count "
+                      << "N>=4 (packed-sharing uses k=N/4, _k=N/2)\n";
+        if (consistency_provider_session)
+            consistency_provider_session->Reset();
+        if (secure_transfer) secure_transfer_runtime.Detach();
+        pvia::Runtime::instance().shutdown();
+        MPI_Finalize();
+        return 14;
+    }
     int k = N/4;
     int _k = N/2;
     int M = 1ULL<<(atoi(argv[2]));
@@ -1065,7 +1562,53 @@ int main(int argc, char *argv[]){
     
     if (rank == 0) printf("MPI World size = %d processes\n", size);
     //else printf("Worker Finalizing ... \n");
+    if (transfer_selftest && pvia::Runtime::instance().enabled()) {
+        const bool transfer_ok = transfer_harness.RunSelfCheck(rank, size);
+        if (rank == 0 && !transfer_ok)
+            std::cout << "[PVIA][transfer-selftest] FAILED\n";
+    }
+    if (transfer_selftest)
+        pvia::Runtime::instance().set_audit_backend(nullptr);
+    if (transfer_no_framing_selftest &&
+        pvia::Runtime::instance().enabled()) {
+        transfer_no_framing_selftest_ok =
+            pvia::run_ed25519_transfer_no_framing_selftest(
+                rank, size);
+        if (rank == 0 && !transfer_no_framing_selftest_ok)
+            std::cout
+                << "[PVIA][transfer-no-framing-entry] FAILED\n";
+    }
+    if (fold_runtime_selftest) {
+        fold_runtime_selftest_ok = pvia::Runtime::instance().enabled() &&
+            fold_runtime_harness.RunSelfCheck(rank, size);
+        if (rank == 0 && !fold_runtime_selftest_ok)
+            std::cout << "[PVIA][fold-runtime-selftest] FAILED\n";
+    }
+    if (shamir_fold_runtime_selftest) {
+        shamir_fold_runtime_selftest_ok =
+            pvia::Runtime::instance().enabled() &&
+            fold_runtime_harness.RunReferenceMpcSelfCheck(rank, size);
+        if (rank == 0 && !shamir_fold_runtime_selftest_ok)
+            std::cout << "[PVIA][shamir-fold-runtime-selftest] FAILED\n";
+    }
+    if (fold_runtime_selftest || shamir_fold_runtime_selftest)
+        pvia::Runtime::instance().set_audit_backend(nullptr);
+    if (secure_transfer_selftest && pvia::Runtime::instance().enabled()) {
+        secure_transfer_selftest_ok = secure_transfer_runtime.RunFailureHandlerSelfTest(
+            pvia::Runtime::instance(), rank, size);
+        if (rank == 0 && !secure_transfer_selftest_ok)
+            std::cout << "[PVIA][secure-transfer-selftest] FAILED\n";
+    }
+    if (consistency_provider_session)
+        consistency_provider_session->Reset();
+    if (secure_transfer)
+        secure_transfer_runtime.Detach();
+    pvia::Runtime::instance().shutdown();
     MPI_Finalize();
+    if (!secure_transfer_selftest_ok) return 5;
+    if (!fold_runtime_selftest_ok) return 9;
+    if (!shamir_fold_runtime_selftest_ok) return 11;
+    if (!transfer_no_framing_selftest_ok) return 21;
     
     /*
     if(op == 1){

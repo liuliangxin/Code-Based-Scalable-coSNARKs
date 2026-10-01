@@ -9,11 +9,17 @@
 #include "coPCS.h"
 #include "Distributed_Sumcheck.h"
 #include "timer.hpp"
+#include "accountability/PVIA.hpp"
+#include "accountability/InitialValidityGate.hpp"
+#include "accountability/PublicDirectValidation.hpp"
+#include "accountability/AccountableAggregation.hpp"
+#include <cstdlib>
 int com_rounds = 0;
 // R1CS matrixes
 vector<vector<pair<int, int>>> A,B,C;
 // Transposed R1CS matrixes
 vector<vector<pair<int,int>>> tA,tB,tC;
+extern vector<vector<pair<int,int>>> pA,pB,pC;
 int logm,logn;
 bool bit_method = false;
 int index_rate = 4;
@@ -244,13 +250,71 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
         y += _beta(i,_r1)*(rL[i]*rR[i] - rO[i]);
     }
     vector<u64> buff_u64(2);
+    std::array<u64, pvia::META_WORDS> phase1_publish_meta{};
+    pvia::RecordId phase1_send_record = 0;
+    if (pvia::Runtime::instance().enabled()) {
+        auto& rt = pvia::Runtime::instance();
+        std::vector<pvia::OperationRef> predecessors;
+        const auto predecessor = rt.latest_operation_ref(pvia::Phase::INIT);
+        if (predecessor.object_id != 0)
+            predecessors.push_back(predecessor);
+
+        vector<F> source_material = rL;
+        source_material.insert(
+            source_material.end(), rR.begin(), rR.end());
+        source_material.insert(
+            source_material.end(), rO.begin(), rO.end());
+        const pvia::StateId source_state = rt.import_state(
+            "phase1_initial_relation_claim_input",
+            pvia::Phase::INIT, source_material);
+
+        const pvia::RecordId derive_record = rt.register_vector_operation(
+            pvia::Phase::INIT, 2, pvia::Obligation::DERIVE,
+            vector<F>{y}, predecessors);
+        if (derive_record == 0 || source_state == 0) {
+            if (rank == 0)
+                printf("[PVIA][phase1-claim] unable to bind local derivation\n");
+            std::exit(15);
+        }
+        rt.bind_state_dependencies(
+            derive_record, std::vector<pvia::StateId>{source_state});
+        vector<F> public_aux = _r1;
+        public_aux.insert(public_aux.end(), _r2.begin(), _r2.end());
+        rt.bind_public_field_aux(
+            derive_record, pvia::AuditPublicAuxKind::GENERIC_FIELDS,
+            public_aux);
+        rt.activate_vector(derive_record, vector<F>{y});
+
+        phase1_send_record = rt.prepare_followup_vector(
+            pvia::Obligation::SEND, vector<F>{y});
+        if (phase1_send_record == 0) {
+            if (rank == 0)
+                printf("[PVIA][phase1-claim] unable to bind local transfer\n");
+            std::exit(15);
+        }
+        rt.activate_vector(phase1_send_record, vector<F>{y});
+    }
+
+    buff_u64 = {y.real, y.img};
     pt_cp.end();
     com_rounds++;
     if(rank == 0){
         vector<F> Y(N);
         Y[0] = y;
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
         for(int i = 1; i < N; i++){
+            std::array<u64, pvia::META_WORDS> remote_meta{};
+            if (pvia::Runtime::instance().enabled()) {
+                MPI_Recv(
+                    remote_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                    i, pvia::META_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             MPI_Recv(buff_u64.data(),2,MPI_UINT64_T,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            if (pvia::Runtime::instance().enabled()) {
+                pvia::Runtime::instance().observe_remote_meta(
+                    i, remote_meta, buff_u64);
+            }
             Y[i].real = buff_u64[0];
             Y[i].img = buff_u64[1];
         }
@@ -268,16 +332,81 @@ vector<pair<F,vector<F>>> prove_phase1( vector<F> vL,
             y += beta2[i]*Y[i*N/_k];
         }
         buff_u64 = {y.real,y.img};
+        if (pvia::Runtime::instance().enabled()) {
+            auto& rt = pvia::Runtime::instance();
+            const auto contributors = rt.checkpoint_operations(
+                pvia::Phase::INIT, 2, pvia::Obligation::SEND);
+            const pvia::RecordId aggregate_record =
+                rt.register_vector_operation(
+                    pvia::Phase::INIT, 2, pvia::Obligation::AGGREGATE,
+                    vector<F>{y}, contributors);
+            if (aggregate_record == 0) {
+                printf("[PVIA][phase1-claim] unable to bind aggregate\n");
+                std::exit(15);
+            }
+            vector<F> aggregation_aux = beta2;
+            aggregation_aux.push_back(F(N));
+            aggregation_aux.push_back(F(k));
+            aggregation_aux.push_back(F(_k));
+            rt.bind_public_field_aux(
+                aggregate_record,
+                pvia::AuditPublicAuxKind::AGGREGATION_WEIGHTS,
+                aggregation_aux);
+            rt.bind_relation_kernel(
+                aggregate_record,
+                pvia::AuditRelationKernel::AGGREGATE_WEIGHTED);
+            rt.activate_vector(aggregate_record, vector<F>{y});
+            const pvia::RecordId publish_record =
+                rt.prepare_followup_vector(
+                    pvia::Obligation::PUBLISH, vector<F>{y});
+            if (publish_record == 0) {
+                printf("[PVIA][phase1-claim] unable to bind publication\n");
+                std::exit(15);
+            }
+            rt.bind_relation_kernel(
+                publish_record,
+                pvia::AuditRelationKernel::PUBLISH_AGGREGATE);
+            rt.activate_vector(publish_record, vector<F>{y});
+            phase1_publish_meta = rt.make_pending_meta(buff_u64, false);
+        }
         pt_cp.end();
     
     }else{
         buff_u64 = {y.real,y.img};
         cm += 8*buff_u64.size()/1024.0;
+        if (pvia::Runtime::instance().enabled()) {
+            auto& rt = pvia::Runtime::instance();
+            auto transfer_meta = rt.make_pending_meta(buff_u64, false);
+            if (!rt.seal_transfer_meta(transfer_meta, buff_u64)) {
+                std::exit(15);
+            }
+            rt.observe_outgoing_transfer(transfer_meta, buff_u64);
+            rt.observe_local_payload(buff_u64);
+            MPI_Send(
+                transfer_meta.data(), pvia::META_WORDS, MPI_UINT64_T,
+                0, pvia::META_TAG, MPI_COMM_WORLD);
+        }
         MPI_Send(buff_u64.data(),2,MPI_UINT64_T,0,0,MPI_COMM_WORLD);
+        if (pvia::Runtime::instance().enabled())
+            pvia::Runtime::instance().consume_pending();
     }
     if(rank == 0) cm += (N-1)*8*buff_u64.size()/1024.0;
+    if (pvia::Runtime::instance().enabled()) {
+        auto& rt = pvia::Runtime::instance();
+        if (!rt.pre_release_gate(
+                "phase1_relation_claim", pvia::Phase::INIT, 2)) {
+            rt.handle_global_failure(
+                "phase1_relation_claim", pvia::Phase::INIT, 2);
+            std::exit(15);
+        }
+    }
     com_rounds++;
     MPI_Bcast(buff_u64.data(),2,MPI_UINT64_T,0,MPI_COMM_WORLD);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::publish_rank0_aggregate_meta(
+            phase1_publish_meta, buff_u64, rank);
+        pvia::Runtime::instance().consume_pending();
+    }
     
     pt_cp.start();
     
@@ -322,6 +451,167 @@ void compute_beta_shares(vector<F> &shares, vector<F> r, int k, int N, int _k){
 
 }
 
+
+static bool pvia_public_all_true(bool local_ok) {
+    int local = local_ok ? 1 : 0;
+    int global = 0;
+    MPI_Allreduce(&local, &global, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+    return global == 1;
+}
+
+static bool pvia_same_field_vector(const vector<F>& lhs, const vector<F>& rhs) {
+    if (lhs.size() != rhs.size()) return false;
+    for (size_t i = 0; i < lhs.size(); ++i)
+        if (lhs[i] != rhs[i]) return false;
+    return true;
+}
+
+static void pvia_append_public_matrix_context(
+    const vector<vector<pair<int,int>>>& matrix,
+    uint64_t lane,
+    vector<u64>& words) {
+    words.push_back(lane);
+    words.push_back(static_cast<u64>(matrix.size()));
+    for (size_t i = 0; i < matrix.size(); ++i) {
+        words.push_back(static_cast<u64>(i));
+        words.push_back(static_cast<u64>(matrix[i].size()));
+        for (const auto& entry : matrix[i]) {
+            words.push_back(static_cast<u64>(entry.first));
+            words.push_back(static_cast<u64>(entry.second));
+        }
+    }
+}
+
+static bool pvia_validate_public_vector(
+    pvia::PublicDirectValidationKind kind,
+    const vector<F>& expected,
+    const vector<F>& actual,
+    const vector<F>& context_fields,
+    const vector<u64>& context_words) {
+    if (!pvia::Runtime::instance().enabled())
+        return true;
+    pvia::PublicDirectValidationResult result;
+    const bool executed = pvia::validate_public_direct_vector(
+        pvia::Runtime::instance(), kind, expected, actual,
+        context_fields, context_words, &result);
+    return executed && result.collective_valid;
+}
+
+static bool pvia_check_public_r1cs_reduction(
+    size_t size, const vector<F>& r,
+    const vector<F>& RA, const vector<F>& RB, const vector<F>& RC, int N) {
+    (void)size;
+    vector<F> r1, r2, beta1, beta2;
+    const int split = static_cast<int>(r.size()) - static_cast<int>(log2(N));
+    if (split < 0) return pvia_public_all_true(false);
+    for (int i = 0; i < split; ++i) r1.push_back(r[i]);
+    for (int i = split; i < static_cast<int>(r.size()); ++i) r2.push_back(r[i]);
+    precompute_beta(r1, beta1);
+    precompute_beta(r2, beta2);
+
+    const int local_columns = (1 << logn) / N;
+    const int local_rows = (1 << logm) / N;
+    bool local_ok = local_columns > 0 && local_rows > 0;
+    local_ok = local_ok && RA.size() == static_cast<size_t>(local_columns);
+    local_ok = local_ok && RB.size() == RA.size() && RC.size() == RA.size();
+    vector<F> expected_RA(local_columns, F(0));
+    vector<F> expected_RB(local_columns, F(0));
+    vector<F> expected_RC(local_columns, F(0));
+
+    auto accumulate = [&](const vector<vector<pair<int,int>>>& matrix, vector<F>& out) {
+        for (const auto& row : matrix) {
+            for (const auto& entry : row) {
+                const int col = entry.first % local_columns;
+                const int row_local = entry.second % local_rows;
+                const int row_party = entry.second / local_rows;
+                if (col < 0 || col >= local_columns ||
+                    row_local < 0 || row_local >= static_cast<int>(beta1.size()) ||
+                    row_party < 0 || row_party >= static_cast<int>(beta2.size())) {
+                    local_ok = false;
+                    continue;
+                }
+                out[col] += beta1[row_local] * beta2[row_party];
+            }
+        }
+    };
+    if (local_ok) {
+        accumulate(pA, expected_RA);
+        accumulate(pB, expected_RB);
+        accumulate(pC, expected_RC);
+    }
+    local_ok = local_ok && pvia_same_field_vector(expected_RA, RA);
+    local_ok = local_ok && pvia_same_field_vector(expected_RB, RB);
+    local_ok = local_ok && pvia_same_field_vector(expected_RC, RC);
+    if (!local_ok)
+        return pvia_public_all_true(false);
+
+    vector<F> expected;
+    vector<F> actual;
+    expected.reserve(expected_RA.size() + expected_RB.size() + expected_RC.size());
+    actual.reserve(RA.size() + RB.size() + RC.size());
+    expected.insert(expected.end(), expected_RA.begin(), expected_RA.end());
+    expected.insert(expected.end(), expected_RB.begin(), expected_RB.end());
+    expected.insert(expected.end(), expected_RC.begin(), expected_RC.end());
+    actual.insert(actual.end(), RA.begin(), RA.end());
+    actual.insert(actual.end(), RB.begin(), RB.end());
+    actual.insert(actual.end(), RC.begin(), RC.end());
+
+    vector<u64> context_words = {
+        static_cast<u64>(size), static_cast<u64>(N),
+        static_cast<u64>(logm), static_cast<u64>(logn),
+        static_cast<u64>(local_columns), static_cast<u64>(local_rows)};
+    pvia_append_public_matrix_context(pA, 0, context_words);
+    pvia_append_public_matrix_context(pB, 1, context_words);
+    pvia_append_public_matrix_context(pC, 2, context_words);
+    return pvia_validate_public_vector(
+        pvia::PublicDirectValidationKind::R1CS_REDUCTION,
+        expected, actual, r, context_words);
+}
+
+static bool pvia_check_public_raggr(
+    const vector<F>& R_aggr,
+    const vector<F>& RA, const vector<F>& RB, const vector<F>& RC,
+    F a, F b, F c, F scale) {
+    vector<F> expected(RA.size(), F(0));
+    if (RA.size() != RB.size() || RA.size() != RC.size()) return false;
+    for (size_t i = 0; i < RA.size(); ++i)
+        expected[i] = scale * (a * RA[i] + b * RB[i] + c * RC[i]);
+    vector<F> context_fields = {a, b, c, scale};
+    context_fields.insert(context_fields.end(), RA.begin(), RA.end());
+    context_fields.insert(context_fields.end(), RB.begin(), RB.end());
+    context_fields.insert(context_fields.end(), RC.begin(), RC.end());
+    const vector<u64> context_words = {
+        static_cast<u64>(RA.size())};
+    return pvia_validate_public_vector(
+        pvia::PublicDirectValidationKind::R_AGGREGATION,
+        expected, R_aggr, context_fields, context_words);
+}
+
+static bool pvia_check_public_beta_shares(
+    const vector<F>& actual, const vector<F>& r,
+    int k, int N, int _k, F scale) {
+    vector<F> expected;
+    compute_beta_shares(expected, r, k, N, _k);
+    for (auto& value : expected) value = scale * value;
+    expected.resize(4 * expected.size(), F(0));
+    vector<F> context_fields = r;
+    context_fields.push_back(scale);
+    const vector<u64> context_words = {
+        static_cast<u64>(k), static_cast<u64>(N),
+        static_cast<u64>(_k), static_cast<u64>(expected.size())};
+    return pvia_validate_public_vector(
+        pvia::PublicDirectValidationKind::BETA_SHARES,
+        expected, actual, context_fields, context_words);
+}
+
+static void pvia_fail_public_prescription(const char* name) {
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0)
+        printf("[PVIA][PublicDirect] WITHHOLD %s before coPIOP phase-2 Sumcheck\n", name);
+    std::exit(15);
+}
+
 vector<pair<F,vector<F>>> prove_phase2(
                   vector<F> &w, 
                   vector<F> &r_w, 
@@ -345,8 +635,10 @@ vector<pair<F,vector<F>>> prove_phase2(
 
     pt_cp.start();
     _reduce_R1CS_matrixes(size, _r, RA, RB, RC, N);
-    
-        
+    if (pvia::Runtime::instance().enabled() &&
+        !pvia_check_public_r1cs_reduction(size, _r, RA, RB, RC, N))
+        pvia_fail_public_prescription("copiop_public_r1cs_reduction");
+
     a = hash_to_field({0});
     b = hash_to_field({0}); c = hash_to_field({0});  
     
@@ -362,12 +654,15 @@ vector<pair<F,vector<F>>> prove_phase2(
     for(int i = 0; i < RA.size(); i++){
         R_aggr[i] = (F(1)- r[r.size()-1])*(a*RA[i] + b*RB[i] + c*RC[i]);
     }
-   
-   
+    if (pvia::Runtime::instance().enabled() &&
+        !pvia_check_public_raggr(
+            R_aggr, RA, RB, RC, a, b, c, F(1)-r[r.size()-1]))
+        pvia_fail_public_prescription("copiop_public_r_aggr");
+
     F i = (F(1)- r[r.size()-1]).inv();
     
     pt_cp.end();
-    secret_share_vector(R_aggr, _k, k, N);
+    secret_share_vector(R_aggr, _k, k, N, "COPIOP_PUBLIC_SHARE_SEND");
     pt_cp.start();
     R_aggr.resize(2*R_aggr.size(),F(0));
 
@@ -378,6 +673,10 @@ vector<pair<F,vector<F>>> prove_phase2(
         beta_shares[i] = r[r.size()-1]*beta_shares[i];
     }
     beta_shares.resize(4*beta_shares.size(),F(0));
+    if (pvia::Runtime::instance().enabled() &&
+        !pvia_check_public_beta_shares(
+            beta_shares, _r, k, N, _k, r[r.size()-1]))
+        pvia_fail_public_prescription("copiop_public_beta");
     pt_cp.end();
 
     vector<pair<F,vector<F>>> claim = _quadratic_batch_sumcheck(a*yL + b*yR + c*yO, w, R_aggr, rL, beta_shares, R1,R2,N, _k, k, ps);
@@ -732,7 +1031,8 @@ vector<pair<F,vector<F>>> aggregate_random_evaluations_phase1(vector<pair<F,vect
     betas[9] = betas[0];
     pt_cp.end();
     
-    vector<F> evals = batch_ip(vectors, betas, N, k,_k);    
+    vector<F> evals = batch_ip(vectors, betas, N, k,_k,
+        PVIA_SCALAR_CTX_RANDOM_EVAL_BATCH);    
     pt_cp.start();
     vector<F> _c(7);
     for(int i = 0; i < 7; i++) _c[i] = hash_to_field({});
@@ -743,7 +1043,6 @@ vector<pair<F,vector<F>>> aggregate_random_evaluations_phase1(vector<pair<F,vect
     for(int i = 0; i < codeword.size(); i++){
         codeword[i] += _b*_codeword[i];
     }
-    
    if(rank == 0){
         if(claims2[2].first != a*evals[7]+b*evals[8] + c*evals[9]){
             printf("ERROR\n");
@@ -770,6 +1069,9 @@ vector<pair<F,vector<F>>> aggregate_random_evaluations_phase1(vector<pair<F,vect
     v2.resize(next_pow2(v1.size()),F(0));
         
     pt_cp.end();
+    // The opening below targets the aggregated oracle. Refresh CR only after
+    // leaving the local timing region, since distributed_MT manages pt_cp itself.
+    distributed_MT(codeword, CR, N);
     vector<pair<F,vector<F>>> claims = _quadratic_cosumcheck(sum,v1,v2,N,_k,k,ps);
     return claims;
 
@@ -896,8 +1198,38 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     vector<F> codeword,row_data,codeword_R,_codeword_R,index_codeword,index_data;
     distribute_index(N, size, index,cir_type);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k,cir_type);
-    setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
-    setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
+    pvia::InitialValidityGateResult initial_validity;
+    if (pvia::Runtime::instance().enabled()) {
+        auto& rt = pvia::Runtime::instance();
+        // Bind the packed input state before deriving the public coin used by
+        // the private initial validity gate.
+        const pvia::StateId vL_state =
+            rt.import_state("vL", pvia::Phase::INIT, vL);
+        const pvia::StateId vR_state =
+            rt.import_state("vR", pvia::Phase::INIT, vR);
+        const pvia::StateId vO_state =
+            rt.import_state("vO", pvia::Phase::INIT, vO);
+        const pvia::StateId witness_state =
+            rt.import_state("witness", pvia::Phase::INIT, witness);
+        const std::vector<pvia::StateId> initial_states = {
+            witness_state, vL_state, vR_state, vO_state};
+        const bool gate_ok = pvia::run_initial_packed_validity_gate(
+            rt, witness, vL, vR, vO, pA, pB, pC, initial_states,
+            k, _k, &initial_validity);
+        if (!gate_ok || !initial_validity.valid) {
+            int rank = 0;
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            if (rank == 0)
+                printf("[PVIA][validity] WITHHOLD before first proof-dependent release\n");
+            std::exit(15);
+        }
+    }
+    setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1, 0x5056505245523031ULL);
+    setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1, 0x5056505245523032ULL);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::Runtime::instance().import_state("R", pvia::Phase::INIT, R);
+        pvia::Runtime::instance().import_state("R_mask", pvia::Phase::INIT, _R);
+    }
     dummy_setup(r_witness, mask_shares, N, 1<<logn, k, _k, 500);
     prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, 1<<logn, k, _k, 500);
     //setup_randomness(r_witness, N, _k, k,500);
@@ -919,6 +1251,12 @@ void coPIOP_prove(size_t size, int N, int _k, int k, int cir_type){
     pt.start();
     pt_cpu.start();
     temp_pc.start();
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::Runtime::instance().set_next_commit_predecessor(
+            initial_validity.validation_operation);
+        pvia::Runtime::instance().set_next_commit_state_dependency(
+            initial_validity.validated_state);
+    }
     commit(codeword, row_data, witness, r_witness, Com, 500, k, _k, N);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
     for(int i = 0; i < 4; i++){
@@ -1031,8 +1369,38 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
     timer setup_time;setup_time.start();
     distribute_index(N, size, index,cir_type);
     distribute_proving_data(vL, vR, vO, witness, N, size, _k, k,cir_type);
-    setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
-    setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1);
+    pvia::InitialValidityGateResult initial_validity;
+    if (pvia::Runtime::instance().enabled()) {
+        auto& rt = pvia::Runtime::instance();
+        // Bind the packed input state before deriving the public coin used by
+        // the private initial validity gate.
+        const pvia::StateId vL_state =
+            rt.import_state("vL", pvia::Phase::INIT, vL);
+        const pvia::StateId vR_state =
+            rt.import_state("vR", pvia::Phase::INIT, vR);
+        const pvia::StateId vO_state =
+            rt.import_state("vO", pvia::Phase::INIT, vO);
+        const pvia::StateId witness_state =
+            rt.import_state("witness", pvia::Phase::INIT, witness);
+        const std::vector<pvia::StateId> initial_states = {
+            witness_state, vL_state, vR_state, vO_state};
+        const bool gate_ok = pvia::run_initial_packed_validity_gate(
+            rt, witness, vL, vR, vO, pA, pB, pC, initial_states,
+            k, _k, &initial_validity);
+        if (!gate_ok || !initial_validity.valid) {
+            int rank = 0;
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            if (rank == 0)
+                printf("[PVIA][validity] WITHHOLD before first proof-dependent release\n");
+            std::exit(15);
+        }
+    }
+    setup_randomness(R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1, 0x5056505245523031ULL);
+    setup_randomness(_R, N, _k, k,500 + 2*(logm + logn - 2*logk + 4) + 12+1, 0x5056505245523032ULL);
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::Runtime::instance().import_state("R", pvia::Phase::INIT, R);
+        pvia::Runtime::instance().import_state("R_mask", pvia::Phase::INIT, _R);
+    }
     dummy_setup(r_witness, mask_shares, N, 1<<logn, k, _k, 500);
     prepare_mask_shares(mask_shares, mask_data, C_mask, Com_mask, N, 1<<logn, k, _k, 500);
     //setup_randomness(r_witness, N, _k, k,500);
@@ -1057,6 +1425,12 @@ void coPIOP_prove_batch(size_t size, int N, int _k, int k, int cir_type){
     int temp_rounds;
     double temp_comp_time;
     temp_comp_time = pt_cp.get_time();
+    if (pvia::Runtime::instance().enabled()) {
+        pvia::Runtime::instance().set_next_commit_predecessor(
+            initial_validity.validation_operation);
+        pvia::Runtime::instance().set_next_commit_state_dependency(
+            initial_validity.validated_state);
+    }
     commit(codeword, row_data, witness, r_witness, Com, 500, k, _k, N);
     vector<F> rL(4),rR(4),rO(4),R1(logn-logk +2),R2(logn+2-logk ),R3(logm-logk +2),R4(logm+2-logk );
     for(int i = 0; i < 4; i++){
