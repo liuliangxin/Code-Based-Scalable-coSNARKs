@@ -3,10 +3,14 @@
 #include "MPI_utils.hpp"
 #include "Fiat_Shamir.h"
 #include "timer.hpp"
+#include "accountability/PVIA.hpp"
+#include <cstdlib>
 extern int queries;
 extern timer pt,pt_cp,vt;
 extern timer_cpu pt_cpu;
 extern int cosumcheck_offset;
+
+
 
 
 cubic_poly _zero_check_sumcheck_phase1(int iter, F b,vector<F> &v1,vector<F> &v2, vector<F> &v3, vector<F> &beta1, vector<F> &r1, vector<F> &r2){
@@ -77,7 +81,8 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
     pt_cp.end();
 
 
-    F y_r = F_ip_prod(h1,h2,beta1,beta2,k,_k,N);
+    F y_r = F_ip_prod(h1,h2,beta1,beta2,k,_k,N,
+        PVIA_SCALAR_CTX_COSUMCHECK_ZERO_AUX);
     
     if(rank == 0)vt.start();
     
@@ -102,16 +107,52 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
             H = _zero_check_sumcheck_phase1(i, b,v1,v2, v3, beta1, h1, h2);
             pt_cp.end();
 
-            H = aggregate_cubic_poly(H,beta2,k,_k,N);
+            // PVIA: bind the honest local derivation before any injected deviation.
+            pvia::RecordId pvia_record = 0;
+            if (pvia::Runtime::instance().enabled()) {
+                auto& rt = pvia::Runtime::instance();
+                const size_t active_count =
+                    2 * (v1.size() / (1ULL << (i + 1)));
+                vector<F> pvia_source_state;
+                pvia_source_state.insert(pvia_source_state.end(), v1.begin(), v1.begin()+active_count);
+                pvia_source_state.insert(pvia_source_state.end(), v2.begin(), v2.begin()+active_count);
+                pvia_source_state.insert(pvia_source_state.end(), v3.begin(), v3.begin()+active_count);
+                pvia_source_state.insert(pvia_source_state.end(), beta1.begin(), beta1.begin()+active_count);
+                pvia_source_state.insert(pvia_source_state.end(), h1.begin(), h1.begin()+active_count);
+                pvia_source_state.insert(pvia_source_state.end(), h2.begin(), h2.begin()+active_count);
+                const pvia::StateId source_state = rt.import_state(
+                    "cosumcheck_zero_round_input", pvia::Phase::COSUMCHECK_ZERO,
+                    pvia_source_state);
+                std::vector<pvia::OperationRef> predecessors;
+                const auto predecessor = rt.previous_round_operation_ref(
+                    pvia::Phase::COSUMCHECK_ZERO, static_cast<uint32_t>(i),
+                    pvia::Obligation::PUBLISH);
+                if (predecessor.object_id != 0) predecessors.push_back(predecessor);
+                pvia_record = rt.register_cubic_operation(
+                    pvia::Phase::COSUMCHECK_ZERO, i, pvia::Obligation::DERIVE, H, predecessors);
+                rt.bind_state_dependencies(
+                    pvia_record, std::vector<pvia::StateId>{source_state});
+                rt.bind_relation_kernel(
+                    pvia_record, pvia::AuditRelationKernel::COSUMCHECK_ZERO);
+                vector<F> pvia_round_aux = {y, b};
+                if (i > 0) pvia_round_aux.push_back(challenges[i-1]);
+                rt.bind_public_field_aux(
+                    pvia_record, pvia::AuditPublicAuxKind::SUMCHECK_CHALLENGE,
+                    pvia_round_aux);
+                pvia::Runtime::instance().activate_cubic(pvia_record, H);
+            }
+
+            H = aggregate_cubic_poly(H,beta2,k,_k,N, "cosumcheck_zero_round_release");
             
             if(rank == 0)vt.start();
         
             if(H.eval(0) + H.eval(1) != y){
                 printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
-                //exit(-1);
+                pvia::Runtime::instance().handle_global_failure(
+                    "zero-check sumcheck", pvia::Phase::COSUMCHECK_ZERO, i);
+                // Original code continued here; PVIA keeps that behavior in debug mode.
             }
             pt_cp.start();
-            
             challenges[i] = hash_to_field({H.a,H.b,H.c,H.d}); 
             if(rank == 0) ps += 4*16/1024.0;
             y = H.eval(challenges[i]);
@@ -141,7 +182,8 @@ vector<std::pair<F,vector<F>>> _zero_check_sumcheck(F y, vector<F> &v1,
         final_h2 = h2;        
     }
     
-    vector<pair<F,vector<F>>> reply = F_zero_check_rest(final_v1, final_v2, final_v3, final_h1, final_h2, beta1, beta2, b, y, k, _k, N);
+    vector<pair<F,vector<F>>> reply = F_zero_check_rest(final_v1, final_v2, final_v3, final_h1, final_h2, beta1, beta2, b, y, k, _k, N,
+        static_cast<uint32_t>(rounds));
     if(rank == 0) ps += 16*(4*(int)log2(N)+5)/1024.0;
         
     for(int i = 0; i < 4; i++){
@@ -197,14 +239,45 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
         for(int j = 0; j < v1.size()/(1<<(i+1)); j++) H = H + linear_poly(v1[2*j+1]-v1[2*j],v1[2*j])*linear_poly(v2[2*j+1]-v2[2*j],v2[2*j]);
         
         pt_cp.end();
-        H = aggregate_quadratic_poly(H,k,_k,N);
+        // PVIA: one responsibility block per prover and coSumcheck round.
+        pvia::RecordId pvia_record = 0;
+        if (pvia::Runtime::instance().enabled()) {
+            auto& rt = pvia::Runtime::instance();
+            const size_t active_count =
+                2 * (v1.size() / (1ULL << (i + 1)));
+            vector<F> pvia_source_state;
+            pvia_source_state.insert(pvia_source_state.end(), v1.begin(), v1.begin()+active_count);
+            pvia_source_state.insert(pvia_source_state.end(), v2.begin(), v2.begin()+active_count);
+            const pvia::StateId source_state = rt.import_state(
+                "cosumcheck_quadratic_round_input",
+                pvia::Phase::COSUMCHECK_QUADRATIC, pvia_source_state);
+            std::vector<pvia::OperationRef> predecessors;
+            const auto predecessor = rt.previous_round_operation_ref(
+                pvia::Phase::COSUMCHECK_QUADRATIC, static_cast<uint32_t>(i),
+                pvia::Obligation::PUBLISH);
+            if (predecessor.object_id != 0) predecessors.push_back(predecessor);
+            pvia_record = rt.register_quadratic_operation(
+                pvia::Phase::COSUMCHECK_QUADRATIC, i, pvia::Obligation::DERIVE, H, predecessors);
+            rt.bind_state_dependencies(
+                pvia_record, std::vector<pvia::StateId>{source_state});
+            rt.bind_relation_kernel(
+                pvia_record, pvia::AuditRelationKernel::COSUMCHECK_QUADRATIC);
+            vector<F> pvia_round_aux = {y};
+            if (i > 0) pvia_round_aux.push_back(challenges[i-1]);
+            rt.bind_public_field_aux(
+                pvia_record, pvia::AuditPublicAuxKind::SUMCHECK_CHALLENGE,
+                pvia_round_aux);
+            pvia::Runtime::instance().activate_quadratic(pvia_record, H);
+        }
+        H = aggregate_quadratic_poly(H,k,_k,N, "cosumcheck_quadratic_round_release");
         if(rank == 0)vt.start();
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
-            exit(-1);
+            pvia::Runtime::instance().handle_global_failure(
+                "quadratic coSumcheck", pvia::Phase::COSUMCHECK_QUADRATIC, i);
+            if (!pvia::Runtime::instance().enabled()) exit(-1);
         }
         pt_cp.start();
-        
         challenges[i] = hash_to_field({H.a,H.b,H.c}); 
         if(rank == 0)vt.end();
         if(rank == 0) ps += 3*16/1024.0;
@@ -217,7 +290,8 @@ vector<std::pair<F,vector<F>>> _quadratic_cosumcheck(F y, vector<F> &v1, vector<
         pt_cp.end();
          
     }
-    vector<pair<F,vector<F>>> reply = F_quadratic_sumcheck_rest(v1[0], v2[0], y, k, _k, N);
+    vector<pair<F,vector<F>>> reply = F_quadratic_sumcheck_rest(v1[0], v2[0], y, k, _k, N,
+        static_cast<uint32_t>(rounds));
     if(rank == 0) ps += 16*(3*(int)log2(N)+2)/1024.0;
     
     for(int i = 0; i < 2; i++){
@@ -254,7 +328,8 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
     vector<F> _r1,_r2,ones1(M,F(1)),ones2(k,F(1));
     pt_cp.end();
     
-    F y_r = F_ip_prod(h1,h2,ones1,ones2,k,_k,N);
+    F y_r = F_ip_prod(h1,h2,ones1,ones2,k,_k,N,
+        PVIA_SCALAR_CTX_COSUMCHECK_BATCH_AUX);
     if(rank == 0)vt.start();
     
     F b = hash_to_field({y_r});
@@ -268,13 +343,49 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
         quadratic_poly H;
         H = _quadratic_batch_sumcheck_phase1(i, b,v1,v2, v3,v4, h1, h2);
         pt_cp.end();
-        H = aggregate_quadratic_poly(H,k,_k,N);
+        // PVIA: bind batch-Sumcheck local polynomial before aggregation.
+        pvia::RecordId pvia_record = 0;
+        if (pvia::Runtime::instance().enabled()) {
+            auto& rt = pvia::Runtime::instance();
+            const size_t active_count =
+                2 * (v1.size() / (1ULL << (i + 1)));
+            vector<F> pvia_source_state;
+            pvia_source_state.insert(pvia_source_state.end(), v1.begin(), v1.begin()+active_count);
+            pvia_source_state.insert(pvia_source_state.end(), v2.begin(), v2.begin()+active_count);
+            pvia_source_state.insert(pvia_source_state.end(), v3.begin(), v3.begin()+active_count);
+            pvia_source_state.insert(pvia_source_state.end(), v4.begin(), v4.begin()+active_count);
+            pvia_source_state.insert(pvia_source_state.end(), h1.begin(), h1.begin()+active_count);
+            pvia_source_state.insert(pvia_source_state.end(), h2.begin(), h2.begin()+active_count);
+            const pvia::StateId source_state = rt.import_state(
+                "cosumcheck_batch_round_input",
+                pvia::Phase::COSUMCHECK_BATCH, pvia_source_state);
+            std::vector<pvia::OperationRef> predecessors;
+            const auto predecessor = rt.previous_round_operation_ref(
+                pvia::Phase::COSUMCHECK_BATCH, static_cast<uint32_t>(i),
+                pvia::Obligation::PUBLISH);
+            if (predecessor.object_id != 0) predecessors.push_back(predecessor);
+            pvia_record = rt.register_quadratic_operation(
+                pvia::Phase::COSUMCHECK_BATCH, i, pvia::Obligation::DERIVE, H, predecessors);
+            rt.bind_state_dependencies(
+                pvia_record, std::vector<pvia::StateId>{source_state});
+            rt.bind_relation_kernel(
+                pvia_record, pvia::AuditRelationKernel::COSUMCHECK_BATCH);
+            vector<F> pvia_round_aux = {y, b};
+            if (i > 0) pvia_round_aux.push_back(challenges[i-1]);
+            rt.bind_public_field_aux(
+                pvia_record, pvia::AuditPublicAuxKind::SUMCHECK_CHALLENGE,
+                pvia_round_aux);
+            pvia::Runtime::instance().activate_quadratic(pvia_record, H);
+        }
+        H = aggregate_quadratic_poly(H,k,_k,N, "cosumcheck_batch_round_release");
         pt_cp.start();
         if(rank == 0)vt.start();
     
         if(H.eval(0) + H.eval(1) != y){
             printf("Error cubic sumcheck %d,(%lld,%lld),(%lld,%lld)\n",i,y.real,y.img,(H.eval(0) + H.eval(1)).real,(H.eval(0) + H.eval(1)).img);
-            //exit(-1);
+            pvia::Runtime::instance().handle_global_failure(
+                "quadratic batch sumcheck", pvia::Phase::COSUMCHECK_BATCH, i);
+            // Original code continued here; PVIA keeps that behavior in debug mode.
         }
         challenges[i] = hash_to_field({H.a,H.b,H.c}); 
         
@@ -287,7 +398,8 @@ vector<std::pair<F,vector<F>>> _quadratic_batch_sumcheck(F y, vector<F> &v1,
         
     }
     
-    vector<pair<F,vector<F>>> reply = F_batch_sumcheck_rest(v1[0], v2[0], v3[0], v4[0], h1[0], h2[0], b, y, k, _k, N);
+    vector<pair<F,vector<F>>> reply = F_batch_sumcheck_rest(v1[0], v2[0], v3[0], v4[0], h1[0], h2[0], b, y, k, _k, N,
+        static_cast<uint32_t>(rounds));
     if(rank == 0) ps += 16*(3*(int)log2(N)+6)/1024.0;
     
     for(int i = 0; i < 4; i++){
